@@ -1,17 +1,21 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './HeroKinetic';
+import { BRAND } from './brand';
 
 export const StatCounter: React.FC<BaseSceneProps> = ({
   statValue = 100,
   statPrefix = '',
   statSuffix = '%',
-  statLabel = 'GROWTH RATE',
+  statLabel,
+  title,
+  text,
   accentColor = BRAND.neon,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const label = statLabel || title || text || 'METRIC';
 
   const countSpring = spring({
     frame,
@@ -37,7 +41,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '60px',
+        padding: '60px 40px',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -63,12 +67,17 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
           backgroundColor: BRAND.surface,
           border: `2px solid ${accentColor}40`,
           borderRadius: '32px',
-          padding: '60px 80px',
+          padding: '60px 60px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           boxShadow: `0 20px 50px rgba(0,0,0,0.5), 0 0 30px ${accentColor}20`,
           position: 'relative',
+          maxWidth: '900px',
+          width: '90%',
+          boxSizing: 'border-box',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         }}
       >
         {/* Animated Corner Accent */}
@@ -89,7 +98,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
         {/* Counter Number Display */}
         <div
           style={{
-            fontSize: '140px',
+            fontSize: '130px',
             fontWeight: 900,
             color: BRAND.text,
             letterSpacing: '-4px',
@@ -100,13 +109,13 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
           }}
         >
           {statPrefix && (
-            <span style={{ fontSize: '90px', color: accentColor, marginRight: '8px' }}>
+            <span style={{ fontSize: '80px', color: accentColor, marginRight: '8px' }}>
               {statPrefix}
             </span>
           )}
           <span>{currentValue}</span>
           {statSuffix && (
-            <span style={{ fontSize: '90px', color: accentColor, marginLeft: '8px' }}>
+            <span style={{ fontSize: '80px', color: accentColor, marginLeft: '8px' }}>
               {statSuffix}
             </span>
           )}
@@ -135,18 +144,21 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
         </div>
 
         {/* Label */}
-        {statLabel && (
+        {label && (
           <div
             style={{
               marginTop: '25px',
               fontSize: '28px',
               fontWeight: 700,
               color: BRAND.muted,
-              letterSpacing: '3px',
+              letterSpacing: '2px',
               textTransform: 'uppercase',
+              textAlign: 'center',
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word',
             }}
           >
-            {statLabel}
+            {label}
           </div>
         )}
       </div>

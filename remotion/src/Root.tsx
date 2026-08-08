@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition, getInputProps } from 'remotion';
 import { MainComposition } from './compositions/Main';
-import { BaseSceneSchema, VideoSpec, VideoSpecSchema } from './VideoSpec.schema';
+import { VideoSpec, VideoSpecSchema } from './VideoSpec.schema';
 
 import { GridGridFloor } from './presets/GridGridFloor';
 import { HeroKinetic } from './presets/HeroKinetic';
@@ -9,11 +9,46 @@ import { StatCounter } from './presets/StatCounter';
 import { SwipePanels } from './presets/SwipePanels';
 import { TypewriterSub } from './presets/TypewriterSub';
 
+const ErrorScene: React.FC<{ message: string }> = ({ message }) => (
+  <div
+    style={{
+      flex: 1,
+      backgroundColor: '#FF0033',
+      color: '#FFFFFF',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px',
+      textAlign: 'center',
+      fontFamily: 'monospace',
+    }}
+  >
+    <h1 style={{ fontSize: '72px', margin: '0 0 20px 0', fontWeight: 900 }}>RENDER ERROR</h1>
+    <p style={{ fontSize: '36px', margin: 0, fontWeight: 700 }}>{message}</p>
+  </div>
+);
+
 export const RemotionRoot: React.FC = () => {
   const inputProps = getInputProps() as Partial<VideoSpec>;
-  const parsedSpec = VideoSpecSchema.parse(inputProps);
+  const parsed = VideoSpecSchema.safeParse(inputProps);
 
-  const totalDuration = parsedSpec.scenes.reduce(
+  if (!parsed.success) {
+    const errorMsg = `ERROR: no scenes supplied or invalid spec: ${parsed.error.message}`;
+    return (
+      <Composition
+        id="Main"
+        component={() => <ErrorScene message={errorMsg} />}
+        durationInFrames={120}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
+    );
+  }
+
+  const spec = parsed.data;
+  const totalDuration = spec.scenes.reduce(
     (acc, scene) => acc + scene.durationInFrames,
     0
   );
@@ -24,11 +59,11 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="Main"
         component={MainComposition}
-        durationInFrames={totalDuration || parsedSpec.durationInFrames}
-        fps={parsedSpec.fps}
-        width={parsedSpec.width}
-        height={parsedSpec.height}
-        defaultProps={parsedSpec}
+        durationInFrames={totalDuration}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
+        defaultProps={spec}
       />
 
       {/* Standalone Preset Compositions for individual testing */}
@@ -36,16 +71,15 @@ export const RemotionRoot: React.FC = () => {
         id="HeroKinetic"
         component={HeroKinetic}
         durationInFrames={90}
-        fps={30}
-        width={1080}
-        height={1920}
-        schema={BaseSceneSchema}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
         defaultProps={{
-          id: 'hero-1',
+          id: 'test-hero',
           durationInFrames: 90,
           preset: 'HeroKinetic',
-          title: 'MOTION STUDIO',
-          subtitle: 'KINETIC TYPOGRAPHY',
+          title: 'HERO KINETIC',
+          subtitle: 'PRESET TEST',
         }}
       />
 
@@ -53,17 +87,16 @@ export const RemotionRoot: React.FC = () => {
         id="StatCounter"
         component={StatCounter}
         durationInFrames={90}
-        fps={30}
-        width={1080}
-        height={1920}
-        schema={BaseSceneSchema}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
         defaultProps={{
-          id: 'stat-1',
+          id: 'test-stat',
           durationInFrames: 90,
           preset: 'StatCounter',
           statValue: 100,
           statSuffix: '%',
-          statLabel: 'AUTOMATED MOTION',
+          statLabel: 'TEST METRIC',
         }}
       />
 
@@ -71,16 +104,15 @@ export const RemotionRoot: React.FC = () => {
         id="GridGridFloor"
         component={GridGridFloor}
         durationInFrames={90}
-        fps={30}
-        width={1080}
-        height={1920}
-        schema={BaseSceneSchema}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
         defaultProps={{
-          id: 'grid-1',
+          id: 'test-grid',
           durationInFrames: 90,
           preset: 'GridGridFloor',
-          title: 'NEO-BRUTALISM',
-          subtitle: '3D Wireframe Perspective',
+          title: 'GRID FLOOR',
+          subtitle: 'TEST SCENE',
         }}
       />
 
@@ -88,20 +120,14 @@ export const RemotionRoot: React.FC = () => {
         id="SwipePanels"
         component={SwipePanels}
         durationInFrames={90}
-        fps={30}
-        width={1080}
-        height={1920}
-        schema={BaseSceneSchema}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
         defaultProps={{
-          id: 'swipe-1',
+          id: 'test-swipe',
           durationInFrames: 90,
           preset: 'SwipePanels',
-          title: 'FEATURES',
-          cards: [
-            { title: 'Zero-Shot TTS', description: 'Qwen3 1.7B Voice Cloning', tag: 'AI' },
-            { title: 'Spring Motion', description: 'Overshoot typography', tag: 'UX' },
-            { title: 'Remotion React', description: 'Pixel-perfect 60 FPS', tag: 'DEV' },
-          ],
+          title: 'SWIPE PANELS',
         }}
       />
 
@@ -109,15 +135,14 @@ export const RemotionRoot: React.FC = () => {
         id="TypewriterSub"
         component={TypewriterSub}
         durationInFrames={90}
-        fps={30}
-        width={1080}
-        height={1920}
-        schema={BaseSceneSchema}
+        fps={spec.fps}
+        width={spec.width}
+        height={spec.height}
         defaultProps={{
-          id: 'typewriter-1',
+          id: 'test-typewriter',
           durationInFrames: 90,
           preset: 'TypewriterSub',
-          text: 'Ищете лучшие оупен сорс решения в области ИИ? Канал LLM Hubs ваш главный источник.',
+          text: 'Typewriter preset test string.',
         }}
       />
     </>

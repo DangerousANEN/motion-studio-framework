@@ -10,14 +10,24 @@ export const PresetTypeSchema = z.enum([
 
 export type PresetType = z.infer<typeof PresetTypeSchema>;
 
+export const SAFE_PRESETS: PresetType[] = [
+  'HeroKinetic',
+  'StatCounter',
+  'GridGridFloor',
+  'SwipePanels',
+  'TypewriterSub',
+];
+
 export const BaseSceneSchema = z.object({
   id: z.string().default('scene-1'),
-  durationInFrames: z.number().int().positive().default(90),
+  durationInFrames: z.number().int().positive(),
   preset: PresetTypeSchema.default('HeroKinetic'),
   title: z.string().optional(),
   subtitle: z.string().optional(),
   text: z.string().optional(),
+  bodyText: z.string().optional(),
   accentColor: z.string().optional(),
+  badge: z.string().optional(),
   // Preset specific optional fields
   statValue: z.number().optional(),
   statPrefix: z.string().optional(),
@@ -34,68 +44,34 @@ export const BaseSceneSchema = z.object({
     )
     .optional(),
   audioUrl: z.string().optional(),
-});
+}).passthrough();
 
 export const VideoSpecSchema = z.object({
   width: z.number().int().default(1080),
   height: z.number().int().default(1920),
-  fps: z.number().int().default(30),
-  durationInFrames: z.number().int().default(300),
+  fps: z.number().int().default(60),
+  durationInFrames: z.number().int().optional(),
   brandColors: z
     .object({
       bg: z.string().default('#0E0F11'),
       surface: z.string().default('#16181C'),
       gold: z.string().default('#E6C475'),
       neon: z.string().default('#00FF88'),
+      cyan: z.string().default('#00D4FF'),
+      text: z.string().default('#FFFFFF'),
+      muted: z.string().default('#8B92A0'),
     })
     .default({
       bg: '#0E0F11',
       surface: '#16181C',
       gold: '#E6C475',
       neon: '#00FF88',
+      cyan: '#00D4FF',
+      text: '#FFFFFF',
+      muted: '#8B92A0',
     }),
   audioUrl: z.string().optional(),
-  scenes: z.array(BaseSceneSchema).default([
-    {
-      id: 'scene-1',
-      durationInFrames: 90,
-      preset: 'HeroKinetic',
-      title: 'MOTION STUDIO',
-      subtitle: 'Next-Gen Remotion Engine',
-    },
-    {
-      id: 'scene-2',
-      durationInFrames: 90,
-      preset: 'StatCounter',
-      statValue: 100,
-      statSuffix: '%',
-      statLabel: 'AUTOMATED MOTION',
-    },
-    {
-      id: 'scene-3',
-      durationInFrames: 90,
-      preset: 'GridGridFloor',
-      title: 'NEO-BRUTALISM',
-      subtitle: '3D Wireframe Perspective',
-    },
-    {
-      id: 'scene-4',
-      durationInFrames: 90,
-      preset: 'SwipePanels',
-      title: 'FEATURES',
-      cards: [
-        { title: 'Zero-Shot TTS', description: 'Qwen3 1.7B Voice Cloning', tag: 'AI' },
-        { title: 'Spring Motion', description: 'Overshoot typography', tag: 'UX' },
-        { title: 'Remotion React', description: 'Pixel-perfect 60 FPS', tag: 'DEV' },
-      ],
-    },
-    {
-      id: 'scene-5',
-      durationInFrames: 90,
-      preset: 'TypewriterSub',
-      text: 'Ищете лучшие оупен сорс решения в области ИИ? Канал LLM Hubs ваш главный источник.',
-    },
-  ]),
+  scenes: z.array(BaseSceneSchema).min(1),
 });
 
 export type BaseSceneProps = z.infer<typeof BaseSceneSchema>;

@@ -1,25 +1,24 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
+import { BRAND } from './brand';
 
-export const BRAND = {
-  bg: '#0E0F11',
-  surface: '#181A20',
-  gold: '#E6C475',
-  neon: '#00FF88',
-  cyan: '#00D4FF',
-  text: '#FFFFFF',
-  darkBorder: '#000000',
-  shadowColor: '#000000',
-};
+export { BRAND };
 
 export const HeroKinetic: React.FC<BaseSceneProps> = ({
-  title = 'HERO KINETIC',
-  subtitle = 'DYNAMIC POP TYPOGRAPHY',
+  title,
+  text,
+  subtitle,
+  badge,
   accentColor = BRAND.gold,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const displayTitle = title || text || 'HERO KINETIC';
+
+  const len = displayTitle.length;
+  const fontSize = len > 60 ? '48px' : len > 30 ? '64px' : '88px';
 
   // Snappy Neo-Brutalist spring physics (stiff, quick snap)
   const springSnap = spring({
@@ -78,53 +77,65 @@ export const HeroKinetic: React.FC<BaseSceneProps> = ({
         }}
       />
 
-      {/* Decorative Geometric Neo-Brutalist Badge */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '120px',
-          backgroundColor: BRAND.neon,
-          color: '#000000',
-          padding: '12px 28px',
-          borderRadius: '4px',
-          border: '4px solid #000000',
-          boxShadow: '6px 6px 0px #000000',
-          fontSize: '28px',
-          fontWeight: 900,
-          textTransform: 'uppercase',
-          letterSpacing: '2px',
-          transform: 'rotate(3deg)',
-        }}
-      >
-        ★ LLM HUBS • SOTA TECH ★
-      </div>
+      {/* Decorative Geometric Neo-Brutalist Badge (Optional) */}
+      {badge && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '120px',
+            backgroundColor: BRAND.neon,
+            color: '#000000',
+            padding: '12px 28px',
+            borderRadius: '4px',
+            border: '4px solid #000000',
+            boxShadow: '6px 6px 0px #000000',
+            fontSize: '28px',
+            fontWeight: 900,
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            transform: 'rotate(3deg)',
+            maxWidth: '900px',
+            textAlign: 'center',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
+          }}
+        >
+          {badge}
+        </div>
+      )}
 
       {/* Main Kinetic Pop-Laboratory Card */}
       <div
         style={{
           transform: `scale(${scale}) rotate(${rotation}deg)`,
           backgroundColor: accentColor,
-          padding: '36px 54px',
+          padding: '36px 48px',
           borderRadius: '8px',
           border: '6px solid #000000',
           boxShadow: `${shadowOffset}px ${shadowOffset}px 0px ${BRAND.shadowColor}`,
           textAlign: 'center',
-          maxWidth: '960px',
+          maxWidth: '920px',
+          width: '90%',
+          boxSizing: 'border-box',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
           zIndex: 5,
         }}
       >
         <h1
           style={{
-            fontSize: '92px',
+            fontSize,
             fontWeight: 900,
             color: '#000000',
             letterSpacing: '-1px',
             margin: 0,
-            lineHeight: 1.0,
+            lineHeight: 1.1,
             textTransform: 'uppercase',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
-          {title}
+          {displayTitle}
         </h1>
       </div>
 
@@ -140,17 +151,23 @@ export const HeroKinetic: React.FC<BaseSceneProps> = ({
             boxShadow: '8px 8px 0px #000000',
             padding: '20px 36px',
             borderRadius: '6px',
+            maxWidth: '900px',
+            boxSizing: 'border-box',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
             zIndex: 5,
           }}
         >
           <p
             style={{
-              fontSize: '34px',
+              fontSize: '32px',
               fontWeight: 800,
               color: BRAND.text,
-              letterSpacing: '2px',
+              letterSpacing: '1px',
               textTransform: 'uppercase',
               margin: 0,
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word',
             }}
           >
             {subtitle}

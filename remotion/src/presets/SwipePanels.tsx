@@ -1,7 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './HeroKinetic';
+import { BRAND } from './brand';
 
 const DEFAULT_CARDS = [
   { title: 'Fast Rendering', description: '60 FPS Motion Graphics', tag: 'SPEED', color: BRAND.gold },
@@ -10,18 +10,25 @@ const DEFAULT_CARDS = [
 ];
 
 export const SwipePanels: React.FC<BaseSceneProps> = ({
-  title = 'KEY CAPABILITIES',
-  cards = DEFAULT_CARDS,
+  title,
+  text,
+  cards,
   accentColor = BRAND.gold,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const displayTitle = title || text || 'KEY CAPABILITIES';
+  const displayCards = cards && cards.length > 0 ? cards : DEFAULT_CARDS;
 
   const titleSpring = spring({
     frame,
     fps,
     config: { damping: 14, stiffness: 100 },
   });
+
+  const titleLen = displayTitle.length;
+  const titleFontSize = titleLen > 40 ? '40px' : titleLen > 20 ? '50px' : '64px';
 
   return (
     <div
@@ -32,7 +39,7 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '60px',
+        padding: '60px 40px',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -43,21 +50,26 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
         style={{
           opacity: interpolate(titleSpring, [0, 1], [0, 1]),
           transform: `translateY(${interpolate(titleSpring, [0, 1], [-40, 0])}px)`,
-          marginBottom: '50px',
+          marginBottom: '40px',
           textAlign: 'center',
+          maxWidth: '920px',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         }}
       >
         <h2
           style={{
-            fontSize: '64px',
+            fontSize: titleFontSize,
             fontWeight: 900,
             color: BRAND.text,
             margin: 0,
             letterSpacing: '2px',
             textTransform: 'uppercase',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
-          {title}
+          {displayTitle}
         </h2>
         <div
           style={{
@@ -78,9 +90,10 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
           gap: '24px',
           width: '100%',
           maxWidth: '880px',
+          boxSizing: 'border-box',
         }}
       >
-        {cards.map((card, idx) => {
+        {displayCards.slice(0, 4).map((card, idx) => {
           const cardDelay = 10 + idx * 12;
           const cardSpring = spring({
             frame: frame - cardDelay,
@@ -103,22 +116,28 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
                 opacity,
                 transform: `translateX(${translateX}px) scale(${scale})`,
                 backgroundColor: BRAND.surface,
-                borderRadius: '20px',
-                padding: '30px 40px',
+                borderRadius: '16px',
+                padding: '24px 32px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 borderLeft: `8px solid ${cardAccent}`,
-                boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+                border: `2px solid #000000`,
+                boxShadow: `6px 6px 0px ${BRAND.shadowColor}`,
+                overflowWrap: 'break-word',
+                wordBreak: 'break-word',
+                gap: '16px',
               }}
             >
-              <div>
+              <div style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                 <h3
                   style={{
-                    fontSize: '36px',
+                    fontSize: '32px',
                     fontWeight: 800,
                     color: BRAND.text,
                     margin: 0,
+                    overflowWrap: 'break-word',
+                    wordBreak: 'break-word',
                   }}
                 >
                   {card.title}
@@ -126,9 +145,11 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
                 {card.description && (
                   <p
                     style={{
-                      fontSize: '24px',
+                      fontSize: '22px',
                       color: BRAND.muted,
                       margin: '8px 0 0 0',
+                      overflowWrap: 'break-word',
+                      wordBreak: 'break-word',
                     }}
                   >
                     {card.description}
@@ -143,10 +164,11 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
                     color: cardAccent,
                     border: `1px solid ${cardAccent}`,
                     padding: '8px 18px',
-                    borderRadius: '30px',
+                    borderRadius: '4px',
                     fontSize: '18px',
                     fontWeight: 800,
                     letterSpacing: '1px',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {card.tag}

@@ -1,15 +1,18 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './HeroKinetic';
+import { BRAND } from './brand';
 
 export const GridGridFloor: React.FC<BaseSceneProps> = ({
-  title = 'GRID FLOOR 3D',
-  subtitle = 'NEO-BRUTALISM WIREFRAME',
+  title,
+  text,
+  subtitle,
   accentColor = BRAND.neon,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const displayTitle = title || text || 'GRID FLOOR 3D';
 
   // Perspective floor grid animation
   const gridOffset = (frame * 3) % 60;
@@ -27,6 +30,9 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
   const cardTranslateY = interpolate(cardSpring, [0, 1], [100, 0]);
   const cardOpacity = interpolate(cardSpring, [0, 1], [0, 1]);
 
+  const len = displayTitle.length;
+  const fontSize = len > 50 ? '48px' : len > 25 ? '60px' : '80px';
+
   return (
     <div
       style={{
@@ -36,7 +42,7 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '60px',
+        padding: '60px 40px',
         position: 'relative',
         overflow: 'hidden',
         perspective: '800px',
@@ -72,11 +78,15 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
           backgroundColor: BRAND.surface,
           border: `4px solid ${accentColor}`,
           borderRadius: '24px',
-          padding: '60px',
+          padding: '48px 40px',
           textAlign: 'center',
           boxShadow: `12px 12px 0px ${accentColor}`,
           zIndex: 5,
-          maxWidth: '850px',
+          maxWidth: '900px',
+          width: '90%',
+          boxSizing: 'border-box',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         }}
       >
         <div
@@ -98,27 +108,31 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
 
         <h1
           style={{
-            fontSize: '80px',
+            fontSize,
             fontWeight: 900,
             color: BRAND.text,
             margin: 0,
             lineHeight: 1.1,
             letterSpacing: '-1px',
             textTransform: 'uppercase',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
-          {title}
+          {displayTitle}
         </h1>
 
         {subtitle && (
           <p
             style={{
-              fontSize: '32px',
+              fontSize: '30px',
               fontWeight: 600,
               color: BRAND.muted,
               marginTop: '20px',
               marginBottom: 0,
-              letterSpacing: '2px',
+              letterSpacing: '1px',
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word',
             }}
           >
             {subtitle}

@@ -16,7 +16,56 @@ from msf.config import AudioConfig
 logger = logging.getLogger(__name__)
 
 
-class AudioMaster:
+def master_video_audio(in_mp4: str, out_mp4: str, target_lufs: float = -16.0) -> str:
+    """Master video audio using ffmpeg loudnorm filter without re-encoding video.
+
+    FFmpeg filter: loudnorm=I=-16:LRA=11:TP=-1.5, re-encode audio to AAC 192k, -c:v copy.
+    Raises RuntimeError on ffmpeg failure.
+    """
+    if not os.path.exists(in_mp4):
+        raise FileNotFoundError(f"Input video file not found: {in_mp4}")
+
+    out_path = Path(out_mp4)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # loudnorm resamples internally to 192kHz; without an explicit -ar the muxed
+    # AAC stream inherits that rate. Pin 48kHz — the delivery standard for
+    # YouTube Shorts / Reels / TikTok.
+    filter_str = f"loudnorm=I={target_lufs}:LRA=11:TP=-1.5,aresample=48000"
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        in_mp4,
+        "-af",
+        filter_str,
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        str(out_path),
+    ]
+
+    logger.info("Mastering video audio with loudnorm: %s", " ".join(cmd))
+    res = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+
+    if res.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg audio mastering failed with exit code {res.returncode}.\n"
+            f"Stderr: {res.stderr}"
+        )
+
+    return str(out_path)
+
+
+class AudioMasterEngine:
     """Master audio streams using FFmpeg filters including highpass, lowpass, compression, EQ, and loudnorm."""
 
     def __init__(self, config: Optional[AudioConfig] = None) -> None:
@@ -24,13 +73,6 @@ class AudioMaster:
 
     def master_audio(self, input_path: str, output_path: str) -> str:
         """Master an audio file using FFmpeg filter graph.
-
-        Applies:
-          - Highpass filter @ 80 Hz (if enabled)
-          - Lowpass filter @ 12 kHz
-          - Dynamic range compressor
-          - EQ boost @ 3 kHz (+2 dB)
-          - EBU R128 Loudness Normalization to target LUFS (default -16 LUFS)
 
         Args:
             input_path: Path to raw input audio file.
@@ -52,9 +94,7 @@ class AudioMaster:
         target_lufs = self.config.target_lufs if self.config else -16.0
         sample_rate = self.config.sample_rate if self.config else 44100
 
-        # Build clean FFmpeg audio filter graph
-        filters = []
-        filters.append(f"loudnorm=I={target_lufs}:LRA=11:TP=-1.5")
+        filters = [f"loudnorm=I={target_lufs}:LRA=11:TP=-1.5"]
         filter_str = ",".join(filters)
 
         cmd = [
@@ -75,16 +115,14 @@ class AudioMaster:
 
         logger.info("Executing FFmpeg audio mastering command: %s", " ".join(cmd))
 
-        try:
-            res = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            logger.info("Audio mastering completed successfully: %s", output_path)
-        except subprocess.CalledProcessError as err:
-            logger.error("FFmpeg audio mastering failed: %s\nStderr: %s", err, err.stderr)
-            raise RuntimeError(f"FFmpeg audio mastering failed with exit code {err.returncode}: {err.stderr}") from err
+        res = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        if res.returncode != 0:
+            logger.error("FFmpeg audio mastering failed: exit code %d\nStderr: %s", res.returncode, res.stderr)
+            raise RuntimeError(f"FFmpeg audio mastering failed with exit code {res.returncode}: {res.stderr}")
 
+        logger.info("Audio mastering completed successfully: %s", output_path)
         return str(out_path_obj)
+
+
+# Backwards compatibility alias
+AudioMaster = AudioMasterEngine
