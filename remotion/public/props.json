@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 941,
+  "durationInFrames": 931,
   "brandColors": {
     "bg": "#0E0F11",
     "surface": "#16181C",
@@ -15,7 +15,7 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 147,
+      "durationInFrames": 152,
       "preset": "HeroKinetic",
       "text": "Канал ЛЛМ Хабс.",
       "accentColor": "#E6C475",
@@ -23,7 +23,7 @@
     },
     {
       "id": "scene-2",
-      "durationInFrames": 224,
+      "durationInFrames": 228,
       "preset": "TypewriterSub",
       "text": "Топовые нейросети и открытый исходный код.",
       "accentColor": "#E6C475",
@@ -31,7 +31,7 @@
     },
     {
       "id": "scene-3",
-      "durationInFrames": 243,
+      "durationInFrames": 224,
       "preset": "GridGridFloor",
       "text": "Рендер идёт локально в шестьдесят кадров в секунду.",
       "accentColor": "#E6C475",
