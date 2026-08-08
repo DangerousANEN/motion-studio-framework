@@ -40,6 +40,7 @@ ALLOWED_PRESETS = {
 
 class VideoState(TypedDict, total=False):
     text: str
+    storyboard: Optional[List[Dict[str, Any]]]
     preset: str
     accent: Optional[str]
     reference_audio: Optional[str]
@@ -74,9 +75,25 @@ def node_gate_check(state: VideoState) -> VideoState:
 
 
 def node_script_split(state: VideoState) -> VideoState:
-    """Split text into sentence-sized scenes."""
-    scenes = _split_into_scenes(state.get("text", ""))
-    state["scenes"] = scenes
+    """Split text into sentence-sized scenes, or accept a hand-authored storyboard.
+
+    When the caller supplies `storyboard` (a list of scene dicts), it wins: this is
+    how presets that need structured data (StatCounter's statValue, SwipePanels'
+    cards) get driven, since plain narration can't express them. Each storyboard
+    entry still needs a `text` field — that's what gets voiced.
+    """
+    storyboard = state.get("storyboard")
+    if storyboard:
+        scenes = [dict(sc) for sc in storyboard]
+        for i, sc in enumerate(scenes):
+            if not sc.get("text"):
+                raise ValueError(
+                    f"storyboard[{i}] has no 'text' — every scene needs narration to voice."
+                )
+        state["scenes"] = scenes
+        return state
+
+    state["scenes"] = _split_into_scenes(state.get("text", ""))
     return state
 
 
@@ -131,7 +148,9 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
         audio_paths.append(str(dst_wav))
         sc["duration_in_frames"] = frames_for(dur, FPS)
         sc["audio_file"] = scene_wav_name
-        sc["preset"] = _rotated_preset(base_preset, i)
+        # A storyboard scene names its own preset; only auto-rotate when it didn't.
+        if not sc.get("preset"):
+            sc["preset"] = _rotated_preset(base_preset, i)
         sc["accent"] = state.get("accent", "gold")
 
     state["audio_paths"] = audio_paths
@@ -148,13 +167,20 @@ def node_build_remotion_spec(state: VideoState) -> VideoState:
         audio_name = f"scene_{i:02d}.wav"
         scenes_objs.append(
             Scene(
-                id=f"scene-{i+1}",
+                id=sc.get("id", f"scene-{i+1}"),
                 duration_in_frames=sc.get("duration_in_frames", 90),
                 preset=sc.get("preset", state.get("preset", "HeroKinetic")),
                 title=sc.get("title"),
                 subtitle=sc.get("subtitle"),
                 text=sc.get("text"),
-                accent_color=accent_color,
+                body_text=sc.get("body_text"),
+                accent_color=sc.get("accent_color") or accent_color,
+                badge=sc.get("badge"),
+                stat_value=sc.get("stat_value"),
+                stat_prefix=sc.get("stat_prefix"),
+                stat_suffix=sc.get("stat_suffix"),
+                stat_label=sc.get("stat_label"),
+                cards=sc.get("cards"),
                 audio_url=audio_name,
             )
         )
@@ -414,12 +440,17 @@ def node_repair(state: VideoState) -> VideoState:
             if os.path.exists(audio_path):
                 shutil.copy(audio_path, remotion_public / Path(audio_path).name)
 
-    # 2. If blank frames or non-diverse: fallback scenes to HeroKinetic
+    # 2. If blank frames or non-diverse: fall back to a preset that can render the
+    #    scene's own data. StatCounter/SwipePanels scenes carry structured fields
+    #    (statValue/cards) that HeroKinetic cannot show, so only text-driven scenes
+    #    are downgraded — otherwise the repair would destroy the storyboard.
     lum_check = report.get("check_4_5_luminance", {})
     div_check = report.get("check_6_diversity", {})
     if not lum_check.get("pass", True) or not div_check.get("pass", True):
         scenes = state.get("scenes") or []
         for sc in scenes:
+            if sc.get("stat_value") is not None or sc.get("cards"):
+                continue
             sc["preset"] = "HeroKinetic"
 
     # 3. If duration mismatch: recompute duration from actual wav files
@@ -459,7 +490,14 @@ def node_repair(state: VideoState) -> VideoState:
                 title=sc.get("title"),
                 subtitle=sc.get("subtitle"),
                 text=sc.get("text"),
-                accent_color=accent_color,
+                body_text=sc.get("body_text"),
+                accent_color=sc.get("accent_color") or accent_color,
+                badge=sc.get("badge"),
+                stat_value=sc.get("stat_value"),
+                stat_prefix=sc.get("stat_prefix"),
+                stat_suffix=sc.get("stat_suffix"),
+                stat_label=sc.get("stat_label"),
+                cards=sc.get("cards"),
                 audio_url=audio_name,
             )
         )

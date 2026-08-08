@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 931,
+  "durationInFrames": 1080,
   "brandColors": {
     "bg": "#0E0F11",
     "surface": "#16181C",
@@ -14,44 +14,86 @@
   },
   "scenes": [
     {
-      "id": "scene-1",
-      "durationInFrames": 152,
+      "id": "s1-hook",
+      "durationInFrames": 180,
       "preset": "HeroKinetic",
-      "text": "Канал ЛЛМ Хабс.",
+      "title": "МОУШН-ВИДЕО ЛОКАЛЬНО",
+      "subtitle": "без облака и подписок",
+      "text": "Моушн-видео целиком локально. Без облака и без подписок.",
       "accentColor": "#E6C475",
       "audioUrl": "scene_00.wav"
     },
     {
-      "id": "scene-2",
-      "durationInFrames": 228,
-      "preset": "TypewriterSub",
-      "text": "Топовые нейросети и открытый исходный код.",
-      "accentColor": "#E6C475",
+      "id": "s2-fps",
+      "durationInFrames": 180,
+      "preset": "StatCounter",
+      "text": "Рендер идёт в шестьдесят кадров в секунду, вертикальный формат.",
+      "accentColor": "#00FF88",
+      "badge": "REMOTION",
+      "statValue": 60,
+      "statSuffix": " FPS",
+      "statLabel": "рендер 1080 на 1920",
       "audioUrl": "scene_01.wav"
     },
     {
-      "id": "scene-3",
-      "durationInFrames": 224,
-      "preset": "GridGridFloor",
-      "text": "Рендер идёт локально в шестьдесят кадров в секунду.",
+      "id": "s3-stack",
+      "durationInFrames": 180,
+      "preset": "SwipePanels",
+      "title": "ЧТО ВНУТРИ",
+      "text": "Внутри граф оркестрации, реакт-рендер и клонирование голоса.",
       "accentColor": "#E6C475",
+      "cards": [
+        {
+          "title": "LangGraph",
+          "description": "граф с QA и самопочинкой",
+          "tag": "ГРАФ",
+          "color": "#00D4FF"
+        },
+        {
+          "title": "Remotion",
+          "description": "React-анимация и пружины",
+          "tag": "РЕНДЕР",
+          "color": "#E6C475"
+        },
+        {
+          "title": "Qwen3-TTS",
+          "description": "клон голоса за один проход",
+          "tag": "ГОЛОС",
+          "color": "#00FF88"
+        }
+      ],
       "audioUrl": "scene_02.wav"
     },
     {
-      "id": "scene-4",
-      "durationInFrames": 185,
-      "preset": "HeroKinetic",
-      "text": "Озвучка клонируется моделью Qwen три.",
+      "id": "s4-voice",
+      "durationInFrames": 180,
+      "preset": "GridGridFloor",
+      "title": "ГОЛОС КЛОНИРУЕТСЯ",
+      "subtitle": "один референсный файл",
+      "text": "Голос клонируется с одного референсного файла, без обучения.",
       "accentColor": "#E6C475",
       "audioUrl": "scene_03.wav"
     },
     {
-      "id": "scene-5",
-      "durationInFrames": 142,
-      "preset": "TypewriterSub",
-      "text": "Без облака и без подписок.",
-      "accentColor": "#E6C475",
+      "id": "s5-qa",
+      "durationInFrames": 180,
+      "preset": "StatCounter",
+      "text": "Шесть автоматических проверок качества проходят до выдачи результата.",
+      "accentColor": "#00D4FF",
+      "badge": "FAIL-CLOSED",
+      "statValue": 6,
+      "statPrefix": "",
+      "statSuffix": "",
+      "statLabel": "проверки качества до выдачи",
       "audioUrl": "scene_04.wav"
+    },
+    {
+      "id": "s6-cta",
+      "durationInFrames": 180,
+      "preset": "TypewriterSub",
+      "text": "Подписывайся на канал ЛЛМ Хабс.",
+      "accentColor": "#E6C475",
+      "audioUrl": "scene_05.wav"
     }
   ]
 }
