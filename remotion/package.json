@@ -8,9 +8,13 @@
     "start": "remotion preview src/index.ts"
   },
   "dependencies": {
+    "@react-three/fiber": "^8.18.0",
+    "@remotion/three": "^4.0.506",
+    "@types/three": "^0.169.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "remotion": "^4.0.0",
+    "three": "^0.169.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

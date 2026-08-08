@@ -1,0 +1,29 @@
+{
+  "_readme": {
+    "purpose": "Voice registry for MSF Qwen3-TTS cloning. Each voice = reference audio + verbatim transcript.",
+    "mode": "ICL (prosody transfer) requires ref_text. Without ref_text the engine falls back to x-vector mode (timbre only, flatter delivery).",
+    "ref_text_rule": "ref_text must be the EXACT words spoken in ref_audio, and must not run past the end of the clip. A transcript longer than the audio triggers truncated output.",
+    "length_rule": "MEASURED: a 30 s reference produced 0.87 s of audio against a 5.20 s x-vector baseline (truncated). An 8 s reference produced 3.75 s vs a 4.23 s baseline (healthy). Keep references at 8-15 s.",
+    "format_rule": "24 kHz mono is native for Qwen3. 48 kHz works but is resampled internally.",
+    "source_rule": "Use a HUMAN recording. Cloning from TTS output compounds vocoder artifacts. Tell them apart by noise floor: a live mic sits around -40 dB, synthetic output around -80 dB (digital silence in the gaps).",
+    "verify": "python -c \"from msf.skills_bridge.qwen3_tts import describe_reference; print(describe_reference('syenduk'))\""
+  },
+  "syenduk": {
+    "ref_audio": "assets/voices/refs/syenduk_8s_24k.wav",
+    "ref_text": "Кому бы не хотелось поговорить с животными, Рик? Большинство людей.",
+    "lang": "ru",
+    "notes": "Live human speech, trimmed to 8 s and resampled to 24 kHz mono. Verified working in ICL mode (3.75 s output vs 4.23 s x-vector baseline). Default voice."
+  },
+  "syenduk_30s_raw": {
+    "ref_audio": "C:/Users/ANEN/llm_hubs_shorts/syenduk_30s_sample.wav",
+    "ref_text": "Кому бы не хотелось поговорить с животными, Рик? Большинство людей. А, оттого, только поаккуратнее там. Надо двигаться без конца. Верх вниз, вниз, вверх, вниз, вверх, стоп вниз. Матке нужна еда. Деткам нужна еда. Матка рожает деток.",
+    "lang": "ru",
+    "notes": "BROKEN FOR ICL — 30 s is too long, output truncates to 0.87 s. Kept only as the source for trimming. Do not select for rendering."
+  },
+  "clone_test_10s": {
+    "ref_audio": "C:/Users/ANEN/qwen3_1.7B_clone_test.wav",
+    "ref_text": "Ищите лучшие оупен сорс решения в области искусственного интеллекта? Канал ЛЛМ Хабс — ваш главный источник передовых нейросетей.",
+    "lang": "ru",
+    "notes": "This is TTS OUTPUT, not a human recording (noise floor -80.8 dB). Cloning from it recycles vocoder artifacts. Kept for A/B comparison only."
+  }
+}
