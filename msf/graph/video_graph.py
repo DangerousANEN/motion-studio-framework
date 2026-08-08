@@ -5,6 +5,7 @@ remotion-based videos with fail-closed QA and self-correction repair loop.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -29,12 +30,22 @@ REMOTION_DIR = REPO_ROOT / "remotion"
 PUBLIC_DIR = REMOTION_DIR / "public"
 DEFAULT_OUTPUT = REPO_ROOT / "output" / "remotion"
 
+# Presets a low-capability agent may request. Must stay in sync with
+# SAFE_PRESETS in remotion/src/VideoSpec.schema.ts.
 ALLOWED_PRESETS = {
+    # 2D
     "HeroKinetic",
     "StatCounter",
     "GridGridFloor",
     "SwipePanels",
     "TypewriterSub",
+    "CompareSplit",
+    "FlowDiagram",
+    "CodeReveal",
+    "QuoteCard",
+    # 3D
+    "TokenCloud3D",
+    "LayerStack3D",
 }
 
 
@@ -44,6 +55,9 @@ class VideoState(TypedDict, total=False):
     preset: str
     accent: Optional[str]
     reference_audio: Optional[str]
+    voice: Optional[str]
+    video_format: Optional[str]
+    theme: Optional[str]
     agent_level: Optional[int]
     output_path: Optional[str]
     scenes: Optional[List[Dict[str, Any]]]
@@ -116,10 +130,23 @@ def _rotated_preset(base: str, index: int) -> str:
 
 
 def node_voice_synthesis(state: VideoState) -> VideoState:
-    """Synthesize voice cloning for all scenes using Qwen3 1.7B-Base."""
-    ref_audio = state.get(
-        "reference_audio", r"C:/Users/ANEN/qwen3_1.7B_clone_test.wav"
-    )
+    """Synthesize voice cloning for all scenes using Qwen3 1.7B-Base.
+
+    Voice selection goes through the registry (`voice` key or wav path) so the
+    transcript travels with the audio and ICL prosody transfer stays on. An
+    explicit `reference_audio` path still wins for one-off overrides.
+    """
+    from msf.skills_bridge.qwen3_tts import describe_reference, resolve_voice
+
+    override = state.get("reference_audio")
+    ref_audio, ref_text = resolve_voice(override or state.get("voice"))
+    ref_info = describe_reference(override or state.get("voice"))
+    print(f"[voice] {ref_info['mode']} ref={Path(ref_audio).name} "
+          f"dur={ref_info['duration_sec']}s sr={ref_info['sample_rate']}")
+    if ref_text is None:
+        print("[voice] WARNING: no transcript for this reference — "
+              "falling back to x-vector timbre copy without prosody transfer.")
+
     scenes = state.get("scenes", [])
     audio_paths = []
 
@@ -136,7 +163,7 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
     base_preset = state.get("preset", "HeroKinetic")
 
     for i, sc in enumerate(scenes):
-        wav_path, dur = _synthesize_cloned_audio(sc["text"], ref_audio)
+        wav_path, dur = _synthesize_cloned_audio(sc["text"], ref_audio, ref_text)
         scene_wav_name = f"scene_{i:02d}.wav"
         dst_wav = audio_dir / scene_wav_name
         shutil.copy(wav_path, str(dst_wav))
@@ -162,30 +189,30 @@ def node_build_remotion_spec(state: VideoState) -> VideoState:
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
 
     accent_color = "#E6C475" if state.get("accent") == "gold" else (state.get("accent") or "#E6C475")
+
+    # Copy every field the Scene dataclass knows about, so adding a preset field
+    # in msf/spec.py is enough — no parallel edit needed here.
+    scene_fields = {f.name for f in dataclasses.fields(Scene)}
+
     scenes_objs: List[Scene] = []
     for i, sc in enumerate(state.get("scenes", [])):
         audio_name = f"scene_{i:02d}.wav"
-        scenes_objs.append(
-            Scene(
-                id=sc.get("id", f"scene-{i+1}"),
-                duration_in_frames=sc.get("duration_in_frames", 90),
-                preset=sc.get("preset", state.get("preset", "HeroKinetic")),
-                title=sc.get("title"),
-                subtitle=sc.get("subtitle"),
-                text=sc.get("text"),
-                body_text=sc.get("body_text"),
-                accent_color=sc.get("accent_color") or accent_color,
-                badge=sc.get("badge"),
-                stat_value=sc.get("stat_value"),
-                stat_prefix=sc.get("stat_prefix"),
-                stat_suffix=sc.get("stat_suffix"),
-                stat_label=sc.get("stat_label"),
-                cards=sc.get("cards"),
-                audio_url=audio_name,
-            )
+        kwargs = {k: v for k, v in sc.items() if k in scene_fields and v is not None}
+        kwargs.update(
+            id=sc.get("id", f"scene-{i+1}"),
+            duration_in_frames=sc.get("duration_in_frames", 90),
+            preset=sc.get("preset", state.get("preset", "HeroKinetic")),
+            accent_color=sc.get("accent_color") or accent_color,
+            audio_url=audio_name,
         )
+        scenes_objs.append(Scene(**kwargs))
 
-    spec_dict = build_spec(scenes_objs, fps=FPS, width=WIDTH, height=HEIGHT)
+    spec_dict = build_spec(
+        scenes_objs,
+        fps=FPS,
+        video_format=state.get("video_format"),
+        theme=state.get("theme"),
+    )
 
     # Fail fast at the graph level too: never persist or render an unusable spec.
     validate_spec(spec_dict)
@@ -475,34 +502,30 @@ def node_repair(state: VideoState) -> VideoState:
                     sc["duration_in_frames"] = frames_for(dur, FPS)
 
     state["retry_count"] = retry_count + 1
-    state["preset"] = "HeroKinetic"
 
-    # Rebuild spec_dict with updated scene properties
+    # Rebuild spec_dict with updated scene properties, preserving every field the
+    # Scene dataclass knows about (3D layers, code, quote attribution, ...).
+    scene_fields = {f.name for f in dataclasses.fields(Scene)}
     scenes_objs: List[Scene] = []
     accent_color = "#E6C475" if state.get("accent") == "gold" else (state.get("accent") or "#E6C475")
     for i, sc in enumerate(state.get("scenes", [])):
         audio_name = f"scene_{i:02d}.wav"
-        scenes_objs.append(
-            Scene(
-                id=sc.get("id", f"scene-{i+1}"),
-                duration_in_frames=sc.get("duration_in_frames", 90),
-                preset=sc.get("preset", "HeroKinetic"),
-                title=sc.get("title"),
-                subtitle=sc.get("subtitle"),
-                text=sc.get("text"),
-                body_text=sc.get("body_text"),
-                accent_color=sc.get("accent_color") or accent_color,
-                badge=sc.get("badge"),
-                stat_value=sc.get("stat_value"),
-                stat_prefix=sc.get("stat_prefix"),
-                stat_suffix=sc.get("stat_suffix"),
-                stat_label=sc.get("stat_label"),
-                cards=sc.get("cards"),
-                audio_url=audio_name,
-            )
+        kwargs = {k: v for k, v in sc.items() if k in scene_fields and v is not None}
+        kwargs.update(
+            id=sc.get("id", f"scene-{i+1}"),
+            duration_in_frames=sc.get("duration_in_frames", 90),
+            preset=sc.get("preset", "HeroKinetic"),
+            accent_color=sc.get("accent_color") or accent_color,
+            audio_url=audio_name,
         )
+        scenes_objs.append(Scene(**kwargs))
 
-    spec_dict = build_spec(scenes_objs, fps=FPS, width=WIDTH, height=HEIGHT)
+    spec_dict = build_spec(
+        scenes_objs,
+        fps=FPS,
+        video_format=state.get("video_format"),
+        theme=state.get("theme"),
+    )
     state["spec_dict"] = spec_dict
 
     props_path = remotion_public / "props.json"

@@ -120,6 +120,12 @@ class Scene:
     # Code / terminal
     code: Optional[str] = None
     language: Optional[str] = None
+    # QuoteCard
+    author: Optional[str] = None
+    role: Optional[str] = None
+    # TokenCloud3D / LayerStack3D
+    point_count: Optional[int] = None
+    layers: Optional[List[str]] = None
     # Style
     style: Optional[str] = None
     audio_url: Optional[str] = None
@@ -135,6 +141,7 @@ class Scene:
         "model_url": "modelUrl",
         "model_scale": "modelScale",
         "orbit_speed": "orbitSpeed",
+        "point_count": "pointCount",
         "audio_url": "audioUrl",
     }
 

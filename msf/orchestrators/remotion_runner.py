@@ -95,10 +95,18 @@ def _split_into_scenes(text: str, max_words: int = MAX_WORDS_PER_SCENE) -> list[
     return [{"text": c} for c in merged]
 
 
-def _synthesize_cloned_audio(text: str, ref_audio: str) -> tuple[str, float]:
-    """Return (wav_path, duration_seconds) using Qwen3 1.7B-Base zero-shot."""
+def _synthesize_cloned_audio(
+    text: str, ref_audio: str, ref_text: str | None = None
+) -> tuple[str, float]:
+    """Return (wav_path, duration_seconds) using Qwen3 1.7B-Base zero-shot.
+
+    Passing `ref_text` keeps ICL mode on, which transfers the reference speaker's
+    prosody. Without it the model only copies timbre and reads flat.
+    """
     from msf.skills_bridge.qwen3_tts import synthesize_voice_clone
-    return synthesize_voice_clone(text=text, ref_audio=ref_audio, language="Russian")
+    return synthesize_voice_clone(
+        text=text, ref_audio=ref_audio, ref_text=ref_text, language="Russian"
+    )
 
 
 def render_remotion_video(spec_dict: dict, out_mp4: str) -> str:
