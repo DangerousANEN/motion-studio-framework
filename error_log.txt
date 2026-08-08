@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\ANEN\motion-studio-framework\./tests\test_phase5.py", line 146, in test_audio_mastering_and_video_assembly
+    out_video = assembler.assemble(
+                ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ANEN\motion-studio-framework\msf\engines\render\assembler.py", line 56, in assemble
+    raise FileNotFoundError(f"First frame not found at: {first_frame}")
+FileNotFoundError: First frame not found at: C:\Users\ANEN\AppData\Local\Temp\tmpko4q2cm2\test_frames\frame_00000.jpg

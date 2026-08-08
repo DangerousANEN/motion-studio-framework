@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+output/
+audit/
+*.mp4
+*.wav
+.venv/
+remotion/node_modules/

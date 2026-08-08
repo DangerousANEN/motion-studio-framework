@@ -1,0 +1,20 @@
+llm:
+  provider: openai
+  base_url: http://localhost:20128/v1
+  api_key: omniroute-local-key
+  model: antigravity/gemini-3.6-flash-high
+  temperature: 0.7
+  max_tokens: 4096
+tts:
+  provider: silero
+  speaker: kseniya
+  sample_rate: 24000
+render:
+  fps: 30
+  width: 1080
+  height: 1920
+audio:
+  target_lufs: -16.0
+pipeline:
+  max_qc_attempts: 3
+  save_intermediate: true

@@ -1,0 +1,14 @@
+{
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "scenes": [
+    {
+      "text": "Тест стилистики Pop Laboratory и Neo Brutalism.",
+      "duration_in_frames": 120,
+      "audio_file": "scene_00.wav",
+      "preset": "HeroKinetic",
+      "accent": "gold"
+    }
+  ]
+}

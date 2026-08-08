@@ -1,0 +1,8 @@
+httpx
+pyyaml
+playwright
+torch
+faster-whisper
+click
+jinja2
+pillow

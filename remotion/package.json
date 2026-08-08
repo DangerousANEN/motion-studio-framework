@@ -1,0 +1,23 @@
+{
+  "name": "msf-remotion",
+  "version": "1.0.0",
+  "description": "Motion Studio Framework Remotion Video Engine",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "remotion render src/index.ts Main out/output.mp4",
+    "start": "remotion preview src/index.ts"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.3"
+  }
+}
