@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 1080,
+  "durationInFrames": 1664,
   "brandColors": {
     "bg": "#0E0F11",
     "surface": "#16181C",
@@ -15,7 +15,7 @@
   "scenes": [
     {
       "id": "s1-hook",
-      "durationInFrames": 180,
+      "durationInFrames": 310,
       "preset": "HeroKinetic",
       "title": "МОУШН-ВИДЕО ЛОКАЛЬНО",
       "subtitle": "без облака и подписок",
@@ -25,7 +25,7 @@
     },
     {
       "id": "s2-fps",
-      "durationInFrames": 180,
+      "durationInFrames": 300,
       "preset": "StatCounter",
       "text": "Рендер идёт в шестьдесят кадров в секунду, вертикальный формат.",
       "accentColor": "#00FF88",
@@ -37,7 +37,7 @@
     },
     {
       "id": "s3-stack",
-      "durationInFrames": 180,
+      "durationInFrames": 320,
       "preset": "SwipePanels",
       "title": "ЧТО ВНУТРИ",
       "text": "Внутри граф оркестрации, реакт-рендер и клонирование голоса.",
@@ -66,7 +66,7 @@
     },
     {
       "id": "s4-voice",
-      "durationInFrames": 180,
+      "durationInFrames": 286,
       "preset": "GridGridFloor",
       "title": "ГОЛОС КЛОНИРУЕТСЯ",
       "subtitle": "один референсный файл",
@@ -76,7 +76,7 @@
     },
     {
       "id": "s5-qa",
-      "durationInFrames": 180,
+      "durationInFrames": 272,
       "preset": "StatCounter",
       "text": "Шесть автоматических проверок качества проходят до выдачи результата.",
       "accentColor": "#00D4FF",
@@ -89,7 +89,7 @@
     },
     {
       "id": "s6-cta",
-      "durationInFrames": 180,
+      "durationInFrames": 176,
       "preset": "TypewriterSub",
       "text": "Подписывайся на канал ЛЛМ Хабс.",
       "accentColor": "#E6C475",
