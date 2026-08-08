@@ -8,6 +8,7 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
   title,
   bodyText,
   subtitle,
+  badge,
   durationInFrames,
   accentColor = BRAND.gold,
 }) => {
@@ -16,7 +17,9 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
   const fps = config.fps;
   const totalFrames = durationInFrames || config.durationInFrames || 90;
 
-  const rawText = text || title || bodyText || 'Ищете лучшие оупен сорс решения в области ИИ? Канал LLM Hubs ваш главный источник.';
+  // No silent demo fallback: a scene with no text is a spec bug, and it must be
+  // visible in the render rather than disguised as real content.
+  const rawText = text || title || bodyText || subtitle || '⚠ NO TEXT IN SPEC';
   const words = rawText.split(/\s+/).filter(Boolean);
 
   const wordCount = words.length;
@@ -58,25 +61,28 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
         }}
       />
 
-      {/* Subtitle Badge */}
-      <div
-        style={{
-          backgroundColor: BRAND.surface,
-          border: `2px solid ${accentColor}`,
-          boxShadow: `4px 4px 0px ${BRAND.shadowColor}`,
-          padding: '10px 28px',
-          borderRadius: '4px',
-          color: accentColor,
-          fontSize: '20px',
-          fontWeight: 800,
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          marginBottom: '40px',
-          zIndex: 5,
-        }}
-      >
-        {subtitle || 'SUBTITLES / VOICEOVER'}
-      </div>
+      {/* Optional badge — rendered only when the spec asks for one, so a Russian
+          video never inherits a hardcoded English label. */}
+      {(badge || subtitle) && (
+        <div
+          style={{
+            backgroundColor: BRAND.surface,
+            border: `2px solid ${accentColor}`,
+            boxShadow: `4px 4px 0px ${BRAND.shadowColor}`,
+            padding: '10px 28px',
+            borderRadius: '4px',
+            color: accentColor,
+            fontSize: '20px',
+            fontWeight: 800,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            marginBottom: '40px',
+            zIndex: 5,
+          }}
+        >
+          {badge || subtitle}
+        </div>
+      )}
 
       {/* Word Cloud Kinetic Display */}
       <div

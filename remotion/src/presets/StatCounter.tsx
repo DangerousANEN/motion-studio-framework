@@ -10,12 +10,13 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
   statLabel,
   title,
   text,
+  badge,
   accentColor = BRAND.neon,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const label = statLabel || title || text || 'METRIC';
+  const label = statLabel || title || text || '⚠ NO STAT LABEL IN SPEC';
 
   const countSpring = spring({
     frame,
@@ -80,20 +81,22 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
           wordBreak: 'break-word',
         }}
       >
-        {/* Animated Corner Accent */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 20,
-            right: 25,
-            fontSize: '18px',
-            color: accentColor,
-            fontWeight: 800,
-            letterSpacing: '2px',
-          }}
-        >
-          LIVE METRIC
-        </div>
+        {/* Optional corner accent — opt-in via spec, never a hardcoded label */}
+        {badge && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 25,
+              fontSize: '18px',
+              color: accentColor,
+              fontWeight: 800,
+              letterSpacing: '2px',
+            }}
+          >
+            {badge}
+          </div>
+        )}
 
         {/* Counter Number Display */}
         <div

@@ -26,7 +26,11 @@ spec = result.get("spec_dict", {})
 print("fps       :", spec.get("fps"))
 print("scenes    :", len(spec.get("scenes", [])))
 for i, sc in enumerate(spec.get("scenes", [])):
-    print(f"  [{i}] {sc.get('durationInFrames')}f audio={sc.get('audioUrl')} text={(sc.get('text') or '')[:45]!r}")
+    print(f"  [{i}] {sc.get('preset'):14s} {sc.get('durationInFrames')}f "
+          f"audio={sc.get('audioUrl')} badge={sc.get('badge')!r} "
+          f"text={(sc.get('text') or '')[:40]!r}")
+presets_used = [sc.get("preset") for sc in spec.get("scenes", [])]
+print("distinct presets used:", len(set(presets_used)), "->", sorted(set(presets_used)))
 print("--- QA REPORT ---")
 print(json.dumps(result.get("qa_report", {}), ensure_ascii=False, indent=1)[:1800])
 

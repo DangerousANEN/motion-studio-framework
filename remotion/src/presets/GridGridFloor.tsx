@@ -7,12 +7,13 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
   title,
   text,
   subtitle,
+  badge,
   accentColor = BRAND.neon,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const displayTitle = title || text || 'GRID FLOOR 3D';
+  const displayTitle = title || text || '⚠ NO TITLE IN SPEC';
 
   // Perspective floor grid animation
   const gridOffset = (frame * 3) % 60;
@@ -89,22 +90,24 @@ export const GridGridFloor: React.FC<BaseSceneProps> = ({
           wordBreak: 'break-word',
         }}
       >
-        <div
-          style={{
-            display: 'inline-block',
-            backgroundColor: accentColor,
-            color: BRAND.bg,
-            fontWeight: 900,
-            fontSize: '20px',
-            padding: '6px 18px',
-            borderRadius: '6px',
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            marginBottom: '20px',
-          }}
-        >
-          MSF 3D SCENE
-        </div>
+        {badge && (
+          <div
+            style={{
+              display: 'inline-block',
+              backgroundColor: accentColor,
+              color: BRAND.bg,
+              fontWeight: 900,
+              fontSize: '20px',
+              padding: '6px 18px',
+              borderRadius: '6px',
+              letterSpacing: '2px',
+              textTransform: 'uppercase',
+              marginBottom: '20px',
+            }}
+          >
+            {badge}
+          </div>
+        )}
 
         <h1
           style={{

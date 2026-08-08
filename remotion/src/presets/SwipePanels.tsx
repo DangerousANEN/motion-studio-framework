@@ -3,10 +3,10 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
 import { BRAND } from './brand';
 
-const DEFAULT_CARDS = [
-  { title: 'Fast Rendering', description: '60 FPS Motion Graphics', tag: 'SPEED', color: BRAND.gold },
-  { title: 'Zero-Shot TTS', description: 'Qwen3 Voice Cloning', tag: 'AUDIO', color: BRAND.neon },
-  { title: 'Remotion React', description: 'Programmatic Video Spec', tag: 'CODE', color: '#61DAFB' },
+// Shown only when the spec supplies no cards — deliberately looks broken so the
+// spec bug surfaces instead of masquerading as real content.
+const MISSING_CARDS = [
+  { title: '⚠ NO CARDS IN SPEC', description: 'scene.cards was empty', tag: 'BUG', color: '#FF0033' },
 ];
 
 export const SwipePanels: React.FC<BaseSceneProps> = ({
@@ -18,8 +18,8 @@ export const SwipePanels: React.FC<BaseSceneProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const displayTitle = title || text || 'KEY CAPABILITIES';
-  const displayCards = cards && cards.length > 0 ? cards : DEFAULT_CARDS;
+  const displayTitle = title || text || '⚠ NO TITLE IN SPEC';
+  const displayCards = cards && cards.length > 0 ? cards : MISSING_CARDS;
 
   const titleSpring = spring({
     frame,

@@ -80,6 +80,24 @@ def node_script_split(state: VideoState) -> VideoState:
     return state
 
 
+# Rotating presets for multi-scene videos. StatCounter and SwipePanels need
+# structured data (statValue/cards) that plain narration text doesn't provide, so
+# they are excluded from automatic rotation — they'd render their ⚠ placeholder.
+_TEXT_SAFE_PRESETS = ["HeroKinetic", "TypewriterSub", "GridGridFloor"]
+
+
+def _rotated_preset(base: str, index: int) -> str:
+    """Vary the visual template across scenes so a long short isn't one static card.
+
+    The requested preset always leads scene 0; later scenes cycle through the
+    text-safe presets (which accept plain narration) to keep the video moving.
+    """
+    if base in _TEXT_SAFE_PRESETS:
+        cycle = [base] + [p for p in _TEXT_SAFE_PRESETS if p != base]
+        return cycle[index % len(cycle)]
+    return base
+
+
 def node_voice_synthesis(state: VideoState) -> VideoState:
     """Synthesize voice cloning for all scenes using Qwen3 1.7B-Base."""
     ref_audio = state.get(
@@ -98,6 +116,8 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
     audio_dir.mkdir(exist_ok=True)
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
 
+    base_preset = state.get("preset", "HeroKinetic")
+
     for i, sc in enumerate(scenes):
         wav_path, dur = _synthesize_cloned_audio(sc["text"], ref_audio)
         scene_wav_name = f"scene_{i:02d}.wav"
@@ -111,7 +131,7 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
         audio_paths.append(str(dst_wav))
         sc["duration_in_frames"] = frames_for(dur, FPS)
         sc["audio_file"] = scene_wav_name
-        sc["preset"] = state.get("preset", "HeroKinetic")
+        sc["preset"] = _rotated_preset(base_preset, i)
         sc["accent"] = state.get("accent", "gold")
 
     state["audio_paths"] = audio_paths

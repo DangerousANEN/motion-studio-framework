@@ -15,7 +15,7 @@ export const HeroKinetic: React.FC<BaseSceneProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const displayTitle = title || text || 'HERO KINETIC';
+  const displayTitle = title || text || '⚠ NO TITLE IN SPEC';
 
   const len = displayTitle.length;
   const fontSize = len > 60 ? '48px' : len > 30 ? '64px' : '88px';

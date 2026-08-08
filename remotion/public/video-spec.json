@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 790,
+  "durationInFrames": 941,
   "brandColors": {
     "bg": "#0E0F11",
     "surface": "#16181C",
@@ -15,11 +15,43 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 790,
+      "durationInFrames": 147,
       "preset": "HeroKinetic",
-      "text": "Канал ЛЛМ Хабс. Топовые нейросети и открытый исходный код. Рендер идёт локально в шестьдесят кадров в секунду. Озвучка клонируется моделью Qwen три. Без облака и без подписок.",
+      "text": "Канал ЛЛМ Хабс.",
       "accentColor": "#E6C475",
       "audioUrl": "scene_00.wav"
+    },
+    {
+      "id": "scene-2",
+      "durationInFrames": 224,
+      "preset": "TypewriterSub",
+      "text": "Топовые нейросети и открытый исходный код.",
+      "accentColor": "#E6C475",
+      "audioUrl": "scene_01.wav"
+    },
+    {
+      "id": "scene-3",
+      "durationInFrames": 243,
+      "preset": "GridGridFloor",
+      "text": "Рендер идёт локально в шестьдесят кадров в секунду.",
+      "accentColor": "#E6C475",
+      "audioUrl": "scene_02.wav"
+    },
+    {
+      "id": "scene-4",
+      "durationInFrames": 185,
+      "preset": "HeroKinetic",
+      "text": "Озвучка клонируется моделью Qwen три.",
+      "accentColor": "#E6C475",
+      "audioUrl": "scene_03.wav"
+    },
+    {
+      "id": "scene-5",
+      "durationInFrames": 142,
+      "preset": "TypewriterSub",
+      "text": "Без облака и без подписок.",
+      "accentColor": "#E6C475",
+      "audioUrl": "scene_04.wav"
     }
   ]
 }
