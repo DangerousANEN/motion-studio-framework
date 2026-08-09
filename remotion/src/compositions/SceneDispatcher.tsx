@@ -34,18 +34,35 @@ import { TokenCloud3D } from '../presets/three/TokenCloud3D';
  * overlap.
  */
 export const SceneDispatcher: React.FC<BaseSceneProps> = (props) => {
-  // Absolutely filled rather than `flex: 1`: a flex child only gets height when
-  // its parent is a flex container, and TransitionSeries.Sequence is not one.
-  // With `flex: 1` this wrapper collapsed to zero height and every preset that
-  // sizes itself from the parent (StatCounter, CodeReveal, QuoteCard) rendered a
-  // blank frame -- presets built on AbsoluteFill kept working, which is what made
-  // it look preset-specific. Inset-0 makes the wrapper independent of the parent's
-  // layout mode.
+  // Sized with explicit width/height, NOT `inset: 0` alone.
+  //
+  // The shader-backed transitions (ripple, crosswarp, filmBurn, bookFlip, ...)
+  // rasterise the scene through Remotion's HtmlInCanvas: the subtree is placed
+  // inside a `<canvas layoutSubtree>` and captured with captureElementImage().
+  // That canvas subtree does NOT establish the containing block a normal
+  // absolutely-positioned child resolves `inset` against, so `inset: 0` alone
+  // resolved to a zero-sized box and the capture came back empty -- a fully
+  // black frame, with no error thrown and the render reporting success.
+  //
+  // The DOM transitions (fade, slide, iris, ...) composite in normal DOM where
+  // `inset: 0` does resolve, which is why only the shader group broke and made
+  // the bug look preset-specific.
+  //
+  // Measured, frame 20 of the same two-scene spec (identical apart from the
+  // transition name):
+  //     inset: 0 alone          -> YMAX 29  (blank)
+  //     inset: 0 + width/height -> YMAX 220 (renders)
+  //
+  // `isolation: 'isolate'` is a separate fix: it gives each scene its own
+  // stacking context so a preset's internal zIndex (cards use 5) cannot paint
+  // over the incoming scene for the whole overlap.
   return (
     <div
       style={{
         position: 'absolute',
         inset: 0,
+        width: '100%',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         isolation: 'isolate',

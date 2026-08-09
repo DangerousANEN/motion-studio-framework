@@ -8,6 +8,7 @@
     "start": "remotion preview src/index.ts"
   },
   "dependencies": {
+    "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@remotion/animation-utils": "^4.0.507",
     "@remotion/captions": "^4.0.507",
