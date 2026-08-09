@@ -135,6 +135,13 @@ class Scene:
     # Style
     style: Optional[str] = None
     audio_url: Optional[str] = None
+    # Transition played BEFORE this scene. Ignored on scene 0 (nothing to come
+    # from). Dict on the wire: {"type", "durationInFrames", "direction", "timing"}.
+    # NOTE: every transition SHORTENS the composition by its own duration, because
+    # it overlaps the two neighbouring scenes. The renderer accounts for this in
+    # lib/transitions.ts getTransitionPlan(); total_frames() below mirrors it so
+    # the audio track length matches the video.
+    transition: Optional[Dict[str, Any]] = None
 
     _CAMEL = {
         "duration_in_frames": "durationInFrames",
@@ -163,6 +170,59 @@ class Scene:
                 continue
             res[self._CAMEL.get(field_name, field_name)] = value
         return res
+
+
+# ---------------------------------------------------------------- transitions
+
+# Mirrors TRANSITION_NAMES in remotion/src/lib/transitions.ts and
+# TransitionTypeSchema in VideoSpec.schema.ts. tests/test_transition_parity.py
+# asserts all three stay in sync.
+TRANSITIONS: Tuple[str, ...] = (
+    "none", "fade", "dissolve", "slide", "wipe", "flip", "clockWipe", "iris",
+    "pushCut", "ripple", "crosswarp", "crossZoom", "swap", "linearBlur",
+    "zoomInOut", "dreamyZoom", "filmBurn", "zoomBlur", "bookFlip",
+)
+
+# 18 frames = 300ms at 60fps. Must match DEFAULT_TRANSITION_FRAMES in transitions.ts.
+DEFAULT_TRANSITION_FRAMES = 18
+
+
+def compute_total_frames(scene_dicts: List[Dict[str, Any]]) -> int:
+    """Total composition length, with transition overlap subtracted.
+
+    A transition overlaps the outgoing and incoming scene, so a TransitionSeries
+    is SHORTER than the sum of its scene durations. MSF lays one continuous
+    voice-over over the whole video: if this number is too large, the video ends
+    on a frozen frame and every scene after the first transition drifts against
+    the narration.
+
+    This is a line-by-line mirror of getTransitionPlan() in
+    remotion/src/lib/transitions.ts, including the clamp that keeps at least one
+    frame of each neighbour visible. The two MUST agree — tests/test_transition_parity.py
+    checks them against shared fixtures.
+    """
+    total = sum(int(s["durationInFrames"]) for s in scene_dicts)
+
+    for i in range(1, len(scene_dicts)):
+        cfg = scene_dicts[i].get("transition")
+        if not isinstance(cfg, dict):
+            continue
+        if cfg.get("type", "fade") == "none":
+            continue
+
+        requested = cfg.get("durationInFrames") or DEFAULT_TRANSITION_FRAMES
+        max_allowed = max(
+            0,
+            min(
+                int(scene_dicts[i - 1]["durationInFrames"]),
+                int(scene_dicts[i]["durationInFrames"]),
+            ) - 1,
+        )
+        overlap = min(int(requested), max_allowed)
+        if overlap > 0:
+            total -= overlap
+
+    return max(1, total)
 
 
 # ---------------------------------------------------------------- validation
@@ -235,6 +295,34 @@ def validate_spec(spec: Dict[str, Any]) -> None:
                 "That would render a placeholder instead of real content."
             )
 
+        # An unknown transition name fails Zod in Root.tsx, which degrades the
+        # whole render to a red ERROR card. Same failure mode as a bad theme.
+        transition = sc.get("transition")
+        if transition is not None:
+            if not isinstance(transition, dict):
+                raise ValueError(
+                    f"Spec validation failed: scene[{i}] 'transition' must be a dict, "
+                    f"got {type(transition).__name__}."
+                )
+            t_type = transition.get("type", "fade")
+            if t_type not in TRANSITIONS:
+                raise ValueError(
+                    f"Spec validation failed: scene[{i}] has unknown transition "
+                    f"{t_type!r}. Valid transitions: {sorted(TRANSITIONS)}."
+                )
+            t_frames = transition.get("durationInFrames")
+            if t_frames is not None and (not isinstance(t_frames, int) or t_frames <= 0):
+                raise ValueError(
+                    f"Spec validation failed: scene[{i}] transition 'durationInFrames' "
+                    f"must be a positive int, got {t_frames!r}."
+                )
+            if i == 0 and t_type != "none":
+                raise ValueError(
+                    "Spec validation failed: scene[0] declares a transition, but a "
+                    "transition runs BETWEEN two scenes and the first scene has "
+                    "nothing to come from. Move it to scene[1]."
+                )
+
 
 # ---------------------------------------------------------------- builder
 
@@ -268,7 +356,7 @@ def build_spec(
         )
 
     scene_dicts = [s.to_dict() if isinstance(s, Scene) else s for s in scenes]
-    total_frames = sum(s["durationInFrames"] for s in scene_dicts)
+    total_frames = compute_total_frames(scene_dicts)
 
     spec: Dict[str, Any] = {
         "width": out_w,

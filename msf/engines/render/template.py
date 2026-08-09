@@ -143,7 +143,11 @@ class HTMLTemplateEngine:
             asset_title = scene.scene_id
             asset_desc = ""
             if scene.assets and idx < len(scene.assets):
-                asset_desc = scene.assets[idx].description or ""
+                # AssetResult has no `description` field -- it carries free-form
+                # data in `metadata`. Reading .description raised AttributeError
+                # and killed the whole pipeline run.
+                asset = scene.assets[idx]
+                asset_desc = str(asset.metadata.get("description", "") or "")
             
             accent_color = "#E6C475" if idx % 2 == 0 else "#00FF88"
 

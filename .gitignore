@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 output/
 audit/
+
+# Build artifacts from the esbuild-based probes and the spec validator.
+remotion/.schema.bundle.mjs
+remotion/.*_probe.js
 *.mp4
 *.wav
 .venv/

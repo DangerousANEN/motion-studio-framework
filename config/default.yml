@@ -6,11 +6,21 @@ llm:
   temperature: 0.7
   max_tokens: 4096
 tts:
-  provider: silero
-  speaker: kseniya
+  # Qwen3-TTS with ICL voice cloning is what the render path actually calls
+  # (msf/skills_bridge/qwen3_tts.py). The old `silero` entry described a
+  # provider this pipeline no longer uses. Key is `speaker`, not `voice` --
+  # _section_from_dict() silently drops unknown keys.
+  provider: qwen3
+  speaker: syenduk
   sample_rate: 24000
 render:
-  fps: 30
+  # MUST stay 60. msf/spec.py FPS=60 and the render path passes it explicitly,
+  # so a different value here only ever created a false expectation. It is also
+  # load-bearing for timing constants that are expressed in FRAMES:
+  #   DEFAULT_TRANSITION_FRAMES = 18  -> 300ms at 60fps, 600ms at 30fps
+  #   MOTION_PRESETS durations        -> calm 60f = 1.0s at 60fps, 2.0s at 30fps
+  # tests/test_config_parity.py fails if this drifts from msf.spec.FPS.
+  fps: 60
   width: 1080
   height: 1920
 audio:

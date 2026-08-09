@@ -397,7 +397,12 @@ def node_qa(state: VideoState) -> VideoState:
         spec_dict = state.get("spec_dict", {})
         fps = spec_dict.get("fps", FPS)
         scenes = spec_dict.get("scenes", [])
-        expected_sec = sum(sc.get("durationInFrames", 90) for sc in scenes) / fps
+        # Transitions overlap, so the video is shorter than the sum. Use the
+        # same logic spec.py uses to set durationInFrames, or this check will
+        # fail on every video that has crossfades.
+        from msf.spec import compute_total_frames
+        expected_frames = compute_total_frames(scenes)
+        expected_sec = expected_frames / fps
         dur_pass, actual_sec = _check_duration(mp4_path, expected_sec)
         report["check_2_duration"] = {
             "pass": dur_pass,

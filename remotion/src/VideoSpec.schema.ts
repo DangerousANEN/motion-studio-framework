@@ -161,6 +161,42 @@ export const StepSchema = z.object({
   detail: z.string().optional(),
 });
 
+/**
+ * Scene-to-scene transition. Mirrors TRANSITION_NAMES in lib/transitions.ts;
+ * a name added there must be added here or the spec will be rejected.
+ */
+export const TransitionTypeSchema = z.enum([
+  'none',
+  'fade',
+  'dissolve',
+  'slide',
+  'wipe',
+  'flip',
+  'clockWipe',
+  'iris',
+  'pushCut',
+  'ripple',
+  'crosswarp',
+  'crossZoom',
+  'swap',
+  'linearBlur',
+  'zoomInOut',
+  'dreamyZoom',
+  'filmBurn',
+  'zoomBlur',
+  'bookFlip',
+]);
+
+export const TransitionSpecSchema = z.object({
+  type: TransitionTypeSchema.default('fade'),
+  /** Overlap in frames. Clamped at render time so it can never exceed a neighbouring scene. */
+  durationInFrames: z.number().int().positive().max(120).optional(),
+  direction: z.enum(['from-left', 'from-right', 'from-top', 'from-bottom']).optional(),
+  timing: z.enum(['spring', 'linear']).optional(),
+});
+
+export type TransitionSpec = z.infer<typeof TransitionSpecSchema>;
+
 export const BaseSceneSchema = z
   .object({
     id: z.string().default('scene-1'),
@@ -203,6 +239,13 @@ export const BaseSceneSchema = z
     /** Coarse motion control for weak agents. `motion` overrides it per channel. */
     intensity: IntensitySchema.optional(),
     safeArea: SafeAreaModeSchema.optional(),
+    /**
+     * Transition played BEFORE this scene (i.e. between the previous scene and
+     * this one). Ignored on the first scene -- there is nothing to transition
+     * from. Each transition shortens the total timeline by its own duration;
+     * see lib/transitions.ts getTransitionPlan().
+     */
+    transition: TransitionSpecSchema.optional(),
   })
   .passthrough();
 

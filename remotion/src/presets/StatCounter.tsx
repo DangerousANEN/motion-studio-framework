@@ -112,11 +112,18 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
   const fillFraction = countClamped;
 
   return (
+    // Sized absolutely, NOT with `flex: 1`. A flex child only receives height
+    // from a flex parent, and the shader-backed transitions (dissolve, ripple,
+    // filmBurn) rasterise each scene into an OffscreenCanvas wrapper that is not
+    // a flex container. Under those the preset collapsed to zero height and the
+    // frame rendered pure black, while CSS transitions (fade, slide) were fine —
+    // which is what made the bug look transition-specific. Measured: YMAX 29
+    // (blank) with dissolve vs 235 with fade, same spec.
     <div
       style={{
-        flex: 1,
+        position: 'absolute',
+        inset: 0,
         backgroundColor: BRAND.bg,
-        position: 'relative',
         overflow: 'hidden',
         fontFamily: numberFont,
       }}

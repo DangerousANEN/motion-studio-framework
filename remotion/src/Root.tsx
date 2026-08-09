@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition, getInputProps } from 'remotion';
 import { MainComposition } from './compositions/Main';
+import { getTransitionPlan } from './lib/transitions';
 import { VideoSpec, VideoSpecSchema } from './VideoSpec.schema';
 
 import { GridGridFloor } from './presets/GridGridFloor';
@@ -48,10 +49,13 @@ export const RemotionRoot: React.FC = () => {
   }
 
   const spec = parsed.data;
-  const totalDuration = spec.scenes.reduce(
-    (acc, scene) => acc + scene.durationInFrames,
-    0
-  );
+  // TransitionSeries OVERLAPS scenes, so the timeline is shorter than the sum of
+  // scene durations by the total overlap. Summing durations naively left the
+  // composition longer than the rendered content and desynced the pre-rendered
+  // audio track. computeTransitionPlan() is the single source of truth and is
+  // mirrored by compute_total_frames() in msf/spec.py
+  // (tests/test_transition_parity.py asserts the two agree).
+  const totalDuration = getTransitionPlan(spec.scenes).totalDurationInFrames;
 
   return (
     <>

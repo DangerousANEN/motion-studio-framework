@@ -19,8 +19,12 @@ Uses unittest to match the rest of tests/ (this project has no pytest).
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path
+
+# Allow `python tests/test_theme_parity.py` as well as `python -m unittest`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from msf.spec import DEFAULT_THEME, THEMES, Scene, build_spec
 

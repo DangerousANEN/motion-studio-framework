@@ -17,9 +17,13 @@ import yaml
 class LLMConfig:
     """LLM provider and model parameters."""
     provider: str = "openai"
-    api_key: str = ""
-    base_url: Optional[str] = None
-    model: str = "gpt-4o"
+    # Defaults mirror config/default.yml: this project talks to the local
+    # OmniRoute gateway, not api.openai.com. A None base_url made LLMClient
+    # fall back to the public endpoint, so any code path constructing a bare
+    # MSFConfig() (e.g. tests) hit the internet and failed with 403.
+    api_key: str = "omniroute-local-key"
+    base_url: Optional[str] = "http://localhost:20128/v1"
+    model: str = "antigravity/gemini-3.6-flash-high"
     temperature: float = 0.7
     max_tokens: int = 4096
 
@@ -27,8 +31,11 @@ class LLMConfig:
 @dataclasses.dataclass
 class TTSConfig:
     """Text-to-Speech synthesis parameters."""
-    provider: str = "silero"
-    speaker: str = "kseniya"
+    # The render path calls Qwen3-TTS with ICL voice cloning
+    # (msf/skills_bridge/qwen3_tts.py, DEFAULT_VOICE="syenduk"). The former
+    # silero/kseniya defaults described a provider no longer in the pipeline.
+    provider: str = "qwen3"
+    speaker: str = "syenduk"
     sample_rate: int = 24000
     speed: float = 1.0
 
@@ -36,7 +43,11 @@ class TTSConfig:
 @dataclasses.dataclass
 class RenderConfig:
     """Playwright and FFmpeg video rendering parameters."""
-    fps: int = 30
+    # Must equal msf.spec.FPS. Frame-denominated constants elsewhere assume 60
+    # (DEFAULT_TRANSITION_FRAMES=18 -> 300ms; motion preset durations), so a
+    # mismatch silently doubles or halves every animation.
+    # Guarded by tests/test_config_parity.py.
+    fps: int = 60
     width: int = 1080
     height: int = 1920
     headless: bool = True
@@ -48,7 +59,11 @@ class RenderConfig:
 class AudioConfig:
     """Audio mastering filters and LUFS target settings."""
     target_lufs: float = -16.0
-    sample_rate: int = 44100
+    # 48kHz to match master_video_audio()'s aresample=48000 in
+    # msf/engines/audio/mastering.py. These are two paths onto the same
+    # timeline; 44100 here meant AudioMasterEngine resampled differently
+    # than the graph did.
+    sample_rate: int = 48000
     enable_highpass: bool = True
     enable_compressor: bool = True
     enable_eq: bool = True
