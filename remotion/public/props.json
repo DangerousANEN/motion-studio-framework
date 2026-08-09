@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 1657,
+  "durationInFrames": 1753,
   "format": "vertical",
   "safeMargin": 120,
   "theme": "pop",
@@ -18,60 +18,72 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 348,
+      "durationInFrames": 377,
       "preset": "HeroKinetic",
-      "title": "70B МОДЕЛЬ НА ОДНОЙ КАРТЕ?",
-      "subtitle": "Локальный инференс без облаков",
-      "text": "Запустить мощную модель на семьдесят миллиардов параметров на домашней видеокарте — теперь реально.",
+      "title": "PYTHON СЛИШКОМ МЕДЛЕННЫЙ?",
+      "subtitle": "Ускорение инференса в 5 раз",
+      "text": "Медленный инференс съедает ресурсы твоего сервера? Пора переписать пайплайн.",
       "accentColor": "#E6C475",
       "audioUrl": "scene_00.wav"
     },
     {
       "id": "scene-2",
-      "durationInFrames": 343,
-      "preset": "LayerStack3D",
-      "title": "КВАНТОВАНИЕ И КЭШ",
-      "subtitle": "Оптимизация слоев внимания",
-      "text": "Секрет в квантовании весов и новой архитектуре оптимизации кэша внимания.",
+      "durationInFrames": 401,
+      "preset": "CodeReveal",
+      "title": "БЫСТРЫЙ ДВИЖОК НА RUST",
+      "text": "Перенос движка на чистый Раст или Си-плюс-плюс снижает задержку с двухсот миллисекунд до пятнадцати.",
       "accentColor": "#E6C475",
-      "layers": [
-        "Attention Cache",
-        "Quantized Weights",
-        "CUDA Core"
-      ],
+      "code": "pub fn infer_fast(ctx: &Context, tensor: &Tensor) -> Result<Token> {\n    unsafe { tensor.matmul_cuda_stream(ctx.stream()) }\n}",
+      "language": "rust",
       "audioUrl": "scene_01.wav"
     },
     {
       "id": "scene-3",
-      "durationInFrames": 333,
-      "preset": "StatCounter",
-      "title": "СНИЖЕНИЕ VRAM",
-      "text": "Потребление видеопамяти снижается почти в четыре раза без потери логики рассуждений.",
+      "durationInFrames": 285,
+      "preset": "TokenCloud3D",
+      "title": "АППАРАТНОЕ УСКОРЕНИЕ",
+      "text": "Максимальный упор на векторные инструкции процессора и параллельные ядра видеокарты.",
       "accentColor": "#E6C475",
-      "statValue": 6.8,
-      "statSuffix": " GB",
-      "statLabel": "Потребление VRAM вместо 24 GB",
+      "pointCount": 220,
       "audioUrl": "scene_02.wav"
     },
     {
       "id": "scene-4",
-      "durationInFrames": 223,
-      "preset": "CodeReveal",
-      "title": "ОДНА КОМАНДА ДЛЯ ЗАПУСКА",
-      "text": "Все настраивается одной командой прямо на твоем компьютере.",
+      "durationInFrames": 309,
+      "preset": "StatCounter",
+      "title": "ПРИРОСТ СКОРОСТИ",
+      "text": "Сервер выдерживает в пять раз больше параллельных пользователей при меньших затратах.",
       "accentColor": "#E6C475",
-      "code": "llama-server --model llama3-70b-q4.gguf --ctx-size 8192 --n-gpu-layers 99",
-      "language": "bash",
+      "statValue": 15,
+      "statSuffix": " ms",
+      "statLabel": "Задержка вместо 200 ms",
       "audioUrl": "scene_03.wav"
     },
     {
       "id": "scene-5",
-      "durationInFrames": 410,
-      "preset": "QuoteCard",
-      "text": "Подробный гайд и готовые конфиги запуска выложили в канале элэлэм Хабс. Ссылка в шапке профиля!",
+      "durationInFrames": 381,
+      "preset": "SwipePanels",
+      "title": "ПОДПИШИСЬ НА @LLM_HUBS",
+      "subtitle": "Код и бенчмарки внутри",
+      "text": "Исходники быстрых движков и бенчмарки выкладываем в элэлэм Хабс. Жми подписку!",
       "accentColor": "#E6C475",
-      "author": "@llm_hubs",
-      "role": "Telegram Канал",
+      "cards": [
+        {
+          "title": "Быстрый движок",
+          "description": "Исходники инференс-ядра",
+          "tag": "01"
+        },
+        {
+          "title": "Бенчмарки",
+          "description": "Замеры latency и throughput",
+          "tag": "02"
+        },
+        {
+          "title": "@llm_hubs",
+          "description": "Жми подписку",
+          "tag": "03"
+        }
+      ],
       "audioUrl": "scene_04.wav"
     }
   ]
