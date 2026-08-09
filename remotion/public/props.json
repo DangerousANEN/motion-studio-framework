@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 6698,
+  "durationInFrames": 1657,
   "format": "vertical",
   "safeMargin": 120,
   "theme": "pop",
@@ -18,159 +18,61 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 1241,
+      "durationInFrames": 348,
       "preset": "HeroKinetic",
-      "title": "MOTION STUDIO",
-      "subtitle": "локальный рендер · 60 FPS",
-      "text": "Моушн Студио Фреймворк версия четыре. Локальный рендер вертикальных роликов.",
+      "title": "70B МОДЕЛЬ НА ОДНОЙ КАРТЕ?",
+      "subtitle": "Локальный инференс без облаков",
+      "text": "Запустить мощную модель на семьдесят миллиардов параметров на домашней видеокарте — теперь реально.",
       "accentColor": "#E6C475",
       "audioUrl": "scene_00.wav"
     },
     {
       "id": "scene-2",
-      "durationInFrames": 967,
-      "preset": "TokenCloud3D",
-      "title": "3D СЦЕНЫ",
-      "subtitle": "Three.js × Remotion",
-      "text": "Три D сцены рендерятся честной геометрией через Three JS, а не картинками.",
+      "durationInFrames": 343,
+      "preset": "LayerStack3D",
+      "title": "КВАНТОВАНИЕ И КЭШ",
+      "subtitle": "Оптимизация слоев внимания",
+      "text": "Секрет в квантовании весов и новой архитектуре оптимизации кэша внимания.",
       "accentColor": "#E6C475",
-      "orbitSpeed": 0.6,
-      "pointCount": 900,
+      "layers": [
+        "Attention Cache",
+        "Quantized Weights",
+        "CUDA Core"
+      ],
       "audioUrl": "scene_01.wav"
     },
     {
       "id": "scene-3",
-      "durationInFrames": 79,
+      "durationInFrames": 333,
       "preset": "StatCounter",
-      "text": "Шестьдесят кадров в секунду на каждом пресете, без исключений.",
+      "title": "СНИЖЕНИЕ VRAM",
+      "text": "Потребление видеопамяти снижается почти в четыре раза без потери логики рассуждений.",
       "accentColor": "#E6C475",
-      "statValue": 60,
-      "statSuffix": " FPS",
-      "statLabel": "ЧАСТОТА КАДРОВ",
+      "statValue": 6.8,
+      "statSuffix": " GB",
+      "statLabel": "Потребление VRAM вместо 24 GB",
       "audioUrl": "scene_02.wav"
     },
     {
       "id": "scene-4",
-      "durationInFrames": 228,
-      "preset": "LayerStack3D",
-      "title": "АРХИТЕКТУРА",
-      "text": "Слои модели показываются объёмным стеком с подписями.",
+      "durationInFrames": 223,
+      "preset": "CodeReveal",
+      "title": "ОДНА КОМАНДА ДЛЯ ЗАПУСКА",
+      "text": "Все настраивается одной командой прямо на твоем компьютере.",
       "accentColor": "#E6C475",
-      "layers": [
-        "Embedding",
-        "Attention",
-        "Feed Forward",
-        "Norm",
-        "Output"
-      ],
+      "code": "llama-server --model llama3-70b-q4.gguf --ctx-size 8192 --n-gpu-layers 99",
+      "language": "bash",
       "audioUrl": "scene_03.wav"
     },
     {
       "id": "scene-5",
-      "durationInFrames": 1241,
-      "preset": "CompareSplit",
-      "title": "БЫЛО / СТАЛО",
-      "text": "Сравнение двух подходов идёт разделённым экраном.",
-      "accentColor": "#E6C475",
-      "cards": [
-        {
-          "title": "БЫЛО",
-          "text": "x-vector: только тембр, чтение плоское"
-        },
-        {
-          "title": "СТАЛО",
-          "text": "ICL: переносится интонация носителя"
-        }
-      ],
-      "audioUrl": "scene_04.wav"
-    },
-    {
-      "id": "scene-6",
-      "durationInFrames": 1241,
-      "preset": "FlowDiagram",
-      "title": "ПАЙПЛАЙН",
-      "text": "Пайплайн собран как граф: текст, синтез, спека, рендер, контроль качества.",
-      "accentColor": "#E6C475",
-      "steps": [
-        {
-          "label": "Текст"
-        },
-        {
-          "label": "Синтез речи"
-        },
-        {
-          "label": "Спека"
-        },
-        {
-          "label": "Рендер"
-        },
-        {
-          "label": "Контроль"
-        }
-      ],
-      "audioUrl": "scene_05.wav"
-    },
-    {
-      "id": "scene-7",
-      "durationInFrames": 242,
-      "preset": "CodeReveal",
-      "title": "ЗАПУСК",
-      "text": "Запуск занимает пять строк на Питоне.",
-      "accentColor": "#E6C475",
-      "code": "app = build_msf_graph()\nresult = app.invoke({\n    \"text\": \"...\",\n    \"voice\": \"syenduk\",\n})",
-      "language": "python",
-      "audioUrl": "scene_06.wav"
-    },
-    {
-      "id": "scene-8",
-      "durationInFrames": 55,
-      "preset": "SwipePanels",
-      "title": "ВОЗМОЖНОСТИ",
-      "text": "Ключевые возможности листаются карточками.",
-      "accentColor": "#E6C475",
-      "cards": [
-        {
-          "title": "11 пресетов",
-          "text": "2D кинетика и 3D сцены"
-        },
-        {
-          "title": "Клон голоса",
-          "text": "Qwen3 TTS, перенос интонации"
-        },
-        {
-          "title": "Контроль",
-          "text": "покадровая проверка результата"
-        }
-      ],
-      "audioUrl": "scene_07.wav"
-    },
-    {
-      "id": "scene-9",
-      "durationInFrames": 113,
+      "durationInFrames": 410,
       "preset": "QuoteCard",
-      "text": "Проверка результата встроена в граф, а не остаётся на человеке.",
+      "text": "Подробный гайд и готовые конфиги запуска выложили в канале элэлэм Хабс. Ссылка в шапке профиля!",
       "accentColor": "#E6C475",
-      "author": "MSF",
-      "role": "принцип пайплайна",
-      "audioUrl": "scene_08.wav"
-    },
-    {
-      "id": "scene-10",
-      "durationInFrames": 50,
-      "preset": "GridGridFloor",
-      "title": "POP LABORATORY",
-      "subtitle": "единая палитра",
-      "text": "Фирменный стиль Поп Лаборатория держится на всех сценах.",
-      "accentColor": "#E6C475",
-      "audioUrl": "scene_09.wav"
-    },
-    {
-      "id": "scene-11",
-      "durationInFrames": 1241,
-      "preset": "TypewriterSub",
-      "text": "Полный цикл проходит на одной машине, без облака и без ручной сборки.",
-      "accentColor": "#E6C475",
-      "audioUrl": "scene_10.wav"
+      "author": "@llm_hubs",
+      "role": "Telegram Канал",
+      "audioUrl": "scene_04.wav"
     }
   ]
 }

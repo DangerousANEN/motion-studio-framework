@@ -27,7 +27,15 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
     },
   });
 
-  const currentValue = Math.round(interpolate(countSpring, [0, 1], [0, statValue]));
+  // Keep fractional precision when the target value is fractional (e.g. 6.8 GB),
+  // otherwise Math.round would display "6 GB" and misreport the stat.
+  const decimals = Number.isInteger(statValue)
+    ? 0
+    : Math.min(2, (String(statValue).split('.')[1] ?? '').length);
+  const rawValue = interpolate(countSpring, [0, 1], [0, statValue]);
+  const currentValue = decimals === 0
+    ? Math.round(rawValue)
+    : Number(rawValue.toFixed(decimals));
   const scale = interpolate(countSpring, [0, 1], [0.8, 1]);
   const opacity = interpolate(frame, [0, 10], [0, 1], { extrapolateLeft: 'clamp' });
 
