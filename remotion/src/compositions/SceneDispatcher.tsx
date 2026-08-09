@@ -2,6 +2,7 @@ import React from 'react';
 import { BaseSceneProps } from '../VideoSpec.schema';
 import { CodeReveal } from '../presets/CodeReveal';
 import { CompareSplit } from '../presets/CompareSplit';
+import { DonutFill } from '../presets/DonutFill';
 import { FlowDiagram } from '../presets/FlowDiagram';
 import { GridGridFloor } from '../presets/GridGridFloor';
 import { HeroKinetic } from '../presets/HeroKinetic';
@@ -87,6 +88,8 @@ const ScenePreset: React.FC<BaseSceneProps> = (props) => {
       return <TypewriterSub {...props} />;
     case 'CompareSplit':
       return <CompareSplit {...props} />;
+    case 'DonutFill':
+      return <DonutFill {...props} />;
     case 'FlowDiagram':
       return <FlowDiagram {...props} />;
     case 'CodeReveal':

@@ -18,6 +18,7 @@ export const PresetTypeSchema = z.enum([
   'FlowDiagram',
   'CodeReveal',
   'QuoteCard',
+  'DonutFill',
   // 3D (Three.js / React Three Fiber)
   'TokenCloud3D',
   'LayerStack3D',
@@ -161,6 +162,13 @@ export const StepSchema = z.object({
   detail: z.string().optional(),
 });
 
+/** One arc of a DonutFill. `value` is in the same unit across all segments. */
+export const SegmentSchema = z.object({
+  label: z.string(),
+  value: z.number(),
+  color: z.string().optional(),
+});
+
 /**
  * Scene-to-scene transition. Mirrors TRANSITION_NAMES in lib/transitions.ts;
  * a name added there must be added here or the spec will be rejected.
@@ -218,6 +226,17 @@ export const BaseSceneSchema = z
     // FlowDiagram
     nodes: z.array(NodeSchema).optional(),
     steps: z.array(StepSchema).optional(),
+    // DonutFill
+    segments: z.array(SegmentSchema).optional(),
+    shape: z.enum(['donut', 'pie', 'ring', 'halfDonut']).optional(),
+    thickness: z.number().positive().optional(),
+    fillMode: z.enum(['simultaneous', 'sequential', 'clockSweep']).optional(),
+    centerContent: z.enum(['total', 'leader', 'label', 'empty']).optional(),
+    labelPlacement: z.enum(['outside', 'legend', 'none']).optional(),
+    percentCounters: z.boolean().optional(),
+    gapAngle: z.number().min(0).max(30).optional(),
+    highlightSegment: z.number().int().min(0).optional(),
+    valueSuffix: z.string().optional(),
     // CodeReveal
     code: z.string().optional(),
     language: z.string().optional(),

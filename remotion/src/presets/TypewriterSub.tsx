@@ -1,8 +1,26 @@
 import React from 'react';
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
 import { BRAND } from './brand';
+import { resolveMotion } from '../lib/motion';
+import { getSafeArea, safeAreaPadding } from '../lib/safeArea';
+import { fitWrapped } from '../theme/layout';
 
+/**
+ * Shared font family for measuring and rendering to ensure font size accuracy.
+ */
+const TYPEWRITER_FONT = 'system-ui, -apple-system, sans-serif';
+
+/**
+ * TypewriterSub preset: frame-driven word-by-word kinetic text reveal.
+ *
+ * Refactored onto shared safe area + motion layers:
+ *  - Fixed padding replaced with `safeAreaPadding` to protect top search/status bars
+ *    and bottom Shorts/Reels caption & action overlay columns.
+ *  - Raw spring animations replaced with `resolveMotion(motion, fps, 'reveal')`.
+ *  - Arbitrary character-count font ladder replaced with `fitWrapped` measuring
+ *    the FULL final text string once, keeping font size constant during reveal.
+ */
 export const TypewriterSub: React.FC<BaseSceneProps> = ({
   text,
   title,
@@ -11,59 +29,82 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
   badge,
   durationInFrames,
   accentColor = BRAND.gold,
+  motion,
+  safeArea = 'platform',
 }) => {
   const frame = useCurrentFrame();
   const config = useVideoConfig();
-  const fps = config.fps;
+  const { fps, width, height } = config;
   const totalFrames = durationInFrames || config.durationInFrames || 90;
 
-  // No silent demo fallback: a scene with no text is a spec bug, and it must be
-  // visible in the render rather than disguised as real content.
+  // Safe area box calculations for platform UI avoidance
+  const safe = getSafeArea(width, height, safeArea);
+  const containerWidth = Math.min(safe.width, 960);
+
+  // Motion resolver for reveal channel
+  const animateReveal = resolveMotion(motion, fps, 'reveal');
+
+  // No silent demo fallback: missing text in spec is a bug that should be visible.
   const rawText = text || title || bodyText || subtitle || '⚠ NO TEXT IN SPEC';
   const words = rawText.split(/\s+/).filter(Boolean);
-
   const wordCount = words.length;
+
   const framesPerWord = wordCount > 0 ? Math.max(1, totalFrames / wordCount) : 5;
 
-  // Active word index based on frames
+  // Active word index based on current frame
   const activeWordIdx = Math.min(
     wordCount - 1,
     Math.floor(frame / framesPerWord)
   );
 
-  // Dynamic font sizing for long texts
-  const fontSize = wordCount > 30 ? '32px' : wordCount > 18 ? '40px' : wordCount > 10 ? '48px' : '56px';
+  // Measure the FULL text once (not the currently revealed words), so that font size
+  // remains strictly stable as words appear frame by frame (same principle as StatCounter).
+  const fitted = fitWrapped({
+    text: rawText,
+    maxWidth: containerWidth,
+    maxHeight: Math.min(safe.height * 0.7, 1200),
+    fontFamily: TYPEWRITER_FONT,
+    fontWeight: 700,
+    lineHeight: 1.3,
+    maxFontSize: 56,
+    minFontSize: 24,
+  });
+  const fontSize = `${fitted.fontSize}px`;
+
+  const badgeText = badge || (title || text || bodyText ? subtitle : undefined);
 
   return (
     <div
       style={{
-        flex: 1,
+        position: 'absolute',
+        inset: 0,
         backgroundColor: BRAND.bg,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '60px 40px',
-        position: 'relative',
+        ...safeAreaPadding(width, height, safeArea),
         overflow: 'hidden',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: TYPEWRITER_FONT,
+        boxSizing: 'border-box',
       }}
     >
-      {/* Glow pulse */}
+      {/* Background glow, pinned to safe area center */}
       <div
         style={{
           position: 'absolute',
-          width: '700px',
-          height: '700px',
+          left: safe.centerX - 350,
+          top: safe.centerY - 350,
+          width: 700,
+          height: 700,
           borderRadius: '50%',
           background: `radial-gradient(circle, ${accentColor}18 0%, transparent 70%)`,
           pointerEvents: 'none',
         }}
       />
 
-      {/* Optional badge — rendered only when the spec asks for one, so a Russian
-          video never inherits a hardcoded English label. */}
-      {(badge || subtitle) && (
+      {/* Optional badge */}
+      {badgeText && (
         <div
           style={{
             backgroundColor: BRAND.surface,
@@ -80,7 +121,7 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
             zIndex: 5,
           }}
         >
-          {badge || subtitle}
+          {badgeText}
         </div>
       )}
 
@@ -92,8 +133,8 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
           justifyContent: 'center',
           alignContent: 'center',
           gap: '14px 20px',
-          maxWidth: '960px',
-          maxHeight: '1400px',
+          maxWidth: `${containerWidth}px`,
+          maxHeight: `${Math.round(safe.height * 0.85)}px`,
           overflow: 'hidden',
           lineHeight: 1.3,
           zIndex: 5,
@@ -101,18 +142,12 @@ export const TypewriterSub: React.FC<BaseSceneProps> = ({
         }}
       >
         {words.map((word, idx) => {
+          const wordProgress = animateReveal(frame - idx * framesPerWord, 0, 1);
           const isRevealed = idx <= activeWordIdx;
           const isCurrent = idx === activeWordIdx;
 
-          // Word pop spring animation
-          const wordSpring = spring({
-            frame: frame - idx * framesPerWord,
-            fps,
-            config: { damping: 12, stiffness: 120 },
-          });
-
           const scale = isCurrent
-            ? interpolate(wordSpring, [0, 1], [0.6, 1.15])
+            ? interpolate(wordProgress, [0, 1], [0.6, 1.15])
             : isRevealed
             ? 1
             : 0.85;
