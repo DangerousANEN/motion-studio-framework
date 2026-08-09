@@ -168,7 +168,6 @@ export const StepSchema = z.object({
 export const TransitionTypeSchema = z.enum([
   'none',
   'fade',
-  'dissolve',
   'slide',
   'wipe',
   'flip',

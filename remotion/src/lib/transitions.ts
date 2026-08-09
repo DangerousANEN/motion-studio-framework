@@ -35,7 +35,6 @@ import { clockWipe } from '@remotion/transitions/clock-wipe';
 import { iris } from '@remotion/transitions/iris';
 import { pushCut } from '@remotion/transitions/push-cut';
 import { none } from '@remotion/transitions/none';
-import { dissolve } from '@remotion/transitions/dissolve';
 import { ripple } from '@remotion/transitions/ripple';
 import { crosswarp } from '@remotion/transitions/crosswarp';
 import { crossZoom } from '@remotion/transitions/cross-zoom';
@@ -51,7 +50,6 @@ import { bookFlip } from '@remotion/transitions/book-flip';
 export const TRANSITION_NAMES = [
   'none',
   'fade',
-  'dissolve',
   'slide',
   'wipe',
   'flip',
@@ -120,32 +118,27 @@ export const buildPresentation = ({ config, width, height }: BuildArgs): AnyPres
       return none();
     case 'fade':
       return fade();
-    case 'dissolve':
-      // NOT a cross-fade, and it never blends the two scenes. The shader
-      // (gl-transitions "dissolve") computes a burn threshold from the
-      // OUTGOING scene's luminance:
-      //     burn = 0.5 + 0.5 * luma(outgoing);  show = burn - progress;
-      //     if (show < 0.001) return incoming;   // hard per-pixel swap
-      // Pixels therefore flip one by one in luminance order, tinted along the
-      // advancing front by spreadColor -> hotColor. Remotion's stock defaults
-      // are '#ff0000' / '#e6e633', which produced a measured red flash
-      // (VAVG 181.9 on a single frame) instead of a transition.
-      //
-      // Two consequences worth knowing:
-      //  - On a FLAT scene (uniform luma) every pixel crosses the threshold on
-      //    the same frame, so it degenerates into a cut no matter the params.
-      //    That is a property of the effect, not a bug.
-      //  - lineWidth is a fraction of the luma range, not a pixel width. Wide
-      //    values (0.35) paint burnColor over a third of the frame at once,
-      //    which with white burn colours washes the picture to flat grey.
-      // Hence: neutral white front, narrow band, low intensity.
-      // Use 'filmBurn' when the fiery look is actually wanted.
-      return dissolve({
-        spreadColor: '#ffffff',
-        hotColor: '#ffffff',
-        lineWidth: 0.06,
-        intensity: 0.18,
-      });
+    // 'dissolve' is deliberately absent — do not re-add it.
+    //
+    // It is not a cross-fade and it never blends the two scenes. The shader
+    // derives a per-pixel burn threshold from the OUTGOING scene's luminance:
+    //     burn = 0.5 + 0.5 * luma(outgoing);  show = burn - progress;
+    //     if (show < 0.001) return incoming;   // hard per-pixel swap
+    // Pixels flip one by one in luminance order. Our scenes are large areas of
+    // near-uniform luma, so nearly every pixel crosses the threshold on the
+    // same frame and the result is a cut.
+    //
+    // Measured on two HeroKinetic scenes (worst single-frame share of the whole
+    // luma range; a cross-fade spreads this over the full overlap):
+    //     24-frame overlap -> 99.0% in one frame
+    //     48-frame overlap -> 99.0% in one frame (window shrank to 2 frames)
+    //     48-frame, textured GridGridFloor -> 91.9%
+    // Frame-by-frame inspection confirms scene A holds fully opaque, then B
+    // appears fully opaque on the next frame. Lengthening the overlap makes it
+    // worse, not better, so this cannot be tuned away with parameters.
+    //
+    // Use 'fade' for a real blend, or 'filmBurn' when the fiery burn-through
+    // look is actually wanted (it owns that effect and reads intentionally).
     case 'slide':
       return slide({ direction });
     case 'wipe':

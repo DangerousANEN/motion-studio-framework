@@ -178,7 +178,7 @@ class Scene:
 # TransitionTypeSchema in VideoSpec.schema.ts. tests/test_transition_parity.py
 # asserts all three stay in sync.
 TRANSITIONS: Tuple[str, ...] = (
-    "none", "fade", "dissolve", "slide", "wipe", "flip", "clockWipe", "iris",
+    "none", "fade", "slide", "wipe", "flip", "clockWipe", "iris",
     "pushCut", "ripple", "crosswarp", "crossZoom", "swap", "linearBlur",
     "zoomInOut", "dreamyZoom", "filmBurn", "zoomBlur", "bookFlip",
 )
