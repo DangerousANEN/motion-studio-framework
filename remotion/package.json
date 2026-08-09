@@ -23,13 +23,12 @@
     "@remotion/shapes": "^4.0.507",
     "@remotion/three": "^4.0.507",
     "@remotion/transitions": "^4.0.507",
-    "@remotion/zod-types": "^4.0.507",
     "@types/three": "^0.169.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "remotion": "^4.0.507",
     "three": "^0.169.0",
-    "zod": "^3.22.4"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@remotion/cli": "^4.0.507",

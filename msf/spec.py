@@ -7,7 +7,7 @@ knows about it too.
 """
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 FPS = 60
 
@@ -54,6 +54,12 @@ FORMATS: Dict[str, VideoFormat] = {
 }
 
 DEFAULT_FORMAT = "vertical"
+
+# Mirrors THEMES in remotion/src/presets/brand.ts. tests/test_theme_parity.py
+# asserts the two stay in sync, so adding a theme on one side fails loudly
+# instead of only blowing up at render time.
+THEMES: Tuple[str, ...] = ("pop", "noir", "glass", "blueprint", "sunset")
+DEFAULT_THEME = "pop"
 
 # Kept for backwards compatibility with older callers that imported these.
 WIDTH = FORMATS[DEFAULT_FORMAT].width
@@ -250,6 +256,17 @@ def build_spec(
     out_w = width if width is not None else fmt.width
     out_h = height if height is not None else fmt.height
 
+    # Themes are a closed set in remotion/src/presets/brand.ts. An unknown name
+    # fails Zod parsing inside Root.tsx, which silently degrades the whole render
+    # into a 2-second red ERROR card instead of the real video. Catch it here,
+    # where the message can name the offending value and the valid options.
+    if theme is not None and theme not in THEMES:
+        raise ValueError(
+            f"Spec validation failed: unknown theme {theme!r}. "
+            f"Valid themes: {sorted(THEMES)}. "
+            "An unknown theme renders a red ERROR card, not a video."
+        )
+
     scene_dicts = [s.to_dict() if isinstance(s, Scene) else s for s in scenes]
     total_frames = sum(s["durationInFrames"] for s in scene_dicts)
 
@@ -260,7 +277,7 @@ def build_spec(
         "durationInFrames": total_frames,
         "format": fmt.name,
         "safeMargin": fmt.safe_margin_px,
-        "theme": theme or "pop",
+        "theme": theme or DEFAULT_THEME,
         "brandColors": {
             "bg": "#0E0F11",
             "surface": "#16181C",

@@ -25,6 +25,85 @@ export const PresetTypeSchema = z.enum([
 
 export type PresetType = z.infer<typeof PresetTypeSchema>;
 
+/**
+ * Motion contract. Mirrors lib/motion.ts — keep the curve list in sync.
+ *
+ * A scene declares intent per channel and the preset resolves it:
+ *
+ *   motion: {
+ *     enter: { curve: 'easeOut', duration: 18 },
+ *     value: { curve: 'spring', spring: { damping: 12, stiffness: 90 } }
+ *   }
+ */
+/** Named curves. Must stay identical to the `Curve` union in lib/motion.ts. */
+export const NamedCurveSchema = z.enum([
+  'linear',
+  'ease',
+  'easeIn',
+  'easeOut',
+  'easeInOut',
+  'spring',
+  'bounce',
+  'anticipate',
+  'overdamped',
+]);
+
+/**
+ * A custom cubic bezier, as [x1, y1, x2, y2].
+ *
+ * x controls must stay in [0,1] — those are time, and time outside the segment
+ * is meaningless. y controls may exceed [0,1] on purpose: that is how an author
+ * asks for overshoot or anticipation. Bounds are deliberately asymmetric.
+ */
+export const BezierCurveSchema = z
+  .tuple([
+    z.number().min(0).max(1),
+    z.number().min(-5).max(5),
+    z.number().min(0).max(1),
+    z.number().min(-5).max(5),
+  ]);
+
+export const MotionCurveSchema = z.union([NamedCurveSchema, BezierCurveSchema]);
+
+export const SpringConfigSchema = z
+  .object({
+    damping: z.number().positive().optional(),
+    stiffness: z.number().positive().optional(),
+    mass: z.number().positive().optional(),
+    overshootClamping: z.boolean().optional(),
+  })
+  .strict();
+
+export const MotionChannelSchema = z
+  .object({
+    curve: MotionCurveSchema.optional(),
+    /** Frames the animation takes. Ignored by 'spring' (physics decides). */
+    duration: z.number().positive().optional(),
+    /** Frames to wait before starting. */
+    delay: z.number().min(0).optional(),
+    spring: SpringConfigSchema.optional(),
+    /** Per-item stagger, in frames, for list-like presets. */
+    stagger: z.number().min(0).optional(),
+    staggerFrom: z.enum(['start', 'end', 'center', 'edges', 'random']).optional(),
+    /** Replay behaviour once the animation completes. */
+    loop: z.enum(['none', 'pingpong', 'repeat']).optional(),
+  })
+  .strict();
+
+/**
+ * Intensity presets — the only motion control a low-capability agent gets.
+ *
+ * Resolved by MOTION_PRESETS in lib/motion.ts. A weak model must not hand-write
+ * bezier control points; it picks a word instead.
+ */
+export const IntensitySchema = z.enum(['calm', 'normal', 'punchy', 'extreme']);
+
+/** Named channels presets read: entrance, exit, value, reveal, plus free-form. */
+export const MotionSpecSchema = z.record(z.string(), MotionChannelSchema);
+
+/** Safe-area profile. Mirrors lib/safeArea.ts. */
+export const SafeAreaModeSchema = z.enum(['platform', 'loose', 'none']);
+
 /** Presets a low-capability agent may use without writing any code. */
 export const SAFE_PRESETS: PresetType[] = [
   'HeroKinetic',
@@ -119,6 +198,11 @@ export const BaseSceneSchema = z
     pointCount: z.number().int().positive().max(4000).optional(),
     // LayerStack3D
     layers: z.array(z.string()).optional(),
+    // Motion + layout (see lib/motion.ts and lib/safeArea.ts)
+    motion: MotionSpecSchema.optional(),
+    /** Coarse motion control for weak agents. `motion` overrides it per channel. */
+    intensity: IntensitySchema.optional(),
+    safeArea: SafeAreaModeSchema.optional(),
   })
   .passthrough();
 
