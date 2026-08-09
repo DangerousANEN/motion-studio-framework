@@ -7,3 +7,7 @@ audit/
 *.wav
 .venv/
 remotion/node_modules/
+
+# motion layer probe artifacts
+remotion/.motion_probe.js
+remotion/.stag.js
