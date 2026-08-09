@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 1980,
+  "durationInFrames": 6698,
   "format": "vertical",
   "safeMargin": 120,
   "theme": "pop",
@@ -18,7 +18,7 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 180,
+      "durationInFrames": 1241,
       "preset": "HeroKinetic",
       "title": "MOTION STUDIO",
       "subtitle": "локальный рендер · 60 FPS",
@@ -28,7 +28,7 @@
     },
     {
       "id": "scene-2",
-      "durationInFrames": 180,
+      "durationInFrames": 967,
       "preset": "TokenCloud3D",
       "title": "3D СЦЕНЫ",
       "subtitle": "Three.js × Remotion",
@@ -40,7 +40,7 @@
     },
     {
       "id": "scene-3",
-      "durationInFrames": 180,
+      "durationInFrames": 79,
       "preset": "StatCounter",
       "text": "Шестьдесят кадров в секунду на каждом пресете, без исключений.",
       "accentColor": "#E6C475",
@@ -51,7 +51,7 @@
     },
     {
       "id": "scene-4",
-      "durationInFrames": 180,
+      "durationInFrames": 228,
       "preset": "LayerStack3D",
       "title": "АРХИТЕКТУРА",
       "text": "Слои модели показываются объёмным стеком с подписями.",
@@ -67,7 +67,7 @@
     },
     {
       "id": "scene-5",
-      "durationInFrames": 180,
+      "durationInFrames": 1241,
       "preset": "CompareSplit",
       "title": "БЫЛО / СТАЛО",
       "text": "Сравнение двух подходов идёт разделённым экраном.",
@@ -86,7 +86,7 @@
     },
     {
       "id": "scene-6",
-      "durationInFrames": 180,
+      "durationInFrames": 1241,
       "preset": "FlowDiagram",
       "title": "ПАЙПЛАЙН",
       "text": "Пайплайн собран как граф: текст, синтез, спека, рендер, контроль качества.",
@@ -112,7 +112,7 @@
     },
     {
       "id": "scene-7",
-      "durationInFrames": 180,
+      "durationInFrames": 242,
       "preset": "CodeReveal",
       "title": "ЗАПУСК",
       "text": "Запуск занимает пять строк на Питоне.",
@@ -123,7 +123,7 @@
     },
     {
       "id": "scene-8",
-      "durationInFrames": 180,
+      "durationInFrames": 55,
       "preset": "SwipePanels",
       "title": "ВОЗМОЖНОСТИ",
       "text": "Ключевые возможности листаются карточками.",
@@ -146,7 +146,7 @@
     },
     {
       "id": "scene-9",
-      "durationInFrames": 180,
+      "durationInFrames": 113,
       "preset": "QuoteCard",
       "text": "Проверка результата встроена в граф, а не остаётся на человеке.",
       "accentColor": "#E6C475",
@@ -156,7 +156,7 @@
     },
     {
       "id": "scene-10",
-      "durationInFrames": 180,
+      "durationInFrames": 50,
       "preset": "GridGridFloor",
       "title": "POP LABORATORY",
       "subtitle": "единая палитра",
@@ -166,7 +166,7 @@
     },
     {
       "id": "scene-11",
-      "durationInFrames": 180,
+      "durationInFrames": 1241,
       "preset": "TypewriterSub",
       "text": "Полный цикл проходит на одной машине, без облака и без ручной сборки.",
       "accentColor": "#E6C475",
