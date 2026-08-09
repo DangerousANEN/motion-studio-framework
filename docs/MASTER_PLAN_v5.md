@@ -315,6 +315,11 @@ npm i @remotion/transitions @remotion/animation-utils @remotion/motion-blur \
 
 Вынесено в отдельный файл: **[`MASTER_PLAN_v5_SECTION6.md`](MASTER_PLAN_v5_SECTION6.md)**
 
+Уточнение к разделу 6 — **[`MASTER_PLAN_v5_APPENDIX_A.md`](MASTER_PLAN_v5_APPENDIX_A.md)**:
+20 сцен широкого назначения, единый слой интерполяции `motion`, 8 арт-стилей,
+провайдеры 3D-моделей (проверено: Khronos/Quaternius/Kenney без ключа,
+Sketchfab и Poly Pizza требуют токен).
+
 Кратко:
 - Каталог **48 типов сцен** в 8 категориях (готово 11, к реализации 37).
 - Слой **микро-примитивов** — сцена собирается из блоков, а не пишется монолитом.
