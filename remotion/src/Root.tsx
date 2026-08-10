@@ -10,6 +10,15 @@ import { StatCounter } from './presets/StatCounter';
 import { SwipePanels } from './presets/SwipePanels';
 import { TypewriterSub } from './presets/TypewriterSub';
 import { ProbeBlocking, ProbeBoxOnly, ProbeGated, ProbeSuspense } from './audit/GlbProbe';
+import { VisualEffectProbe, VisualEffectProbeBare } from './audit/VisualEffectProbe';
+import { EffectProbe, EffectProbeBare } from './audit/EffectProbe';
+import {
+  OverlayTestComp,
+  BareTestComp,
+  TransitionTestComp,
+  FromSceneOnly,
+  ToSceneOnly,
+} from './audit/EffectProbeComps';
 
 const ErrorScene: React.FC<{ message: string }> = ({ message }) => (
   <div
@@ -178,6 +187,72 @@ export const RemotionRoot: React.FC = () => {
         id="ProbeGated"
         component={ProbeGated}
         durationInFrames={30}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
+
+      {/* ---- Effect / Transition probe compositions ---- */}
+      <Composition
+        id="OverlayTest"
+        component={OverlayTestComp}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{ name: 'ParticlesDust', intensity: 1, seed: 42 }}
+      />
+      <Composition
+        id="BareTest"
+        component={BareTestComp}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{}}
+      />
+      <Composition
+        id="TransitionTest"
+        component={TransitionTestComp}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{ name: 'CrossFade', progress: 0.5, seed: 42 }}
+      />
+      <Composition
+        id="FromSceneOnly"
+        component={FromSceneOnly}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{}}
+      />
+      <Composition
+        id="ToSceneOnly"
+        component={ToSceneOnly}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{}}
+      />
+
+      {/* ---- Visual Effect probe compositions (camera / grade / distortion) ---- */}
+      <Composition
+        id="VisualEffectProbe"
+        component={VisualEffectProbe}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{ effect: 'Vignette', intensity: 1, seed: 42 }}
+      />
+      <Composition
+        id="VisualEffectProbeBare"
+        component={VisualEffectProbeBare}
+        durationInFrames={90}
         fps={60}
         width={1080}
         height={1920}

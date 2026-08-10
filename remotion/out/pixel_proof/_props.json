@@ -1,0 +1,1 @@
+{width: 1080, height: 1920, fps: 60, scenes: [{id: s, durationInFrames: 90, preset: HeroKinetic, title: T}], effect: CrtCurve, intensity: 0, seed: 42}

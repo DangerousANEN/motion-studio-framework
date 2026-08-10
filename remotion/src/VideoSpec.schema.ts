@@ -176,6 +176,38 @@ export const SegmentSchema = z.object({
   color: z.string().optional(),
 });
 
+/** A chat bubble, for the messaging UI mockups. */
+export const ChatMessageSchema = z.object({
+  /** Sender name. Shown on incoming messages only. */
+  from: z.string().optional(),
+  text: z.string(),
+  time: z.string().optional(),
+  /** Outgoing (right-aligned, accent bubble) rather than incoming. */
+  out: z.boolean().optional(),
+  /** Read receipt state; only meaningful on outgoing messages. */
+  read: z.boolean().optional(),
+});
+
+/** A token row in a wallet, or any label/amount/change triple. */
+export const TokenRowSchema = z.object({
+  symbol: z.string(),
+  name: z.string().optional(),
+  amount: z.number(),
+  /** Fiat value, if the scene shows one. */
+  usd: z.number().optional(),
+  /** 24h change in percent; sign drives the colour. */
+  change: z.number().optional(),
+  color: z.string().optional(),
+});
+
+/** A bank statement line. Negative `amount` renders as a debit. */
+export const TransactionSchema = z.object({
+  label: z.string(),
+  amount: z.number(),
+  time: z.string().optional(),
+  category: z.string().optional(),
+});
+
 /**
  * Scene-to-scene transition. Mirrors TRANSITION_NAMES in lib/transitions.ts;
  * a name added there must be added here or the spec will be rejected.
@@ -247,6 +279,22 @@ export const BaseSceneSchema = z
     // CodeReveal
     code: z.string().optional(),
     language: z.string().optional(),
+    // UI mockup scenes (TgChat, AiChat, CryptoWallet, BankCard, ...)
+    messages: z.array(ChatMessageSchema).optional(),
+    /** AiChatStream: the assistant reply that types out across the scene. */
+    response: z.string().optional(),
+    tokens: z.array(TokenRowSchema).optional(),
+    transactions: z.array(TransactionSchema).optional(),
+    balance: z.number().optional(),
+    currency: z.string().optional(),
+    /** Wallet/card address or number; masked by the scene, never shown whole. */
+    address: z.string().optional(),
+    // BankCard — the full number is deliberately not a field. Only the last
+    // four digits are ever rendered, so a mockup cannot carry a real PAN.
+    last4: z.string().optional(),
+    holder: z.string().optional(),
+    expiry: z.string().optional(),
+    brand: z.string().optional(),
     // QuoteCard
     author: z.string().optional(),
     role: z.string().optional(),

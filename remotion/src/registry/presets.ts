@@ -27,10 +27,11 @@
  */
 import { PresetRegistry, mergeRegistries } from './types';
 import { CORE_PRESETS, COMMON_FIELDS } from './core';
+import { UI_MOCK_PRESETS } from './ui_mock';
 
 export { COMMON_FIELDS };
 
-export const PRESETS: PresetRegistry = mergeRegistries(CORE_PRESETS);
+export const PRESETS: PresetRegistry = mergeRegistries(CORE_PRESETS, UI_MOCK_PRESETS);
 
 /** All preset names, sorted — the source for the Zod enum. */
 export const PRESET_NAMES = Object.keys(PRESETS).sort();

@@ -37,7 +37,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REMOTION = ROOT / "remotion"
 PRESETS_DIR = REMOTION / "src" / "presets"
-REGISTRY = REMOTION / "src" / "registry" / "presets.ts"
+# New scaffolds land in a pack, not the merge point. presets.ts only assembles
+# packs now, so writing entries there would fight every other author.
+REGISTRY = REMOTION / "src" / "registry" / "generated.ts"
+REGISTRY_EXPORT = "GENERATED_PRESETS"
 EFFECTS_REGISTRY = REMOTION / "src" / "registry" / "effects.ts"
 SFX_REGISTRY = ROOT / "msf" / "audio" / "sfx_registry.py"
 
@@ -154,6 +157,29 @@ def add_scene(args: argparse.Namespace) -> None:
     sub = "three" if args.category == "three" else "."
     target = PRESETS_DIR / sub / f"{name}.tsx" if sub != "." else PRESETS_DIR / f"{name}.tsx"
 
+    if not REGISTRY.exists():
+        REGISTRY.write_text(
+            "/**\n * Scaffolded preset pack — entries added by tools/msf_add.py.\n *\n"
+            " * Hand-written packs live beside this one; keeping generated entries\n"
+            " * separate means the generator never has to parse someone else's file.\n */\n"
+            "import { PresetRegistry } from './types';\n\n"
+            f"export const {REGISTRY_EXPORT}: PresetRegistry = {{\n}};\n",
+            encoding="utf-8",
+        )
+        # wire the new pack into the merge point once
+        merge = REMOTION / "src" / "registry" / "presets.ts"
+        m = read(merge)
+        if REGISTRY_EXPORT not in m:
+            m = m.replace(
+                "import { CORE_PRESETS, COMMON_FIELDS } from './core';",
+                "import { CORE_PRESETS, COMMON_FIELDS } from './core';\n"
+                f"import {{ {REGISTRY_EXPORT} }} from './generated';",
+            ).replace(
+                "mergeRegistries(CORE_PRESETS",
+                f"mergeRegistries(CORE_PRESETS, {REGISTRY_EXPORT}",
+            )
+            merge.write_text(m, encoding="utf-8")
+
     registry_src = read(REGISTRY)
     if f"  {name}: {{" in registry_src:
         fail(f"{name} is already in the registry")
@@ -197,7 +223,7 @@ def add_scene(args: argparse.Namespace) -> None:
     entry = entry.replace('"', "'")
 
     src = "\n".join(lines)
-    marker = "export const PRESETS: PresetRegistry = {"
+    marker = f"export const {REGISTRY_EXPORT}: PresetRegistry = {{"
     idx = src.index(marker) + len(marker)
     src = src[:idx] + "\n" + entry + src[idx:]
     REGISTRY.write_text(src, encoding="utf-8")
@@ -211,8 +237,34 @@ def add_scene(args: argparse.Namespace) -> None:
     print(f"  python tools/msf_add.py verify --only {name}")
 
 
+def _registered_names() -> list[str]:
+    """Preset names from the live registry, via the same path the renderer uses.
+
+    Parsing presets.ts with a regex broke the moment the registry moved to
+    packs: the names live in core.ts, ui_mock.ts and so on, and presets.ts only
+    merges them. Asking TypeScript for the merged list cannot drift from what
+    the dispatcher will actually resolve.
+    """
+    script = "import {PRESET_NAMES} from './src/registry/presets'; console.log(PRESET_NAMES.join('\\n'))"
+    tmp = REMOTION / "._names.ts"
+    tmp.write_text(script, encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["npx", "tsx", str(tmp)], cwd=REMOTION,
+            capture_output=True, text=True, shell=True,
+        )
+        names = [l.strip() for l in r.stdout.splitlines() if l.strip() and " " not in l.strip()]
+        if not names:
+            fail(f"could not read the registry:\n{r.stdout}\n{r.stderr}")
+        return names
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def list_components(args: argparse.Namespace) -> None:
-    src = read(REGISTRY)
+    src = "\n".join(
+        read(p) for p in sorted((REMOTION / "src" / "registry").glob("*.ts"))
+    )
     entries = re.findall(
         r"^  (\w+): \{\n\s+component: \w+,\n\s+category: '([^']+)',\n\s+summary: '([^']*)'",
         src,
@@ -237,8 +289,7 @@ def verify(args: argparse.Namespace) -> None:
     A preset that throws renders the error card; a preset that draws nothing
     renders the background. Both exit 0, so the check has to look at pixels.
     """
-    src = read(REGISTRY)
-    names = re.findall(r"^  (\w+): \{$", src, re.M)
+    names = _registered_names()
     if args.only:
         names = [n for n in names if n == args.only]
         if not names:
