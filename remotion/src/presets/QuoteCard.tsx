@@ -35,6 +35,12 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
   const quote = text || '⚠ NO QUOTE IN SPEC';
   const words = quote.split(' ');
 
+  // The opening mark is decorative but must not sit on the first line of text.
+  // Its clearance is derived from the glyph size rather than hardcoded, so the
+  // two stay in step if the size changes.
+  const quoteMarkSize = vertical ? 120 : 140;
+  const quoteMarkClearance = Math.round(quoteMarkSize * 0.42);
+
   // The card entrance keeps its spring feel by default but is now overridable
   // per scene; the quote mark and word reveal ride their own channels.
   const animateCard = resolveMotion(
@@ -129,18 +135,27 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
             boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
           }}
         >
+          {/*
+            The mark sits in the padding band above the text, not on top of it.
+            Absolute + a matching paddingTop on the paragraph is what keeps the
+            glyph and the first line from occupying the same pixels: at 120px
+            the glyph's ink is ~0.7em tall, so it needs that much clearance
+            reserved below its own top edge.
+          */}
           <div
             style={{
               position: 'absolute',
-              top: vertical ? -32 : -40,
-              left: 26,
-              fontSize: vertical ? 120 : 140,
+              top: vertical ? -14 : -18,
+              left: vertical ? 30 : 34,
+              fontSize: quoteMarkSize,
               lineHeight: 1,
               fontWeight: 900,
               color: accentColor,
-              opacity: markProgress * 0.35,
+              opacity: markProgress * 0.32,
               transform: `scale(${0.5 + markProgress * 0.5})`,
+              transformOrigin: 'top left',
               userSelect: 'none',
+              pointerEvents: 'none',
             }}
           >
             «
@@ -153,6 +168,9 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
               fontWeight: 600,
               color: BRAND.text,
               margin: 0,
+              // Clears the quote mark instead of letting the first line collide
+              // with it.
+              paddingTop: quoteMarkClearance,
               fontStyle: 'italic',
             }}
           >
@@ -173,22 +191,37 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
             <div
               style={{
                 marginTop: 30,
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 14,
-                flexWrap: 'wrap',
                 opacity: animateReveal(frame - attributionStart, 0, 1),
               }}
             >
-              <div style={{ width: 46, height: 3, backgroundColor: accentColor, borderRadius: 2 }} />
-              {author && (
-                <span style={{ fontSize: vertical ? 28 : 26, fontWeight: 800, color: BRAND.text }}>
-                  {author}
-                </span>
-              )}
-              {role && (
-                <span style={{ fontSize: vertical ? 22 : 20, color: BRAND.muted }}>{role}</span>
-              )}
+              {/* The rule reads as a divider ABOVE the attribution. Inline in a
+                  baseline row it looked like an em dash pointing at the name. */}
+              <div
+                style={{
+                  width: 46,
+                  height: 3,
+                  backgroundColor: accentColor,
+                  borderRadius: 2,
+                  marginBottom: 14,
+                }}
+              />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {author && (
+                  <span style={{ fontSize: vertical ? 28 : 26, fontWeight: 800, color: BRAND.text }}>
+                    {author}
+                  </span>
+                )}
+                {role && (
+                  <span style={{ fontSize: vertical ? 22 : 20, color: BRAND.muted }}>{role}</span>
+                )}
+              </div>
             </div>
           )}
         </div>

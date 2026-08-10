@@ -34,7 +34,9 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
   segments,
   shape = 'donut',
   thickness,
-  fillMode = 'simultaneous',
+  // Default: one continuous sweep from 12 o'clock. Segments blooming from
+  // their own start points read as unrelated animations, not one chart.
+  fillMode = 'fromOrigin',
   centerContent = 'total',
   labelPlacement = 'legend',
   percentCounters = true,
@@ -92,6 +94,13 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
 
   const revealProgress = animateReveal(frame, 0, 1);
 
+  // How much of the ring is drawn overall, 0..1. In 'fromOrigin' every segment
+  // is laid end-to-end from the 12 o'clock start and the ring is revealed as ONE
+  // continuous sweep, so the arcs appear to grow out of a single point instead
+  // of each blooming from its own position. Any other mode animates each arc in
+  // place, which reads as several unrelated things happening at once.
+  const ringProgress = fillMode === 'fromOrigin' ? animateValue(frame, 0, 1) : 1;
+
   let cursor = 0;
   const arcs = data.map((segment, i) => {
     const share = Math.max(0, segment.value) / total;
@@ -100,7 +109,19 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
     // sequential/clockSweep hand each segment its own slice of the timeline;
     // simultaneous gives every segment the full window.
     let progress: number;
-    if (fillMode === 'simultaneous') {
+    if (fillMode === 'fromOrigin') {
+      // One shared sweep: this segment fills only once the sweep has travelled
+      // past its start, and finishes when the sweep passes its end. Segment i
+      // therefore visibly emerges from where segment i-1 ended -- a single
+      // growing arc, not three simultaneous ones.
+      const startFrac = cursor;
+      const endFrac = cursor + fraction;
+      const swept = ringProgress * sweep;
+      progress =
+        endFrac <= startFrac
+          ? 0
+          : Math.min(1, Math.max(0, (swept - startFrac) / (endFrac - startFrac)));
+    } else if (fillMode === 'simultaneous') {
       progress = animateValue(frame, 0, 1);
     } else {
       const per = 60 / data.length;
@@ -117,12 +138,20 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
     // rather than rendering wider than their share.
     const paintable = Math.max(0, fraction - capFraction);
 
+    // A round cap paints a half-disc even when the dash length is 0, which left
+    // a visible dot parked at every segment's start position before its turn
+    // came. In 'fromOrigin' that betrayed the illusion of one growing arc: all
+    // three anchors were on screen from frame 0. Suppress the stroke entirely
+    // until this segment actually starts filling.
+    const hasInk = clamped > 0.0001;
+
     return {
       ...segment,
       color: segment.color || PALETTE[i % PALETTE.length],
       share,
       // The SAME clamped progress feeds the arc length and the counter below.
       progress: clamped,
+      hasInk,
       dash: paintable * clamped * circumference,
       offset: (start + capFraction / 2) * circumference,
       displayValue: segment.value * clamped,
@@ -234,6 +263,9 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
                   // advances clockwise under the -90deg rotation.
                   strokeDasharray={`${arc.dash} ${circumference}`}
                   strokeDashoffset={-arc.offset}
+                  // A zero-length dash with a round cap still paints a dot.
+                  // Hidden until this segment's turn in the sweep arrives.
+                  opacity={arc.hasInk ? 1 : 0}
                 />
               ))}
             </g>

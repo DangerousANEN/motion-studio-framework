@@ -238,7 +238,7 @@ export const BaseSceneSchema = z
     segments: z.array(SegmentSchema).optional(),
     shape: z.enum(['donut', 'pie', 'ring', 'halfDonut']).optional(),
     thickness: z.number().positive().optional(),
-    fillMode: z.enum(['simultaneous', 'sequential', 'clockSweep']).optional(),
+    fillMode: z.enum(['fromOrigin', 'simultaneous', 'sequential', 'clockSweep']).optional(),
     centerContent: z.enum(['total', 'leader', 'label', 'empty']).optional(),
     labelPlacement: z.enum(['outside', 'legend', 'none']).optional(),
     percentCounters: z.boolean().optional(),
