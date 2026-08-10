@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PRESET_NAMES } from './registry/presets';
 
 /**
  * Wire contract between msf/spec.py and the Remotion renderer.
@@ -7,23 +8,21 @@ import { z } from 'zod';
  * and validate_spec() should reject specs that would render a placeholder.
  */
 
-export const PresetTypeSchema = z.enum([
-  // 2D typographic / layout
-  'HeroKinetic',
-  'StatCounter',
-  'GridGridFloor',
-  'SwipePanels',
-  'TypewriterSub',
-  'CompareSplit',
-  'FlowDiagram',
-  'CodeReveal',
-  'QuoteCard',
-  'DonutFill',
-  // 3D (Three.js / React Three Fiber)
-  'TokenCloud3D',
-  'LayerStack3D',
-  'ModelOrbit3D',
-]);
+/**
+ * Preset names come from the registry, not a second hand-maintained list.
+ *
+ * The two used to be separate, so a preset could validate and then render the
+ * UNKNOWN card (in the enum, absent from the dispatcher) or render fine but be
+ * rejected by validation (the reverse). Deriving the enum removes the class of
+ * bug entirely; audit/registry_probe.ts still asserts it, which catches the
+ * case where someone reintroduces a literal list here.
+ *
+ * z.enum needs a non-empty literal tuple, hence the cast — PRESET_NAMES is
+ * built from Object.keys and is never empty.
+ */
+export const PresetTypeSchema = z.enum(
+  PRESET_NAMES as [string, ...string[]]
+);
 
 export type PresetType = z.infer<typeof PresetTypeSchema>;
 
