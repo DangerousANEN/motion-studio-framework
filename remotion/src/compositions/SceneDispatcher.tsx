@@ -11,6 +11,7 @@ import { StatCounter } from '../presets/StatCounter';
 import { SwipePanels } from '../presets/SwipePanels';
 import { TypewriterSub } from '../presets/TypewriterSub';
 import { LayerStack3D } from '../presets/three/LayerStack3D';
+import { ModelOrbit3D } from '../presets/three/ModelOrbit3D';
 import { TokenCloud3D } from '../presets/three/TokenCloud3D';
 
 /**
@@ -100,6 +101,8 @@ const ScenePreset: React.FC<BaseSceneProps> = (props) => {
       return <TokenCloud3D {...props} />;
     case 'LayerStack3D':
       return <LayerStack3D {...props} />;
+    case 'ModelOrbit3D':
+      return <ModelOrbit3D {...props} />;
     default:
       return (
         <div

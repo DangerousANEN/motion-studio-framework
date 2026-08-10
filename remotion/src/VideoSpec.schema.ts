@@ -22,6 +22,7 @@ export const PresetTypeSchema = z.enum([
   // 3D (Three.js / React Three Fiber)
   'TokenCloud3D',
   'LayerStack3D',
+  'ModelOrbit3D',
 ]);
 
 export type PresetType = z.infer<typeof PresetTypeSchema>;
@@ -118,6 +119,7 @@ export const SAFE_PRESETS: PresetType[] = [
   'QuoteCard',
   'TokenCloud3D',
   'LayerStack3D',
+  'ModelOrbit3D',
 ];
 
 /** Presets that need structured data and must not be swapped in by rotation. */
@@ -155,6 +157,12 @@ export const NodeSchema = z.object({
   label: z.string(),
   sub: z.string().optional(),
   color: z.string().optional(),
+});
+
+export const HotspotSchema = z.object({
+  position: z.tuple([z.number(), z.number(), z.number()]),
+  label: z.string(),
+  description: z.string().optional(),
 });
 
 export const StepSchema = z.object({
@@ -247,6 +255,17 @@ export const BaseSceneSchema = z
     modelUrl: z.string().optional(),
     modelScale: z.number().optional(),
     orbitSpeed: z.number().optional(),
+    orbit: z.enum(['full360', 'arc', 'figureEight', 'dolly']).optional(),
+    orbitDegrees: z.number().optional(),
+    startAngle: z.number().optional(),
+    elevation: z.number().optional(),
+    autoFrame: z.boolean().optional(),
+    spinModel: z.boolean().optional(),
+    lighting: z.enum(['studio', 'rim', 'dramatic', 'hdri', 'neon']).optional(),
+    env: z.enum(['none', 'gradient', 'grid', 'hdri']).optional(),
+    groundShadow: z.enum(['off', 'soft', 'contact']).optional(),
+    material: z.enum(['original', 'clay', 'glass', 'wireframe', 'xray']).optional(),
+    hotspots: z.array(HotspotSchema).optional(),
     audioUrl: z.string().optional(),
     // TokenCloud3D
     pointCount: z.number().int().positive().max(4000).optional(),

@@ -9,6 +9,7 @@ import { HeroKinetic } from './presets/HeroKinetic';
 import { StatCounter } from './presets/StatCounter';
 import { SwipePanels } from './presets/SwipePanels';
 import { TypewriterSub } from './presets/TypewriterSub';
+import { ProbeBlocking, ProbeBoxOnly, ProbeGated, ProbeSuspense } from './audit/GlbProbe';
 
 const ErrorScene: React.FC<{ message: string }> = ({ message }) => (
   <div
@@ -148,6 +149,38 @@ export const RemotionRoot: React.FC = () => {
           preset: 'TypewriterSub',
           text: 'Typewriter preset test string.',
         }}
+      />
+      <Composition
+        id="ProbeBoxOnly"
+        component={ProbeBoxOnly}
+        durationInFrames={30}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="ProbeSuspense"
+        component={ProbeSuspense}
+        durationInFrames={30}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="ProbeBlocking"
+        component={ProbeBlocking}
+        durationInFrames={30}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="ProbeGated"
+        component={ProbeGated}
+        durationInFrames={30}
+        fps={60}
+        width={1080}
+        height={1920}
       />
     </>
   );
