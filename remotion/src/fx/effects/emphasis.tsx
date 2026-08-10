@@ -233,15 +233,36 @@ export const Glow: React.FC<EffectProps> = ({ children, intensity = 1 }) => {
   const sin = (sinLoop(frame, 60) + 1) / 2; // 0..1
   const glowSize = (8 + sin * 12) * intensity;
   const glowOpacity = (0.4 + sin * 0.4) * intensity;
+
+  // drop-shadow alone is invisible whenever the child is opaque edge to edge:
+  // it blurs the child's alpha silhouette and draws it *behind* the child, so a
+  // full-frame opaque layer hides its own shadow and the effect silently does
+  // nothing. Pixel proof caught exactly that — Glow was byte-identical to bare
+  // at every sampled frame. The additive bloom overlay below is drawn on top,
+  // so the effect registers on opaque and transparent content alike, while the
+  // drop-shadow still does the nice edge work for cut-out shapes.
   return (
     <div
       style={{
         filter: `drop-shadow(0 0 ${glowSize}px rgba(255,200,100,${glowOpacity}))`,
         width: '100%',
         height: '100%',
+        position: 'relative',
       }}
     >
       {children}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          mixBlendMode: 'screen',
+          opacity: glowOpacity * 0.5,
+          background:
+            `radial-gradient(ellipse at 50% 50%, rgba(255,200,100,0.55) 0%, ` +
+            `rgba(255,200,100,0.18) 45%, rgba(255,200,100,0) 72%)`,
+        }}
+      />
     </div>
   );
 };

@@ -257,6 +257,28 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
       />
+
+      {/* ---- Entrance / exit / emphasis probes ----
+          These were imported but never registered, so `npx remotion still
+          EffectProbeBare` failed with "Could not find composition" while tsc
+          stayed happy: the import *is* used, just not as a Composition. */}
+      <Composition
+        id="EffectProbe"
+        component={EffectProbe}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+        defaultProps={{ name: 'FadeIn', intensity: 1, seed: 42 }}
+      />
+      <Composition
+        id="EffectProbeBare"
+        component={EffectProbeBare}
+        durationInFrames={90}
+        fps={60}
+        width={1080}
+        height={1920}
+      />
     </>
   );
 };
