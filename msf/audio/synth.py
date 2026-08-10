@@ -283,6 +283,26 @@ def concat(*signals: np.ndarray) -> np.ndarray:
     return np.concatenate(signals).astype(np.float32)
 
 
+def place(canvas: np.ndarray, sig: np.ndarray, at: float | int, sr: int = SR, gain: float = 1.0) -> np.ndarray:
+    """Add `sig` into `canvas` starting at `at` (seconds if float, samples if int).
+
+    Truncates anything past the end of the canvas. Hand-written slice arithmetic
+    (`canvas[pos:] += sig[:len(canvas)-pos]`) is the source of a whole class of
+    broadcast errors, because the two slices only match when the signal happens
+    to fit. This does the clipping once, correctly.
+    """
+    pos = int(at * sr) if isinstance(at, float) else int(at)
+    if pos >= len(canvas) or pos < -len(sig):
+        return canvas
+    if pos < 0:
+        sig = sig[-pos:]
+        pos = 0
+    n = min(len(sig), len(canvas) - pos)
+    if n > 0:
+        canvas[pos : pos + n] += sig[:n] * gain
+    return canvas
+
+
 def silence(dur: float, sr: int = SR) -> np.ndarray:
     return np.zeros(int(dur * sr), dtype=np.float32)
 

@@ -55,18 +55,23 @@ class SfxSpec:
     max_ms: float
     summary: str
     loop: bool = False
+    # Target peak in dBFS. Declared per effect because ambience beds sit far
+    # below foreground hits on purpose; a single global "is it audible" floor
+    # cannot tell a deliberately quiet bed from a broken silent one.
+    peak_db: float = PEAK_UI
 
 
 SFX_REGISTRY: dict[str, SfxSpec] = {}
 
 
-def sfx(name: str, family: str, max_ms: float, summary: str, loop: bool = False):
+def sfx(name: str, family: str, max_ms: float, summary: str, loop: bool = False,
+        peak_db: float = PEAK_UI):
     """Register a sound effect under `name`."""
 
     def deco(fn: Callable[..., np.ndarray]) -> Callable[..., np.ndarray]:
         if name in SFX_REGISTRY:
             raise ValueError(f"duplicate sfx name: {name}")
-        SFX_REGISTRY[name] = SfxSpec(name, fn, family, max_ms, summary, loop)
+        SFX_REGISTRY[name] = SfxSpec(name, fn, family, max_ms, summary, loop, peak_db)
         return fn
 
     return deco
@@ -118,7 +123,7 @@ def toggle_off(sr: int = SR) -> np.ndarray:
     return normalize(fade(concat(a, b), 0.001, 0.012, sr), PEAK_UI)
 
 
-@sfx("hover_tick", "ui", 30, "Tiny hover tick, barely there")
+@sfx("hover_tick", "ui", 30, "Tiny hover tick, barely there", peak_db=-24)
 def hover_tick(sr: int = SR) -> np.ndarray:
     s = sine(2600, 0.022, sr) * perc_env(0.022, sr, curve=12.0)
     return normalize(fade(s, 0.0005, 0.004, sr), PEAK_UI - 6)
@@ -209,26 +214,26 @@ def unlock_click(sr: int = SR) -> np.ndarray:
     return normalize(fade(concat(c, thunk), 0.001, 0.02, sr), PEAK_UI)
 
 
-@sfx("scroll_tick", "ui", 20, "Scroll detent tick")
+@sfx("scroll_tick", "ui", 20, "Scroll detent tick", peak_db=-26)
 def scroll_tick(sr: int = SR, seed: int = 24) -> np.ndarray:
     n = noise(0.015, sr, seed=seed) * perc_env(0.015, sr, curve=14.0)
     return normalize(fade(highpass(n, 2000, sr), 0.0003, 0.002, sr), PEAK_UI - 8)
 
 
-@sfx("swipe_soft", "ui", 200, "Finger swipe across glass")
+@sfx("swipe_soft", "ui", 200, "Finger swipe across glass", peak_db=-21)
 def swipe_soft(sr: int = SR) -> np.ndarray:
     n = noise(0.18, sr, seed=25, kind="pink")
     env = adsr(0.18, 0.03, 0.04, 0.55, 0.09, sr)
     return normalize(fade(bandpass(n * env, 2400, sr, q=0.7), 0.006, 0.05, sr), PEAK_UI - 3)
 
 
-@sfx("focus_ring", "ui", 120, "Focus outline appears: soft blip")
+@sfx("focus_ring", "ui", 120, "Focus outline appears: soft blip", peak_db=-23)
 def focus_ring(sr: int = SR) -> np.ndarray:
     s = sine(1200, 0.1, sr) * adsr(0.1, 0.008, 0.02, 0.5, 0.06, sr)
     return normalize(fade(s, 0.002, 0.02, sr), PEAK_UI - 5)
 
 
-@sfx("dropdown_open", "ui", 160, "Menu opening: short upward glide")
+@sfx("dropdown_open", "ui", 160, "Menu opening: short upward glide", peak_db=-20)
 def dropdown_open(sr: int = SR) -> np.ndarray:
     f = pitch_sweep(600, 1050, 0.14, sr)
     s = sine(f, 0.14, sr) * adsr(0.14, 0.006, 0.03, 0.45, 0.08, sr)
@@ -376,7 +381,7 @@ def balance_down(sr: int = SR) -> np.ndarray:
     return normalize(fade(reverb(out, 0.2, 0.35, sr), 0.002, 0.05, sr), PEAK_UI)
 
 
-@sfx("counter_tick", "money", 30, "Single digit-roll tick")
+@sfx("counter_tick", "money", 30, "Single digit-roll tick", peak_db=-24)
 def counter_tick(sr: int = SR, seed: int = 41) -> np.ndarray:
     n = noise(0.02, sr, seed=seed) * perc_env(0.02, sr, curve=13.0)
     t = sine(2900, 0.02, sr) * perc_env(0.02, sr, curve=14.0) * 0.4
@@ -405,7 +410,7 @@ def stamp_hit(sr: int = SR) -> np.ndarray:
     return normalize(fade(mix(thud, slap), 0.0008, 0.03, sr), PEAK_UI)
 
 
-@sfx("receipt_print", "money", 900, "Thermal printer feeding paper")
+@sfx("receipt_print", "money", 900, "Thermal printer feeding paper", peak_db=-21)
 def receipt_print(sr: int = SR) -> np.ndarray:
     n = noise(0.8, sr, seed=44, kind="pink") * adsr(0.8, 0.03, 0.1, 0.8, 0.15, sr)
     body = bandpass(n, 2800, sr, q=0.5)
