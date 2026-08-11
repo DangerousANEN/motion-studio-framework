@@ -1,0 +1,138 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 60,
+ "format": "vertical",
+ "style": "glass",
+ "scenes": [
+  {
+   "id": "s1",
+   "preset": "QuizCard",
+   "durationInFrames": 114,
+   "style": "candy",
+   "text": "Сколько параметров у модели, которая влезает в обычный телефон? Выбирай.",
+   "title": "Угадай",
+   "question": "Влезет в телефон:",
+   "options": [
+    "70B",
+    "32B",
+    "8B",
+    "0.5B"
+   ],
+   "correctIndex": 2,
+   "revealAtProgress": 0.62,
+   "effects": [
+    {
+     "name": "ZoomPunch",
+     "intensity": 0.85
+    },
+    {
+     "name": "ElasticPop",
+     "intensity": 0.6
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "preset": "TokenCloud3D",
+   "durationInFrames": 114,
+   "text": "Восемь миллиардов параметров. Вот столько связей в этом облаке.",
+   "title": "8 миллиардов",
+   "subtitle": "столько связей внутри",
+   "pointCount": 900,
+   "effects": [
+    {
+     "name": "OrbitAround",
+     "intensity": 0.7
+    },
+    {
+     "name": "Bloom",
+     "intensity": 0.55
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "preset": "LayerStack3D",
+   "durationInFrames": 120,
+   "style": "blueprint",
+   "text": "Они уложены в тридцать два слоя, и каждый слой смотрит на предыдущий.",
+   "title": "32 слоя",
+   "subtitle": "каждый смотрит на предыдущий",
+   "layers": [
+    "вход",
+    "внимание",
+    "свёртка",
+    "выход"
+   ],
+   "effects": [
+    {
+     "name": "ParallaxLayers",
+     "intensity": 0.8
+    },
+    {
+     "name": "ScanLines",
+     "intensity": 0.3
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "preset": "RingStats",
+   "durationInFrames": 120,
+   "style": "steel",
+   "text": "После сжатия это четыре гигабайта, шестьдесят токенов в секунду и ноль рублей в месяц.",
+   "title": "После сжатия",
+   "valueSuffix": "",
+   "segments": [
+    {
+     "label": "ГБ на диске",
+     "value": 4
+    },
+    {
+     "label": "ток/сек",
+     "value": 60
+    },
+    {
+     "label": "руб/мес",
+     "value": 0
+    }
+   ],
+   "ringMax": 100,
+   "effects": [
+    {
+     "name": "SlideInUp",
+     "intensity": 0.7
+    },
+    {
+     "name": "Sheen",
+     "intensity": 0.5
+    }
+   ]
+  },
+  {
+   "id": "s5",
+   "preset": "SubscribeCTA",
+   "durationInFrames": 126,
+   "text": "Инструкция по запуску на телефоне лежит в канале. Подписывайся.",
+   "channelName": "llm_hubs",
+   "subscribers": 4820,
+   "buttonText": "ПОДПИСАТЬСЯ",
+   "subscribedText": "ГОТОВО",
+   "effects": [
+    {
+     "name": "ZoomPunch",
+     "intensity": 0.7
+    },
+    {
+     "name": "ParticlesSparks",
+     "intensity": 0.7
+    },
+    {
+     "name": "Bloom",
+     "intensity": 0.6
+    }
+   ]
+  }
+ ]
+}

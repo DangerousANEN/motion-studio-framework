@@ -91,26 +91,33 @@ export const PhoneMockup: React.FC<BaseSceneProps> = (props) => {
     // instead would make every internal `height * 0.03` font microscopic — the
     // scene would be laid out for a 300px-tall viewport.
     //
-    // SCALE BY THE LARGER RATIO, NOT BY WIDTH.
-    // A phone screen is 9:19.5 and the canvas is 9:16, so `scale = screenW/width`
-    // (the obvious choice) fits the width and leaves the bottom 20% of the
-    // screen as a black band — measured at 191px of a 963px screen. Using
-    // max(w-ratio, h-ratio) fills the screen and lets the sides overflow
-    // instead, which the screen's `overflow: hidden` crops. A UI mockup cropped
-    // a few pixels at the edges still reads correctly; a fifth of the screen
-    // painted black reads as a broken render.
+    // FIT THE WIDTH, THEN ANCHOR THE SCENE TO THE BOTTOM OF THE SCREEN.
+    // Previous versions scaled by `max(screenW/width, screenH/height)` to avoid
+    // a gap at the bottom. That choice fills the screen but overflows the sides
+    // by (width * hRatio - screenW) / 2 — a measured **80px per side** on a
+    // 640px screen, i.e. 7.4% of the canvas width gone at each edge. The old
+    // comment called that "a few pixels"; in practice it silently ate the first
+    // and last characters of every line, turning "Разбери код" into "Разбери к"
+    // and "Не могу" into "е могу". Clipped words are a worse failure than a
+    // letterbox, because the frame still looks plausible.
+    //
+    // Scaling by width never cuts a character, but a 9:16 canvas inside a
+    // 9:19.5 screen then leaves screenH - height*scale (≈284px of 1422) unused.
+    // A nested scene lays out against its OWN canvas height, so stretching this
+    // wrapper does not stretch it — the leftover space stays empty wherever we
+    // put it. Bottom-anchoring is what a chat UI wants: the input bar lands on
+    // the screen's bottom edge and the slack sits above the first bubble, which
+    // is exactly how a real conversation looks. Scenes whose content is
+    // vertically centred are unaffected.
     <div
       style={{
         position: 'absolute',
-        top: 0,
+        top: screenH - height * (screenW / width),
         left: 0,
         width,
         height,
-        transform: `scale(${Math.max(screenW / width, screenH / height)})`,
+        transform: `scale(${screenW / width})`,
         transformOrigin: 'top left',
-        // Centres the overflow so the crop is symmetric left/right rather than
-        // shaving only the right edge.
-        marginLeft: (screenW - width * Math.max(screenW / width, screenH / height)) / 2,
       }}
     >
       <Nested

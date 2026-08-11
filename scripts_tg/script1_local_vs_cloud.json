@@ -1,0 +1,161 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 60,
+ "format": "vertical",
+ "style": "cyber_lime",
+ "scenes": [
+  {
+   "id": "s1",
+   "preset": "CountdownHero",
+   "durationInFrames": 102,
+   "text": "Три. Две. Одна. Локальные модели догнали топовые.",
+   "from": 3,
+   "finalWord": "ДОГНАЛИ",
+   "subtitle": "локальные модели vs топовые",
+   "effects": [
+    {
+     "name": "ZoomPunch",
+     "intensity": 0.9
+    },
+    {
+     "name": "GlitchRgb",
+     "intensity": 0.45
+    },
+    {
+     "name": "ParticlesSparks",
+     "intensity": 0.6
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "preset": "VersusSplit",
+   "durationInFrames": 108,
+   "text": "Qwen три, который крутится на твоей карте, против закрытой модели за двадцать долларов в месяц.",
+   "left": {
+    "name": "Qwen3",
+    "value": 142
+   },
+   "right": {
+    "name": "GPT-4o",
+    "value": 138
+   },
+   "vsLabel": "VS",
+   "effects": [
+    {
+     "name": "ZoomPunch",
+     "intensity": 0.8
+    },
+    {
+     "name": "Shake",
+     "intensity": 0.35
+    },
+    {
+     "name": "HalationGlow",
+     "intensity": 0.5
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "preset": "Bars3D",
+   "durationInFrames": 114,
+   "style": "steel",
+   "text": "На тестах кода разница уже в пределах погрешности. А цена отличается в бесконечность раз.",
+   "title": "HumanEval, больше — лучше",
+   "valueSuffix": "",
+   "segments": [
+    {
+     "label": "Qwen3 32B",
+     "value": 88
+    },
+    {
+     "label": "GPT-4o",
+     "value": 90
+    },
+    {
+     "label": "Llama4",
+     "value": 84
+    }
+   ],
+   "effects": [
+    {
+     "name": "DollyIn",
+     "intensity": 0.55
+    },
+    {
+     "name": "FilmGrain",
+     "intensity": 0.3
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "preset": "Leaderboard",
+   "durationInFrames": 120,
+   "style": "sunrise",
+   "text": "Вот три модели, которые реально стоит поставить себе на этой неделе.",
+   "title": "Ставь себе эти три",
+   "valueSuffix": " б",
+   "rows": [
+    {
+     "name": "Qwen3 32B",
+     "value": 88
+    },
+    {
+     "name": "DeepSeek V3",
+     "value": 85
+    },
+    {
+     "name": "Mistral L",
+     "value": 79
+    }
+   ],
+   "effects": [
+    {
+     "name": "SlideInUp",
+     "intensity": 0.8
+    },
+    {
+     "name": "Sheen",
+     "intensity": 0.5
+    }
+   ],
+   "overlays": [
+    {
+     "type": "notification",
+     "at": 0.55,
+     "appName": "llm_hubs",
+     "title": "Конфиги выложены",
+     "text": "забирай в закрепе",
+     "position": "top"
+    }
+   ]
+  },
+  {
+   "id": "s5",
+   "preset": "SubscribeCTA",
+   "durationInFrames": 126,
+   "text": "Готовые конфиги под каждую из них лежат в закрепе канала. Подписывайся.",
+   "channelName": "llm_hubs",
+   "subscribers": 4820,
+   "buttonText": "ПОДПИСАТЬСЯ",
+   "subscribedText": "ТЫ В ДЕЛЕ",
+   "effects": [
+    {
+     "name": "ZoomPunch",
+     "intensity": 0.7
+    },
+    {
+     "name": "ParticlesSparks",
+     "intensity": 0.75
+    },
+    {
+     "name": "Bloom",
+     "intensity": 0.6
+    }
+   ]
+  }
+ ]
+}
