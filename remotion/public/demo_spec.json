@@ -1,0 +1,259 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "fps": 60,
+  "format": "vertical",
+  "safeMargin": 120,
+  "theme": "pop",
+  "audioUrl": "audio/demo_mix.wav",
+  "scenes": [
+    {
+      "id": "s1-hero",
+      "durationInFrames": 150,
+      "preset": "HeroKinetic",
+      "title": "MOTION STUDIO",
+      "subtitle": "104 сцены · 108 эффектов · 128 звуков",
+      "badge": "v1.0",
+      "effects": [
+        {
+          "name": "DollyIn",
+          "intensity": 0.5
+        },
+        {
+          "name": "Vignette",
+          "intensity": 0.6
+        },
+        {
+          "name": "ParticlesDust",
+          "intensity": 0.7,
+          "seed": 42
+        }
+      ]
+    },
+    {
+      "id": "s2-tg",
+      "durationInFrames": 180,
+      "preset": "TgChat",
+      "title": "Telegram-мокап",
+      "subtitle": "мокап переписки",
+      "messages": [
+        {
+          "from": "Никита",
+          "text": "Сделай ролик к утру"
+        },
+        {
+          "text": "Уже рендерится",
+          "out": true,
+          "read": true
+        },
+        {
+          "from": "Никита",
+          "text": "Со звуком?"
+        },
+        {
+          "text": "С музыкой и дакингом под голос",
+          "out": true,
+          "read": true
+        }
+      ],
+      "transition": {
+        "type": "slide",
+        "durationInFrames": 20,
+        "direction": "from-right"
+      },
+      "effects": [
+        {
+          "name": "HandheldDrift",
+          "intensity": 0.35,
+          "seed": 7
+        },
+        {
+          "name": "ColorGradeCool",
+          "intensity": 0.4
+        }
+      ],
+      "contactName": "Никита",
+      "contactStatus": "в сети"
+    },
+    {
+      "id": "s3-ai",
+      "durationInFrames": 190,
+      "preset": "AiChatStream",
+      "title": "AI Chat",
+      "subtitle": "стриминг ответа",
+      "prompt": "Собери вертикальный ролик",
+      "response": "Готово: 4 сцены, 9 эффектов, музыка с дакингом под голос и мастеринг −14 LUFS.",
+      "transition": {
+        "type": "crossZoom",
+        "durationInFrames": 22
+      },
+      "effects": [
+        {
+          "name": "ScanLines",
+          "intensity": 0.35
+        },
+        {
+          "name": "Bloom",
+          "intensity": 0.5
+        }
+      ]
+    },
+    {
+      "id": "s4-wallet",
+      "durationInFrames": 170,
+      "preset": "CryptoWallet",
+      "title": "Крипто-кошелёк",
+      "subtitle": "адрес всегда маскируется",
+      "address": "0x7a4F9c2b8D1e5A3f6C0b9E4d2A8f1B7cE3d6Ee12",
+      "tokens": [
+        {
+          "symbol": "ETH",
+          "amount": 4.218,
+          "usd": 14820,
+          "change": 3.4
+        },
+        {
+          "symbol": "USDT",
+          "amount": 9500.0,
+          "usd": 9500,
+          "change": 0.0
+        },
+        {
+          "symbol": "SOL",
+          "amount": 62.5,
+          "usd": 8940,
+          "change": -1.8
+        }
+      ],
+      "transition": {
+        "type": "wipe",
+        "durationInFrames": 20,
+        "direction": "from-bottom"
+      },
+      "effects": [
+        {
+          "name": "PanRight",
+          "intensity": 0.3
+        },
+        {
+          "name": "FilmGrain",
+          "intensity": 0.35,
+          "seed": 11
+        }
+      ]
+    },
+    {
+      "id": "s5-bank",
+      "durationInFrames": 170,
+      "preset": "BankCard",
+      "title": "Банковская карта",
+      "subtitle": "видны только последние 4 цифры",
+      "last4": "4821",
+      "holder": "N. LIPSKY",
+      "expiry": "09/29",
+      "brand": "VISA",
+      "transition": {
+        "type": "flip",
+        "durationInFrames": 24
+      },
+      "effects": [
+        {
+          "name": "Sheen",
+          "intensity": 0.8
+        },
+        {
+          "name": "BokehLights",
+          "intensity": 0.5,
+          "seed": 3
+        }
+      ]
+    },
+    {
+      "id": "s6-donut",
+      "durationInFrames": 170,
+      "preset": "DonutFill",
+      "title": "DonutFill",
+      "subtitle": "сегменты растут одним обходом",
+      "segments": [
+        {
+          "label": "Сцены",
+          "value": 62
+        },
+        {
+          "label": "Эффекты",
+          "value": 24
+        },
+        {
+          "label": "Звук",
+          "value": 14
+        }
+      ],
+      "transition": {
+        "type": "iris",
+        "durationInFrames": 22
+      },
+      "effects": [
+        {
+          "name": "ZoomSlow",
+          "intensity": 0.4
+        },
+        {
+          "name": "ColorGradeWarm",
+          "intensity": 0.35
+        }
+      ]
+    },
+    {
+      "id": "s7-quote",
+      "durationInFrames": 160,
+      "preset": "QuoteCard",
+      "title": "Проверено пикселями",
+      "text": "Ни одна фича не считается готовой, пока её не подтвердил замер.",
+      "author": "Motion Studio Framework",
+      "role": "принцип разработки",
+      "transition": {
+        "type": "dreamyZoom",
+        "durationInFrames": 24
+      },
+      "effects": [
+        {
+          "name": "Breathe",
+          "intensity": 0.5
+        },
+        {
+          "name": "SpotlightFollow",
+          "intensity": 0.45,
+          "seed": 5
+        }
+      ]
+    },
+    {
+      "id": "s8-stat",
+      "durationInFrames": 160,
+      "preset": "StatCounter",
+      "title": "Эффектов в реестре",
+      "statValue": 108,
+      "subtitle": "intensity=0 — доказанный no-op",
+      "transition": {
+        "type": "zoomBlur",
+        "durationInFrames": 22
+      },
+      "effects": [
+        {
+          "name": "ZoomPunch",
+          "intensity": 0.5
+        },
+        {
+          "name": "ChromaticAberration",
+          "intensity": 0.4
+        },
+        {
+          "name": "ParticlesSparks",
+          "intensity": 0.6,
+          "seed": 9
+        }
+      ],
+      "statSuffix": ""
+    }
+  ]
+}

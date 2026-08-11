@@ -3,6 +3,7 @@ import { Audio, staticFile } from 'remotion';
 import { TransitionSeries } from '@remotion/transitions';
 import { VideoSpec } from '../VideoSpec.schema';
 import { SceneDispatcher } from './SceneDispatcher';
+import { EffectStack } from './EffectStack';
 import { buildPresentation, buildTiming, getTransitionPlan } from '../lib/transitions';
 
 /**
@@ -36,7 +37,9 @@ export const MainComposition: React.FC<VideoSpec> = ({ scenes, audioUrl, width, 
               durationInFrames={scene.durationInFrames}
             >
               {scene.audioUrl && <Audio src={resolveSrc(scene.audioUrl)} />}
-              <SceneDispatcher {...scene} />
+              <EffectStack effects={scene.effects}>
+                <SceneDispatcher {...scene} />
+              </EffectStack>
             </TransitionSeries.Sequence>
           );
 

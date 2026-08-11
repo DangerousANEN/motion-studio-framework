@@ -195,6 +195,37 @@ export const DollyOut: React.FC<EffectProps> = ({
 // 2.4.7  HandheldDrift — low-frequency organic camera shake
 //        Uses seeded PRNG so it is frame-reproducible.
 // ---------------------------------------------------------------------------
+
+/** Frames between noise nodes. Handheld motion is low-frequency; sampling the
+ *  lattice this far apart puts the drift around 2.5 Hz at 60fps. */
+const DRIFT_LATTICE = 24;
+
+/**
+ * Smooth 1-D value noise: seeded lattice nodes with smoothstep between them.
+ *
+ * The previous implementation reseeded per frame — `mulberry32(seed + frame*7)`
+ * — so adjacent frames drew INDEPENDENT samples. That is white noise, not
+ * drift: measured on a settled TgChat scene the picture jumped a mean 0.62px
+ * (max 1.41px) every frame and reversed horizontal direction in 5 of 39 frame
+ * pairs. On screen that is per-pixel dither, which reads as a bad encode
+ * rather than a camera operator breathing. Real handheld motion is continuous
+ * in time, so the noise has to be a continuous function OF time: sample sparse
+ * nodes and ease between them.
+ */
+const driftNoise = (seed: number, frame: number, channel: number): number => {
+  const x = frame / DRIFT_LATTICE;
+  const i = Math.floor(x);
+  const f = x - i;
+  // Each (channel, node) pair gets its own stream; large odd multipliers keep
+  // the x and y channels from correlating into a diagonal-only wobble.
+  const node = (n: number) =>
+    mulberry32(seed * 7919 + channel * 104729 + n * 31)() * 2 - 1;
+  const a = node(i);
+  const b = node(i + 1);
+  const s = f * f * (3 - 2 * f); // smoothstep: zero slope at both nodes
+  return a + (b - a) * s;
+};
+
 export const HandheldDrift: React.FC<EffectProps> = ({
   intensity = 1,
   seed = 42,
@@ -204,14 +235,15 @@ export const HandheldDrift: React.FC<EffectProps> = ({
 
   if (intensity === 0) return <>{children}</>;
 
-  // Use seeded noise per frame but smooth it with a sine basis
-  const rand = mulberry32(seed + frame * 7);
-  const nx = (rand() - 0.5) * 2;
-  const ny = (rand() - 0.5) * 2;
+  // Continuous-in-time noise, so consecutive frames differ by a fraction of a
+  // pixel instead of a full pixel in a random direction.
+  const nx = driftNoise(seed, frame, 0);
+  const ny = driftNoise(seed, frame, 1);
 
-  // Layered slow drift using frame-indexed sine waves
-  const px = intensity * (nx * 4 + Math.sin(frame * 0.04) * 6);
-  const py = intensity * (ny * 2 + Math.cos(frame * 0.03) * 4);
+  // Layered slow drift: eased noise plus a slower sine so the motion does not
+  // settle into an obvious loop.
+  const px = intensity * (nx * 5 + Math.sin(frame * 0.04) * 6);
+  const py = intensity * (ny * 3 + Math.cos(frame * 0.03) * 4);
   const rot = intensity * (nx * 0.4);
 
   return (

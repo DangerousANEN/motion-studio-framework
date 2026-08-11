@@ -243,6 +243,17 @@ export const TransitionSpecSchema = z.object({
 
 export type TransitionSpec = z.infer<typeof TransitionSpecSchema>;
 
+/**
+ * One effect wrapped around a scene. `name` resolves against the merged
+ * effects registry (EFFECTS + VISUAL_EFFECTS + SCENE_EFFECTS in
+ * src/registry/effects*.ts); intensity 0 is a proven pixel-level no-op.
+ */
+export const SceneEffectSchema = z.object({
+  name: z.string(),
+  intensity: z.number().default(1),
+  seed: z.number().optional(),
+});
+
 export const BaseSceneSchema = z
   .object({
     id: z.string().default('scene-1'),
@@ -281,6 +292,15 @@ export const BaseSceneSchema = z
     language: z.string().optional(),
     // UI mockup scenes (TgChat, AiChat, CryptoWallet, BankCard, ...)
     messages: z.array(ChatMessageSchema).optional(),
+    /**
+     * TgChat header identity. Separate from `title` on purpose: `title` is the
+     * scene's own caption, and reusing it as the chat partner's name meant a
+     * spec that set a caption also silently renamed the contact (and one that
+     * set neither fell back to a hardcoded 'Аня'). `contactStatus` accepts ''
+     * to render no status line at all.
+     */
+    contactName: z.string().optional(),
+    contactStatus: z.string().optional(),
     /** AiChatStream: the assistant reply that types out across the scene. */
     response: z.string().optional(),
     tokens: z.array(TokenRowSchema).optional(),
@@ -330,6 +350,14 @@ export const BaseSceneSchema = z
      * see lib/transitions.ts getTransitionPlan().
      */
     transition: TransitionSpecSchema.optional(),
+    /**
+     * Effects wrapped around this scene, applied outermost-first. Each entry
+     * names an effect from the merged effects registry (entrance, exit,
+     * emphasis, camera, grade, distortion, atmosphere) and carries its own
+     * intensity; intensity 0 is a proven pixel-level no-op, so a disabled
+     * effect costs nothing visually.
+     */
+    effects: z.array(SceneEffectSchema).optional(),
   })
   .passthrough();
 

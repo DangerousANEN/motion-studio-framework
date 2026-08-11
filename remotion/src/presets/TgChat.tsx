@@ -66,6 +66,8 @@ const Tick: React.FC<{ read: boolean; color: string }> = ({ read, color }) => (
 
 export const TgChat: React.FC<BaseSceneProps> = ({
   title,
+  contactName,
+  contactStatus,
   messages,
   accentColor = TG.accent,
   motion,
@@ -142,10 +144,10 @@ export const TgChat: React.FC<BaseSceneProps> = ({
                 color: TG.text,
               }}
             >
-              {title || 'Аня'}
+              {contactName || title || 'Аня'}
             </span>
             <span style={{ fontFamily: FONT, fontSize: metaFont, color: TG.meta }}>
-              в сети
+              {contactStatus ?? 'в сети'}
             </span>
           </div>
         </div>

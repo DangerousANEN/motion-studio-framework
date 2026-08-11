@@ -65,7 +65,34 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
 
   const total = data.reduce((acc, s) => acc + Math.max(0, s.value), 0) || 1;
 
-  const PALETTE = [accentColor, BRAND.accentCyan, BRAND.accentGreen, BRAND.gold, '#FF6B9D', '#A78BFA'];
+  // accentColor leads the palette, so any brand colour EQUAL to it has to be
+  // dropped or two segments render in the same paint. BRAND.accentGreen is
+  // '#00FF88' and so is BRAND.neon, which is the accentColor default — so a
+  // 3-segment donut painted segments 1 and 3 identically (measured #00F780
+  // over 220deg and again over 45deg on the 62/24/14 chart). Those two are
+  // adjacent across the ring's closing boundary, which also made the 2deg
+  // separator between them read as a hole punched inside one segment rather
+  // than as a divider between two.
+  const PALETTE = ((): string[] => {
+    const candidates = [
+      accentColor,
+      BRAND.accentCyan,
+      BRAND.accentGreen,
+      BRAND.gold,
+      '#FF6B9D',
+      '#A78BFA',
+      '#FFB86B',
+    ];
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const colour of candidates) {
+      const key = colour.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(colour);
+    }
+    return unique;
+  })();
 
   // Geometry is derived from the safe box: at 1080x1920 the platform profile
   // leaves 920x1260, and the ring must not grow into the caption strip.

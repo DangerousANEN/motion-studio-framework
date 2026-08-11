@@ -24,7 +24,12 @@ import { fitOneLine, fitWrapped } from '../theme/layout';
 export const StatCounter: React.FC<BaseSceneProps> = ({
   statValue = 100,
   statPrefix = '',
-  statSuffix = '%',
+  // NO default suffix. This used to default to '%', which silently turned any
+  // plain count into a percentage: the spec "Эффектов в реестре / statValue 108"
+  // rendered as "108%" on screen. A counter cannot know that its number is a
+  // proportion, and inventing a unit is worse than showing none — a spec that
+  // wants a percent sign says so.
+  statSuffix = '',
   statLabel,
   title,
   text,
