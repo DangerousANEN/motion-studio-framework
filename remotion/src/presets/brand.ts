@@ -57,7 +57,7 @@ const glass: Theme = {
   gold: '#FFD79A',
   neon: '#7CF7C6',
   cyan: '#7CC5FF',
-  muted: '#93A2BC',
+  muted: '#A9B6CC',
   accentCyan: '#7CC5FF',
   accentGreen: '#7CF7C6',
   accentWarm: '#FFD79A',
@@ -93,6 +93,15 @@ const sunset: Theme = {
 
 /**
  * Additional palettes so every style kit is visually distinct.
+ *
+ * `muted` MUST CLEAR ~4.5:1 AGAINST ITS OWN `bg`.
+ * Presets use `muted` for sub-labels (ring captions, axis labels, timestamps) at
+ * small sizes. Four of the six kits added below originally shipped a `muted`
+ * chosen to look tasteful in isolation and measured 2.98–4.13 against their
+ * backgrounds — `steel` failed even the 3:1 large-text floor, so its captions
+ * were effectively invisible in a rendered frame. Check any new palette with a
+ * contrast ratio, not by eye: a dim caption on a dark backdrop looks
+ * "subtle" in a swatch and unreadable at 1080x1920.
  *
  * WHY THESE EXIST
  * ---------------
@@ -176,7 +185,7 @@ const sunrise: Theme = {
   neon: '#FF8C1A',        // насыщенный оранжевый
   cyan: '#FFD580',        // светлое золото
   text: '#FFF8EE',
-  muted: '#A07850',
+  muted: '#C09468',
   darkBorder: '#000000',
   shadowColor: '#000000',
   accentCyan: '#FFD580',
@@ -193,7 +202,7 @@ const forest: Theme = {
   neon: '#2DDA5A',        // живой зелёный
   cyan: '#60E8B0',        // лесная бирюза
   text: '#E8FFF0',
-  muted: '#4A7A58',
+  muted: '#6C9E7C',
   darkBorder: '#000000',
   shadowColor: '#000000',
   accentCyan: '#60E8B0',
@@ -210,7 +219,7 @@ const mono_warm: Theme = {
   neon: '#C8924A',        // жжёная охра
   cyan: '#A87B58',        // коричнево-медный
   text: '#F5ECD8',
-  muted: '#8A7060',
+  muted: '#9C8272',
   darkBorder: '#000000',
   shadowColor: '#000000',
   accentCyan: '#A87B58',
@@ -244,7 +253,7 @@ const candy: Theme = {
   neon: '#FF6EC7',        // яркий розовый
   cyan: '#A78BFF',        // лавандовый
   text: '#FFF0FA',
-  muted: '#8A5080',
+  muted: '#A96BA0',
   darkBorder: '#000000',
   shadowColor: '#000000',
   accentCyan: '#A78BFF',
@@ -261,7 +270,7 @@ const steel: Theme = {
   neon: '#5B9EC9',        // холодный синий
   cyan: '#9EC8E0',        // светло-стальной
   text: '#E8F0F8',
-  muted: '#4A6070',
+  muted: '#6E8798',
   darkBorder: '#000000',
   shadowColor: '#000000',
   accentCyan: '#9EC8E0',
