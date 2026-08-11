@@ -43,6 +43,19 @@ const maskAddress = (addr: string): string =>
 const fmt = (n: number, digits = 2): string =>
   n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
+/**
+ * Render the balance with its currency.
+ *
+ * A one-character symbol prefixes the number the way money is written: `$12,480`.
+ * A ticker does not — `USDT12,480` reads as one broken token, which is exactly
+ * what shipped when a spec passed `currency: "USDT"`. Anything longer than a
+ * single glyph is treated as a ticker and follows the amount with a space.
+ */
+const formatBalance = (amount: number, currency: string): string => {
+  const value = fmt(amount, 0);
+  return currency.length <= 1 ? `${currency}${value}` : `${value} ${currency}`;
+};
+
 export const CryptoWallet: React.FC<BaseSceneProps> = ({
   title,
   address,
@@ -158,8 +171,7 @@ export const CryptoWallet: React.FC<BaseSceneProps> = ({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {currency}
-            {fmt(shown, 0)}
+            {formatBalance(shown, currency)}
           </div>
           <div
             style={{

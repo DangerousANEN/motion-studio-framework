@@ -111,10 +111,100 @@ def node_script_split(state: VideoState) -> VideoState:
     return state
 
 
-# Rotating presets for multi-scene videos. StatCounter and SwipePanels need
-# structured data (statValue/cards) that plain narration text doesn't provide, so
-# they are excluded from automatic rotation — they'd render their ⚠ placeholder.
-_TEXT_SAFE_PRESETS = ["HeroKinetic", "TypewriterSub", "GridGridFloor"]
+# Rotating presets for multi-scene videos.
+#
+# WHY THIS LIST IS LONGER THAN IT WAS
+# Rotation used to cycle three names: HeroKinetic, TypewriterSub, GridGridFloor.
+# Every generated video therefore looked the same — three typography cards on a
+# loop — while 17 presets sat registered and unused. The registry marks which
+# presets need structured data (`dataDriven: true` in remotion/src/registry/),
+# and the ones that do NOT are exactly the presets plain narration can drive:
+#
+#   HeroKinetic    typography   title
+#   TypewriterSub  typography   text
+#   QuoteCard      narrative    text + author        (author falls back below)
+#   GridGridFloor  typography   title
+#   TokenCloud3D   three        pointCount (defaulted)
+#   ModelOrbit3D   three        modelUrl — needs an asset, so NOT rotated
+#
+# QuoteCard and TokenCloud3D were text-safe all along and were simply left out.
+# Adding them doubles the visual vocabulary of a narration-only video at zero
+# risk of a ⚠ placeholder.
+#
+# Order is deliberate, not alphabetical: it alternates weight so consecutive
+# scenes never share a silhouette. A big title card is followed by running text,
+# then a quote, then a 3D field — the eye gets a different shape every time.
+_TEXT_SAFE_PRESETS = [
+    "HeroKinetic",
+    "TypewriterSub",
+    "QuoteCard",
+    "GridGridFloor",
+    "TokenCloud3D",
+]
+
+# Presets that need structured data. Kept here so _rotated_preset can assert it
+# never hands one of these to a scene that carries only narration text.
+_DATA_DRIVEN_PRESETS = frozenset({
+    "StatCounter", "DonutFill", "CompareSplit", "FlowDiagram",
+    "SwipePanels", "CodeReveal", "LayerStack3D",
+    "TgChat", "AiChatStream", "CryptoWallet", "BankCard",
+})
+
+
+ACCENT_NAMES = {
+    "gold": "#E6C475",
+    "neon": "#00FF88",
+    "cyan": "#00D4FF",
+}
+
+
+def _resolve_accent(requested: Optional[str]) -> str:
+    """Turn a documented accent name into hex; pass a raw #RRGGBB through.
+
+    Callers are told they may pass "gold" | "neon" | "cyan". Only "gold" used to
+    be special-cased, so accent="neon" reached the renderer as the literal string
+    "neon" — an invalid CSS colour that the browser drops, leaving each scene on
+    its own default instead of the requested palette. Failure was silent: the spec
+    validated and the render exited 0.
+    """
+    if not requested:
+        return ACCENT_NAMES["gold"]
+    return ACCENT_NAMES.get(requested, requested)
+
+
+def _scene_kwargs(
+    scene: Dict[str, Any],
+    accent_color: str,
+    index: int,
+    default_preset: str = "HeroKinetic",
+) -> Dict[str, Any]:
+    """Map one incoming scene dict onto Scene(**kwargs).
+
+    Accepts BOTH spellings for every field. Scenes arrive in the wire format the
+    presets and docs use (camelCase: statValue, pointCount) while the dataclass is
+    snake_case, so a plain `k in scene_fields` filter silently dropped camelCase
+    keys: a scene carrying statValue produced a StatCounter with no number, and
+    validate_spec then blamed the caller for a key they had in fact supplied.
+
+    Shared by build_spec and repair — repair rebuilds scenes from the same dicts,
+    so without this it would drop the very fields QA is trying to preserve.
+    """
+    wire_to_snake = {v: k for k, v in Scene._CAMEL.items()}
+    scene_fields = {f.name for f in dataclasses.fields(Scene)}
+
+    normalised: Dict[str, Any] = {}
+    for key, value in scene.items():
+        normalised[wire_to_snake.get(key, key)] = value
+
+    kwargs = {k: v for k, v in normalised.items() if k in scene_fields and v is not None}
+    kwargs.update(
+        id=scene.get("id", f"scene-{index+1}"),
+        duration_in_frames=normalised.get("duration_in_frames", 90),
+        preset=normalised.get("preset", default_preset),
+        accent_color=normalised.get("accent_color") or accent_color,
+        audio_url=f"scene_{index:02d}.wav",
+    )
+    return kwargs
 
 
 def _rotated_preset(base: str, index: int) -> str:
@@ -122,7 +212,13 @@ def _rotated_preset(base: str, index: int) -> str:
 
     The requested preset always leads scene 0; later scenes cycle through the
     text-safe presets (which accept plain narration) to keep the video moving.
+
+    A data-driven base (StatCounter, TgChat, ...) is never rotated away from:
+    the caller supplied the data for it, and swapping it for a typography card
+    would silently drop that data from the video.
     """
+    if base in _DATA_DRIVEN_PRESETS:
+        return base
     if base in _TEXT_SAFE_PRESETS:
         cycle = [base] + [p for p in _TEXT_SAFE_PRESETS if p != base]
         return cycle[index % len(cycle)]
@@ -188,24 +284,15 @@ def node_build_remotion_spec(state: VideoState) -> VideoState:
     """Generate VideoSpec via single source of truth msf.spec."""
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
 
-    accent_color = "#E6C475" if state.get("accent") == "gold" else (state.get("accent") or "#E6C475")
+    accent_color = _resolve_accent(state.get("accent"))
 
-    # Copy every field the Scene dataclass knows about, so adding a preset field
-    # in msf/spec.py is enough — no parallel edit needed here.
-    scene_fields = {f.name for f in dataclasses.fields(Scene)}
-
-    scenes_objs: List[Scene] = []
-    for i, sc in enumerate(state.get("scenes", [])):
-        audio_name = f"scene_{i:02d}.wav"
-        kwargs = {k: v for k, v in sc.items() if k in scene_fields and v is not None}
-        kwargs.update(
-            id=sc.get("id", f"scene-{i+1}"),
-            duration_in_frames=sc.get("duration_in_frames", 90),
-            preset=sc.get("preset", state.get("preset", "HeroKinetic")),
-            accent_color=sc.get("accent_color") or accent_color,
-            audio_url=audio_name,
-        )
-        scenes_objs.append(Scene(**kwargs))
+    # Field mapping (including camelCase → snake_case) lives in _scene_kwargs so
+    # this node and the repair node cannot drift apart.
+    default_preset = state.get("preset", "HeroKinetic")
+    scenes_objs: List[Scene] = [
+        Scene(**_scene_kwargs(sc, accent_color, i, default_preset))
+        for i, sc in enumerate(state.get("scenes", []))
+    ]
 
     spec_dict = build_spec(
         scenes_objs,
@@ -510,20 +597,14 @@ def node_repair(state: VideoState) -> VideoState:
 
     # Rebuild spec_dict with updated scene properties, preserving every field the
     # Scene dataclass knows about (3D layers, code, quote attribution, ...).
-    scene_fields = {f.name for f in dataclasses.fields(Scene)}
-    scenes_objs: List[Scene] = []
-    accent_color = "#E6C475" if state.get("accent") == "gold" else (state.get("accent") or "#E6C475")
-    for i, sc in enumerate(state.get("scenes", [])):
-        audio_name = f"scene_{i:02d}.wav"
-        kwargs = {k: v for k, v in sc.items() if k in scene_fields and v is not None}
-        kwargs.update(
-            id=sc.get("id", f"scene-{i+1}"),
-            duration_in_frames=sc.get("duration_in_frames", 90),
-            preset=sc.get("preset", "HeroKinetic"),
-            accent_color=sc.get("accent_color") or accent_color,
-            audio_url=audio_name,
-        )
-        scenes_objs.append(Scene(**kwargs))
+    # Uses the same mapper as the build node: this path previously filtered keys
+    # without camelCase normalisation, so a QA repair pass would strip the very
+    # preset data (statValue, messages, walletBalance) it was meant to keep.
+    accent_color = _resolve_accent(state.get("accent"))
+    scenes_objs: List[Scene] = [
+        Scene(**_scene_kwargs(sc, accent_color, i))
+        for i, sc in enumerate(state.get("scenes", []))
+    ]
 
     spec_dict = build_spec(
         scenes_objs,

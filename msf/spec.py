@@ -132,6 +132,35 @@ class Scene:
     # TokenCloud3D / LayerStack3D
     point_count: Optional[int] = None
     layers: Optional[List[str]] = None
+    # DonutFill — ring/pie charts. `segments` is [{"label": str, "value": float}].
+    # Shares are computed from the sum, so values need not total 100.
+    segments: Optional[List[Dict[str, Any]]] = None
+    shape: Optional[str] = None
+    thickness: Optional[float] = None
+    fill_mode: Optional[str] = None
+    center_content: Optional[str] = None
+    label_placement: Optional[str] = None
+    percent_counters: Optional[bool] = None
+    gap_angle: Optional[float] = None
+    highlight_segment: Optional[int] = None
+    value_suffix: Optional[str] = None
+    # TgChat / AiChatStream — `messages` is [{"from"?, "text", "out"?, "read"?}].
+    # `response` is the streamed assistant reply (AiChatStream only).
+    messages: Optional[List[Dict[str, Any]]] = None
+    response: Optional[str] = None
+    chat_title: Optional[str] = None
+    # CryptoWallet — `tokens` is [{"symbol", "amount", "change"}].
+    # amount/change/balance are NUMBERS on the wire (Zod rejects "2.4" and
+    # "+3.1%"); formatting and the % sign are the preset's job, not the spec's.
+    balance: Optional[float] = None
+    tokens: Optional[List[Dict[str, Any]]] = None
+    address: Optional[str] = None
+    currency: Optional[str] = None
+    # BankCard — never accept full card numbers; last 4 digits only.
+    last4: Optional[str] = None
+    holder: Optional[str] = None
+    expiry: Optional[str] = None
+    card_brand: Optional[str] = None
     # Style
     style: Optional[str] = None
     audio_url: Optional[str] = None
@@ -155,6 +184,21 @@ class Scene:
         "model_scale": "modelScale",
         "orbit_speed": "orbitSpeed",
         "point_count": "pointCount",
+        "fill_mode": "fillMode",
+        "center_content": "centerContent",
+        "label_placement": "labelPlacement",
+        "percent_counters": "percentCounters",
+        "gap_angle": "gapAngle",
+        "highlight_segment": "highlightSegment",
+        "value_suffix": "valueSuffix",
+        # TgChat renders `title` as the scene caption and `contactName` as the
+        # chat partner. Keeping them separate stops a caption from silently
+        # renaming the contact.
+        "chat_title": "contactName",
+        # `brand` is taken on the wire by BankCard's scheme mark; the Python
+        # attribute is card_brand so it cannot collide with a future top-level
+        # brand field.
+        "card_brand": "brand",
         "audio_url": "audioUrl",
     }
 
@@ -235,6 +279,12 @@ _DATA_REQUIREMENTS = {
     "FlowDiagram": ("nodes", "steps"),
     "CodeReveal": ("code",),
     "ModelShowcase": ("modelUrl",),
+    # A chart with no numbers, a chat with no messages and a wallet with no
+    # tokens all render as empty chrome. Catch it here, not in the pixels.
+    "DonutFill": ("segments",),
+    "TgChat": ("messages",),
+    "AiChatStream": ("response",),
+    "CryptoWallet": ("tokens",),
 }
 
 
@@ -274,9 +324,13 @@ def validate_spec(spec: Dict[str, Any]) -> None:
                 f"got {frames!r}. (Check for snake_case leakage — the wire format is camelCase.)"
             )
 
+        # Any one of these is enough to put something real on screen. Data-driven
+        # presets carry their content in a list/number field rather than in text,
+        # so they must be listed here or a fully-populated chart reads as "empty".
         content_keys = (
             "title", "subtitle", "text", "bodyText", "statLabel",
             "cards", "nodes", "steps", "code", "modelUrl",
+            "segments", "messages", "response", "tokens", "last4", "layers",
         )
         has_content = any(sc.get(k) for k in content_keys) or sc.get("statValue") is not None
         if not has_content:
