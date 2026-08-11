@@ -182,6 +182,104 @@ export const STYLE_KITS: Record<string, StyleKit> = {
     transition: 'fade',
     surface: 'flat',
   },
+
+  // ─── Шесть новых китов ────────────────────────────────────────────────────
+
+  /**
+   * «Рассвет» — тёплый оптимистичный. Мотивационный и лайфстайл контент.
+   * Глубокий янтарный фон, оранжевые акценты, плавное движение.
+   */
+  sunrise: {
+    name: 'sunrise',
+    description: 'Восход: оранжево-золотые акценты, тёплый янтарный фон, плавное мотивационное движение.',
+    theme: 'sunrise',
+    fonts: 'editorial',
+    motion: { damping: 18, stiffness: 130, mass: 0.85, tilt: 0.5, staggerScale: 1.2 },
+    backdrop: 'mesh',
+    effects: { grain: 0.04, vignette: 0.22, bloom: 0.5, chromatic: 0.04, scanlines: 0 },
+    transition: 'dreamyZoom',
+    surface: 'soft',
+  },
+
+  /**
+   * «Лес» — спокойный изумрудный. Эко, здоровье, медленный вдумчивый контент.
+   * Глубокий зелёный фон, живые мятные акценты, slow-motion.
+   */
+  forest: {
+    name: 'forest',
+    description: 'Лес: изумрудный фон, мятно-бирюзовые акценты, органичное медленное движение.',
+    theme: 'forest',
+    fonts: 'modern',
+    motion: { damping: 24, stiffness: 100, mass: 1.1, tilt: 0, staggerScale: 1.4 },
+    backdrop: 'noise',
+    effects: { grain: 0.07, vignette: 0.3, bloom: 0.3, chromatic: 0.02, scanlines: 0 },
+    transition: 'fade',
+    surface: 'soft',
+  },
+
+  /**
+   * «Монохром» — тёплая сепия, документальный и исторический тон.
+   * Кофейно-тёмный фон, охровые акценты, тяжёлая неспешная типографика.
+   */
+  mono_warm: {
+    name: 'mono_warm',
+    description: 'Монохром-тепло: сепийный фон, охровые акценты, документальный нарратив.',
+    theme: 'mono_warm',
+    fonts: 'poster',
+    motion: { damping: 26, stiffness: 110, mass: 1.2, tilt: 0, staggerScale: 1.5 },
+    backdrop: 'plain',
+    effects: { grain: 0.14, vignette: 0.4, bloom: 0.08, chromatic: 0, scanlines: 0 },
+    transition: 'fade',
+    surface: 'flat',
+  },
+
+  /**
+   * «Кибер-лайм» — максимальная энергия, тех-хайп, гейминг.
+   * Почти чёрный фон, кислотный лайм + пурпур, агрессивный наклон.
+   */
+  cyber_lime: {
+    name: 'cyber_lime',
+    description: 'Кибер-лайм: кислотный лайм + магента, максимальная энергия, гейминг-эстетика.',
+    theme: 'cyber_lime',
+    fonts: 'pop',
+    motion: { damping: 8, stiffness: 220, mass: 0.5, tilt: -3.5, staggerScale: 0.75 },
+    backdrop: 'grid',
+    effects: { grain: 0.06, vignette: 0.3, bloom: 0.8, chromatic: 0.28, scanlines: 0.04 },
+    transition: 'zoomBlur',
+    surface: 'brutal',
+  },
+
+  /**
+   * «Конфета» — пастельный поп. Детский, развлекательный, лёгкий контент.
+   * Тёмный ягодный фон, розовые и лавандовые акценты, мягкое игривое движение.
+   */
+  candy: {
+    name: 'candy',
+    description: 'Конфета: розово-лавандовые акценты на тёмном ягодном фоне, лёгкое игривое настроение.',
+    theme: 'candy',
+    fonts: 'modern',
+    motion: { damping: 12, stiffness: 160, mass: 0.7, tilt: 1, staggerScale: 1.0 },
+    backdrop: 'dots',
+    effects: { grain: 0.03, vignette: 0.2, bloom: 0.6, chromatic: 0.1, scanlines: 0 },
+    transition: 'slide',
+    surface: 'glass',
+  },
+
+  /**
+   * «Сталь» — промышленный холодный. B2B, инженерия, серьёзный тон.
+   * Тёмно-стальной фон, холодные синие акценты, строгое прямое движение.
+   */
+  steel: {
+    name: 'steel',
+    description: 'Сталь: холодный стальной синий, промышленный тон, строгая B2B-эстетика.',
+    theme: 'steel',
+    fonts: 'news',
+    motion: { damping: 20, stiffness: 155, mass: 0.9, tilt: 0, staggerScale: 1.1 },
+    backdrop: 'grid',
+    effects: { grain: 0.05, vignette: 0.35, bloom: 0.2, chromatic: 0.05, scanlines: 0.06 },
+    transition: 'wipe',
+    surface: 'soft',
+  },
 };
 
 export const DEFAULT_STYLE_KIT = 'pop';

@@ -32,8 +32,70 @@ DEFAULT_OUTPUT = REPO_ROOT / "output" / "remotion"
 
 # Presets a low-capability agent may request. Must stay in sync with
 # SAFE_PRESETS in remotion/src/VideoSpec.schema.ts.
-ALLOWED_PRESETS = {
-    # 2D
+def _read_registry_presets() -> set:
+    """Preset names the TypeScript registry actually ships.
+
+    WHY THIS IS PARSED FROM SOURCE INSTEAD OF LISTED HERE
+    -----------------------------------------------------
+    This used to be a hand-written set of 11 names. The library grew to 26 and
+    nobody updated it, so `node_gate_check` silently rewrote 15 perfectly valid
+    presets — TgChat, DonutFill, PhoneMockup, every media scene — to
+    HeroKinetic for any agent at level <= 2. The low-level agents that depend on
+    presets most were the ones locked out of over half the library, which is the
+    exact opposite of the intent: the gate exists to stop weak agents writing
+    untested React, NOT to stop them USING finished scenes.
+
+    Reading the registry files makes the allow-list self-maintaining: a new pack
+    is available to level-1 agents the moment it is registered, with no second
+    list to forget. Parsed with a regex rather than executed because this is
+    Python and the registry is TypeScript.
+
+    Only files that `presets.ts` actually merges are read. Globbing the whole
+    directory pulled in effects_*.ts and transitions.ts too, which share the
+    same entry shape, and produced 134 "presets" — Bloom and CrossFade among
+    them. That would let a level-1 agent name an effect as a scene and get an
+    error card.
+    """
+    import re
+    from pathlib import Path
+
+    registry_dir = Path(__file__).resolve().parents[2] / "remotion" / "src" / "registry"
+    index = registry_dir / "presets.ts"
+    if not index.is_file():
+        return set()
+
+    try:
+        index_text = index.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+
+    # Which modules does presets.ts import its registries from?
+    modules = re.findall(r"^import\s*\{[^}]*\}\s*from\s*'\./([A-Za-z0-9_]+)'", index_text, re.M)
+
+    names: set = set()
+    # Registry entries look like `  PresetName: {` followed by `component:`.
+    entry = re.compile(r"^\s{2}([A-Z][A-Za-z0-9_]*):\s*\{", re.M)
+    for module in modules:
+        if module == "types":
+            continue
+        path = registry_dir / f"{module}.ts"
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in entry.finditer(text):
+            block = text[match.end() : match.end() + 400]
+            if "component:" in block:
+                names.add(match.group(1))
+    return names
+
+
+# Presets a level<=2 agent may name. Derived from the registry, with a small
+# hardcoded fallback so a packaging problem degrades to "typography works"
+# instead of rewriting every scene to HeroKinetic.
+_FALLBACK_PRESETS = {
     "HeroKinetic",
     "StatCounter",
     "GridGridFloor",
@@ -43,10 +105,11 @@ ALLOWED_PRESETS = {
     "FlowDiagram",
     "CodeReveal",
     "QuoteCard",
-    # 3D
     "TokenCloud3D",
     "LayerStack3D",
 }
+
+ALLOWED_PRESETS = _read_registry_presets() or set(_FALLBACK_PRESETS)
 
 
 class VideoState(TypedDict, total=False):
@@ -73,16 +136,49 @@ class VideoState(TypedDict, total=False):
 
 
 def node_gate_check(state: VideoState) -> VideoState:
-    """Check agent level and validate allowed capabilities."""
+    """Check agent level and validate allowed capabilities.
+
+    Guards BOTH places a preset can be named: the top-level `preset` and every
+    scene inside a `storyboard`. Checking only the top-level field was a hole —
+    a level-1 agent that passed a storyboard could name any preset at all,
+    including a custom one that does not exist, and the gate reported nothing.
+    Since storyboards are the recommended way to drive data presets, the hole
+    covered the common path rather than an edge case.
+    """
     level = state.get("agent_level", 1)
     preset = state.get("preset", "HeroKinetic")
 
     state["retry_count"] = state.get("retry_count", 0)
 
-    if level <= 2 and preset not in ALLOWED_PRESETS:
+    if level > 2:
+        return state
+
+    rejected: List[str] = []
+
+    if preset not in ALLOWED_PRESETS:
+        rejected.append(preset)
         state["preset"] = "HeroKinetic"
+
+    storyboard = state.get("storyboard")
+    if storyboard:
+        patched = []
+        for scene in storyboard:
+            scene = dict(scene)
+            scene_preset = scene.get("preset")
+            if scene_preset and scene_preset not in ALLOWED_PRESETS:
+                rejected.append(scene_preset)
+                # Drop the key rather than forcing HeroKinetic: the rotation in
+                # node_script_split then picks a real, varied preset instead of
+                # turning the whole video into one repeated title card.
+                scene.pop("preset", None)
+            patched.append(scene)
+        state["storyboard"] = patched
+
+    if rejected:
         state["error"] = (
-            f"Agent level={level} attempted unsupported preset ({preset}). Fallback to HeroKinetic."
+            f"Agent level={level} attempted unsupported preset(s) "
+            f"({', '.join(sorted(set(rejected)))}). "
+            f"Allowed: {len(ALLOWED_PRESETS)} registered presets."
         )
 
     return state

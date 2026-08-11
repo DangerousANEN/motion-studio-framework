@@ -164,10 +164,39 @@ export const HotspotSchema = z.object({
   description: z.string().optional(),
 });
 
-export const StepSchema = z.object({
-  label: z.string(),
-  detail: z.string().optional(),
-});
+/**
+ * One step of a FlowDiagram or ProgressPath.
+ *
+ * `.passthrough()` matters: without it Zod strips unknown keys, so a
+ * ProgressPath step written as `{label, description}` parsed "successfully"
+ * and arrived at the component as `{label}` only — the descriptions vanished
+ * with no error anywhere. `description` is declared explicitly for the same
+ * reason, since that is the name ProgressPath documents.
+ */
+export const StepSchema = z
+  .object({
+    label: z.string(),
+    detail: z.string().optional(),
+    description: z.string().optional(),
+  })
+  .passthrough();
+
+/**
+ * Steps accept a bare string as shorthand and are normalised to `{label}`.
+ * ProgressPath's docs advertise `steps: ['a','b']`, which used to fail
+ * validation outright ("expected object, received string").
+ */
+export const StepListSchema = z.array(
+  z.union([
+    // The transform emits the FULL step shape, not just `{label}`. Returning a
+    // narrower object made the union type `{label} | StepSchema`, and consumers
+    // that read `.detail` (FlowDiagram) stopped compiling.
+    z.string().transform(
+      (label): { label: string; detail?: string; description?: string } => ({ label })
+    ),
+    StepSchema,
+  ])
+);
 
 /** One arc of a DonutFill. `value` is in the same unit across all segments. */
 export const SegmentSchema = z.object({
@@ -302,7 +331,7 @@ export const BaseSceneSchema = z
     cards: z.array(CardSchema).optional(),
     // FlowDiagram
     nodes: z.array(NodeSchema).optional(),
-    steps: z.array(StepSchema).optional(),
+    steps: StepListSchema.optional(),
     // DonutFill
     segments: z.array(SegmentSchema).optional(),
     shape: z.enum(['donut', 'pie', 'ring', 'halfDonut']).optional(),
@@ -453,6 +482,119 @@ export const BaseSceneSchema = z
     ringMax: z.number().positive().optional(),
     /** Bars3D: extrusion depth in px. Defaults to a share of the bar width. */
     barDepth: z.number().min(0).optional(),
+    // ---------------------------------------------------------------- social
+    /** PostCard: engagement counters. `author` is declared above (QuoteCard). */
+    handle: z.string().optional(),
+    verified: z.boolean().optional(),
+    likes: z.number().optional(),
+    reposts: z.number().optional(),
+    /**
+     * Engagement count for PostCard, OR the comment list for CommentWall.
+     * One key, two shapes: a number is a counter, an array is the wall's data.
+     * Kept as a union rather than two keys because both presets describe the
+     * same concept and a spec author reaches for `comments` either way.
+     */
+    comments: z
+      .union([
+        z.number(),
+        z.array(
+          z
+            .object({
+              author: z.string().optional(),
+              text: z.string().optional(),
+              likes: z.number().optional(),
+              avatar: z.string().optional(),
+            })
+            .passthrough()
+        ),
+      ])
+      .optional(),
+    /** SubscribeCTA: channel identity, counter and button captions. */
+    channelName: z.string().optional(),
+    subscribers: z.number().optional(),
+    buttonText: z.string().optional(),
+    subscribedText: z.string().optional(),
+    /** Leaderboard: ranked rows. */
+    rows: z
+      .array(
+        z
+          .object({
+            name: z.string().optional(),
+            value: z.number().optional(),
+            avatar: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    // ----------------------------------------------------------------- learn
+    /** QuizCard: question, answers, which one is right, when to reveal it. */
+    question: z.string().optional(),
+    options: z.array(z.string()).optional(),
+    correctIndex: z.number().int().min(0).optional(),
+    revealAtProgress: z.number().min(0).max(1).optional(),
+    /**
+     * ProgressPath reuses the existing `steps` field (declared above as
+     * `z.array(StepSchema)`) rather than redeclaring it. A second `steps` key
+     * is a TS1117 duplicate-property error, and widening it to
+     * `string[] | {...}[]` broke FlowDiagram, which indexes `.label`/`.detail`
+     * on the element without narrowing.
+     */
+    currentStep: z.number().int().min(0).optional(),
+    orientation: z.enum(['vertical', 'horizontal']).optional(),
+    /** DefinitionCard: the term being explained. */
+    term: z.string().optional(),
+    definition: z.string().optional(),
+    example: z.string().optional(),
+    source: z.string().optional(),
+    /** TimelineReveal: dated events along an axis. */
+    events: z
+      .array(
+        z
+          .object({
+            date: z.string().optional(),
+            label: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    // ----------------------------------------------------------------- stage
+    /** LyricLines: karaoke lines; `startAt` is 0..1 scene progress. */
+    lines: z
+      .union([
+        z.array(z.string()),
+        z.array(
+          z.object({ text: z.string(), startAt: z.number().min(0).max(1).optional() }).passthrough()
+        ),
+      ])
+      .optional(),
+    /** ScoreHud: game state. `health` is 0..100. */
+    score: z.number().optional(),
+    health: z.number().min(0).max(100).optional(),
+    combo: z.number().optional(),
+    timeLeft: z.number().optional(),
+    playerName: z.string().optional(),
+    /** CountdownHero: counts down FROM this number, then shows `finalWord`. */
+    from: z.number().int().positive().optional(),
+    finalWord: z.string().optional(),
+    /** VersusSplit: the two sides of the matchup. */
+    left: z
+      .object({
+        name: z.string().optional(),
+        value: z.number().optional(),
+        avatar: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    right: z
+      .object({
+        name: z.string().optional(),
+        value: z.number().optional(),
+        avatar: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    vsLabel: z.string().optional(),
   })
   .passthrough();
 

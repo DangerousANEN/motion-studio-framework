@@ -160,6 +160,115 @@ const ink: Theme = {
   accentWarm: '#FFFFFF',
 };
 
+/**
+ * Six new palettes — one per new style kit.
+ * Each one has a unique bg darkness, accent hue, and triadic variation so that
+ * rendered frames differ at the pixel level (the accent triads drive the ring
+ * colours, bg drives the corner sample).
+ */
+
+/** «Рассвет» — тёплый оранжево-золотой оптимистичный. */
+const sunrise: Theme = {
+  ...pop,
+  bg: '#130B04',          // очень тёмный янтарь
+  surface: '#221509',
+  gold: '#FFAE42',        // апельсиновое золото
+  neon: '#FF8C1A',        // насыщенный оранжевый
+  cyan: '#FFD580',        // светлое золото
+  text: '#FFF8EE',
+  muted: '#A07850',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#FFD580',
+  accentGreen: '#FF8C1A',
+  accentWarm: '#FFAE42',
+};
+
+/** «Лес» — глубокий изумрудный эко. */
+const forest: Theme = {
+  ...pop,
+  bg: '#061108',          // почти чёрный с зелёным
+  surface: '#0D1F10',
+  gold: '#80E890',        // мятно-зелёный
+  neon: '#2DDA5A',        // живой зелёный
+  cyan: '#60E8B0',        // лесная бирюза
+  text: '#E8FFF0',
+  muted: '#4A7A58',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#60E8B0',
+  accentGreen: '#2DDA5A',
+  accentWarm: '#80E890',
+};
+
+/** «Монохром» — тёплая сепия/бумага (темнее обычного paper, другой акцент). */
+const mono_warm: Theme = {
+  ...pop,
+  bg: '#160F08',          // тёмный кофейный
+  surface: '#261A0F',
+  gold: '#D4A96A',        // тёплый янтарь
+  neon: '#C8924A',        // жжёная охра
+  cyan: '#A87B58',        // коричнево-медный
+  text: '#F5ECD8',
+  muted: '#8A7060',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#A87B58',
+  accentGreen: '#C8924A',
+  accentWarm: '#D4A96A',
+};
+
+/** «Кибер-лайм» — максимально агрессивный лайм+пурпур. */
+const cyber_lime: Theme = {
+  ...pop,
+  bg: '#020D02',          // почти чёрный с едва различимым зелёным
+  surface: '#071407',
+  gold: '#C6FF00',        // кислотный лайм
+  neon: '#AAFF00',        // чистый лайм
+  cyan: '#FF00C8',        // магента-пурпур (контраст к лайму)
+  text: '#F0FFD8',
+  muted: '#5A8A30',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#FF00C8',
+  accentGreen: '#AAFF00',
+  accentWarm: '#C6FF00',
+};
+
+/** «Конфета» — тёмный пастель-поп (фон тёмный, акценты мягко-конфетные). */
+const candy: Theme = {
+  ...pop,
+  bg: '#12040E',          // тёмный ягодный
+  surface: '#1F0A1A',
+  gold: '#FF8FD8',        // розово-лавандовый
+  neon: '#FF6EC7',        // яркий розовый
+  cyan: '#A78BFF',        // лавандовый
+  text: '#FFF0FA',
+  muted: '#8A5080',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#A78BFF',
+  accentGreen: '#FF6EC7',
+  accentWarm: '#FF8FD8',
+};
+
+/** «Сталь» — промышленный холодный серо-стальной. */
+const steel: Theme = {
+  ...pop,
+  bg: '#080C12',          // тёмный стальной
+  surface: '#111720',
+  gold: '#7AAED8',        // стальной голубой
+  neon: '#5B9EC9',        // холодный синий
+  cyan: '#9EC8E0',        // светло-стальной
+  text: '#E8F0F8',
+  muted: '#4A6070',
+  darkBorder: '#000000',
+  shadowColor: '#000000',
+  accentCyan: '#9EC8E0',
+  accentGreen: '#5B9EC9',
+  accentWarm: '#7AAED8',
+};
+
 export const THEMES: Record<string, Theme> = {
   pop,
   noir,
@@ -170,6 +279,12 @@ export const THEMES: Record<string, Theme> = {
   vhs,
   ink,
   broadcast,
+  sunrise,
+  forest,
+  mono_warm,
+  cyber_lime,
+  candy,
+  steel,
 };
 
 export const getTheme = (name?: string): Theme => THEMES[name || 'pop'] || pop;

@@ -195,6 +195,47 @@ class Scene:
     # --------------------------------------------------------------- charts
     ring_max: Optional[float] = None
     bar_depth: Optional[float] = None
+    # --------------------------------------------------------------- social
+    # PostCard / CommentWall / SubscribeCTA / Leaderboard.
+    author: Optional[str] = None
+    handle: Optional[str] = None
+    verified: Optional[bool] = None
+    likes: Optional[int] = None
+    reposts: Optional[int] = None
+    # A number for PostCard's counter, a list for CommentWall's data.
+    comments: Optional[Any] = None
+    channel_name: Optional[str] = None
+    subscribers: Optional[int] = None
+    button_text: Optional[str] = None
+    subscribed_text: Optional[str] = None
+    rows: Optional[List[Dict[str, Any]]] = None
+    # ---------------------------------------------------------------- learn
+    question: Optional[str] = None
+    options: Optional[List[str]] = None
+    correct_index: Optional[int] = None
+    reveal_at_progress: Optional[float] = None
+    current_step: Optional[int] = None
+    orientation: Optional[str] = None
+    term: Optional[str] = None
+    definition: Optional[str] = None
+    example: Optional[str] = None
+    source: Optional[str] = None
+    events: Optional[List[Dict[str, Any]]] = None
+    # ---------------------------------------------------------------- stage
+    # LyricLines karaoke lines; ScoreHud game state; CountdownHero; VersusSplit.
+    lines: Optional[List[Any]] = None
+    score: Optional[int] = None
+    health: Optional[float] = None
+    combo: Optional[int] = None
+    time_left: Optional[float] = None
+    player_name: Optional[str] = None
+    # `from` is a Python keyword, so the attribute is count_from and _CAMEL
+    # emits it as `from` on the wire.
+    count_from: Optional[int] = None
+    final_word: Optional[str] = None
+    left: Optional[Dict[str, Any]] = None
+    right: Optional[Dict[str, Any]] = None
+    vs_label: Optional[str] = None
     # -------------------------------------------------------------- overlays
     # HUD elements above the scene: [{"type": "timer"|"notification"|"money", ...}].
     # See remotion/src/compositions/OverlayStack.tsx for per-type fields.
@@ -249,6 +290,18 @@ class Scene:
         "track_title": "trackTitle",
         "ring_max": "ringMax",
         "bar_depth": "barDepth",
+        "channel_name": "channelName",
+        "button_text": "buttonText",
+        "subscribed_text": "subscribedText",
+        "correct_index": "correctIndex",
+        "reveal_at_progress": "revealAtProgress",
+        "current_step": "currentStep",
+        "time_left": "timeLeft",
+        "player_name": "playerName",
+        # `from` is reserved in Python; the dataclass field is count_from.
+        "count_from": "from",
+        "final_word": "finalWord",
+        "vs_label": "vsLabel",
         "audio_url": "audioUrl",
     }
 
@@ -345,6 +398,15 @@ _DATA_REQUIREMENTS = {
     "PhoneMockup": ("innerPreset",),
     "RingStats": ("segments",),
     "Bars3D": ("segments",),
+    # social / learn / stage packs — each renders empty chrome without its data.
+    "CommentWall": ("comments",),
+    "Leaderboard": ("rows",),
+    "QuizCard": ("question", "options"),
+    "ProgressPath": ("steps",),
+    "DefinitionCard": ("term", "definition"),
+    "TimelineReveal": ("events",),
+    "LyricLines": ("lines",),
+    "VersusSplit": ("left", "right"),
 }
 
 
@@ -397,6 +459,11 @@ def validate_spec(spec: Dict[str, Any]) -> None:
             # ImageShowcase read as "no renderable content".
             "src", "images", "innerPreset", "trackTitle", "artist", "cover",
             "transcript", "overlays",
+            # social / learn / stage
+            "author", "handle", "rows", "channelName", "subscribers",
+            "question", "options", "steps", "term", "definition", "events",
+            "lines", "score", "health", "playerName", "from", "finalWord",
+            "left", "right", "comments",
         )
         has_content = any(sc.get(k) for k in content_keys) or sc.get("statValue") is not None
         if not has_content:
