@@ -13,6 +13,16 @@ import { getSafeArea } from '../lib/safeArea';
  * screenshotted and reused, and a "16-digit demo number" on screen is one edit
  * away from a real one. The rest of the number is rendered as bullets so the
  * card still reads as a card.
+ *
+ * LAYOUT
+ * Every row is positioned from a shared band table rather than from individual
+ * `top: cardH * 0.52` style constants. Those were tuned independently and
+ * silently collided once the type was measured at render size: the number row
+ * ran to y=168 on a 236px-tall card while the holder block started at y=153,
+ * so the bullets sat on top of the CARD HOLDER caption. The brand mark had the
+ * same problem against EXPIRES — both were anchored to the bottom-right corner
+ * with no awareness of each other. Bands make the arithmetic checkable: each
+ * row declares its own top and height, and they do not overlap by construction.
  */
 
 const FONT = '"Inter", "SF Pro Display", -apple-system, sans-serif';
@@ -39,6 +49,24 @@ export const BankCard: React.FC<BaseSceneProps> = ({
   const cardH = cardW * 0.62; // credit card aspect
   const cx = safe.left + safe.width / 2;
   const cy = safe.top + safe.height / 2;
+
+  // Band table — the single source of truth for vertical layout. Every row is
+  // positioned by [top, height] against the card top, and none of them overlap.
+  // The number face is derived from the width budget (not a magic size): the
+  // fixed cardW*0.012 letter-spacing used to overflow — 19 monospace chars at
+  // a 63.7px face plus 9.5px tracking came to ~906px against 664px available,
+  // so the card's overflow:hidden cut the last4 clean off. Fitting the row
+  // means choosing a face that fits, then tracking as a small fraction of it.
+  const numberFace = cardH * 0.10;
+  const numberTracking = numberFace * 0.08;
+  const holderFont = cardH * 0.09;
+  const labelFont = cardH * 0.055;
+  const band = {
+    number: { top: cardH * 0.44, h: numberFace * 1.2 },
+    labels: { top: cardH * 0.68, h: labelFont * 1.2 },
+    holder: { top: cardH * 0.76, h: holderFont * 1.2 },
+    expires: { top: cardH * 0.76, h: holderFont * 1.2 },
+  };
 
   const appear = resolveMotion(motion ?? { curve: 'spring', spring: { damping: 14, stiffness: 90 } }, fps, 'transform');
   const reveal = appear(frame, 0, 1);
@@ -143,11 +171,11 @@ export const BankCard: React.FC<BaseSceneProps> = ({
             <div
               style={{
                 position: 'absolute',
-                top: cardH * 0.52,
+                top: band.number.top,
                 left: cardW * 0.08,
                 fontFamily: MONO,
-                fontSize: cardH * 0.16,
-                letterSpacing: cardW * 0.012,
+                fontSize: numberFace,
+                letterSpacing: numberTracking,
                 color: '#FFFFFF',
                 fontVariantNumeric: 'tabular-nums',
                 whiteSpace: 'nowrap',
@@ -160,7 +188,7 @@ export const BankCard: React.FC<BaseSceneProps> = ({
             <div
               style={{
                 position: 'absolute',
-                bottom: cardH * 0.14,
+                top: band.labels.top,
                 left: cardW * 0.08,
                 right: cardW * 0.08,
                 display: 'flex',
@@ -172,7 +200,7 @@ export const BankCard: React.FC<BaseSceneProps> = ({
                 <div
                   style={{
                     fontFamily: FONT,
-                    fontSize: cardH * 0.07,
+                    fontSize: labelFont,
                     color: 'rgba(255,255,255,0.5)',
                     letterSpacing: 1.5,
                     textTransform: 'uppercase',
@@ -183,7 +211,7 @@ export const BankCard: React.FC<BaseSceneProps> = ({
                 <div
                   style={{
                     fontFamily: FONT,
-                    fontSize: cardH * 0.12,
+                    fontSize: holderFont,
                     fontWeight: 700,
                     color: '#FFFFFF',
                     letterSpacing: 1.2,
@@ -197,7 +225,7 @@ export const BankCard: React.FC<BaseSceneProps> = ({
                 <div
                   style={{
                     fontFamily: FONT,
-                    fontSize: cardH * 0.07,
+                    fontSize: labelFont,
                     color: 'rgba(255,255,255,0.5)',
                     letterSpacing: 1.5,
                     textTransform: 'uppercase',
@@ -208,7 +236,7 @@ export const BankCard: React.FC<BaseSceneProps> = ({
                 <div
                   style={{
                     fontFamily: MONO,
-                    fontSize: cardH * 0.12,
+                    fontSize: holderFont,
                     fontWeight: 700,
                     color: '#FFFFFF',
                     marginTop: cardH * 0.02,
@@ -219,14 +247,18 @@ export const BankCard: React.FC<BaseSceneProps> = ({
               </div>
             </div>
 
-            {/* brand */}
+            {/* brand — top-right, where a real card carries the scheme mark.
+                It used to sit bottom-right at cardH*0.1 with a cardH*0.2 face,
+                which put it straight through the EXPIRES row underneath. The
+                top band holds only the chip, so there is room here and no
+                stacking to reason about. */}
             <div
               style={{
                 position: 'absolute',
-                bottom: cardH * 0.1,
+                top: cardH * 0.12,
                 right: cardW * 0.08,
                 fontFamily: FONT,
-                fontSize: cardH * 0.2,
+                fontSize: cardH * 0.16,
                 fontWeight: 900,
                 fontStyle: 'italic',
                 color: accentColor,
