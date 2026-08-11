@@ -161,6 +161,44 @@ class Scene:
     holder: Optional[str] = None
     expiry: Optional[str] = None
     card_brand: Optional[str] = None
+    # ---------------------------------------------------------------- media
+    # ImageShowcase / VideoEmbed / ScreenRecord. `src` is a URL or a path
+    # relative to remotion/public/.
+    src: Optional[str] = None
+    images: Optional[List[str]] = None
+    fit: Optional[str] = None
+    ken_burns: Optional[bool] = None
+    start_from: Optional[int] = None
+    show_controls: Optional[bool] = None
+    muted: Optional[bool] = None
+    chrome: Optional[str] = None
+    url_bar: Optional[str] = None
+    app_name: Optional[str] = None
+    show_rec: Optional[bool] = None
+    # VoiceMemo
+    duration: Optional[float] = None
+    waveform_seed: Optional[int] = None
+    transcript: Optional[str] = None
+    # --------------------------------------------------------------- device
+    # PhoneMockup renders ANOTHER preset on its screen. `inner_props` carries
+    # that preset's own fields, in wire (camelCase) form.
+    inner_preset: Optional[str] = None
+    inner_props: Optional[Dict[str, Any]] = None
+    device: Optional[str] = None
+    tilt: Optional[float] = None
+    # ---------------------------------------------------------------- audio
+    track_title: Optional[str] = None
+    artist: Optional[str] = None
+    cover: Optional[str] = None
+    rpm: Optional[float] = None
+    spin: Optional[bool] = None
+    # --------------------------------------------------------------- charts
+    ring_max: Optional[float] = None
+    bar_depth: Optional[float] = None
+    # -------------------------------------------------------------- overlays
+    # HUD elements above the scene: [{"type": "timer"|"notification"|"money", ...}].
+    # See remotion/src/compositions/OverlayStack.tsx for per-type fields.
+    overlays: Optional[List[Dict[str, Any]]] = None
     # Style
     style: Optional[str] = None
     audio_url: Optional[str] = None
@@ -199,6 +237,18 @@ class Scene:
         # attribute is card_brand so it cannot collide with a future top-level
         # brand field.
         "card_brand": "brand",
+        "ken_burns": "kenBurns",
+        "start_from": "startFrom",
+        "show_controls": "showControls",
+        "url_bar": "urlBar",
+        "app_name": "appName",
+        "show_rec": "showRec",
+        "waveform_seed": "waveformSeed",
+        "inner_preset": "innerPreset",
+        "inner_props": "innerProps",
+        "track_title": "trackTitle",
+        "ring_max": "ringMax",
+        "bar_depth": "barDepth",
         "audio_url": "audioUrl",
     }
 
@@ -285,6 +335,16 @@ _DATA_REQUIREMENTS = {
     "TgChat": ("messages",),
     "AiChatStream": ("response",),
     "CryptoWallet": ("tokens",),
+    # Media presets host an external asset; without it they render a loud
+    # placeholder, which is worse than failing here because it ships.
+    # BankCard is deliberately NOT listed: it renders a plausible card from its
+    # own defaults, so a spec using it as decoration is legitimate.
+    "ImageShowcase": ("images", "src"),
+    "VideoEmbed": ("src",),
+    "ScreenRecord": ("src", "images"),
+    "PhoneMockup": ("innerPreset",),
+    "RingStats": ("segments",),
+    "Bars3D": ("segments",),
 }
 
 
@@ -330,7 +390,13 @@ def validate_spec(spec: Dict[str, Any]) -> None:
         content_keys = (
             "title", "subtitle", "text", "bodyText", "statLabel",
             "cards", "nodes", "steps", "code", "modelUrl",
-            "segments", "messages", "response", "tokens", "last4", "layers",
+            "statValue", "segments", "messages", "response", "tokens",
+            "balance", "last4", "layers", "author",
+            # Media/device/audio presets carry their content in an asset path or
+            # a track name, not in text. Without these a fully-populated
+            # ImageShowcase read as "no renderable content".
+            "src", "images", "innerPreset", "trackTitle", "artist", "cover",
+            "transcript", "overlays",
         )
         has_content = any(sc.get(k) for k in content_keys) or sc.get("statValue") is not None
         if not has_content:

@@ -42,6 +42,7 @@ export type PresetCategory =
   | 'code'
   | 'ui-mock'
   | 'device'
+  | 'media'
   | 'three'
   | 'narrative'
   | 'transition-aid';

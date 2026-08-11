@@ -2,7 +2,7 @@
   "width": 1080,
   "height": 1920,
   "fps": 60,
-  "durationInFrames": 2116,
+  "durationInFrames": 1080,
   "format": "vertical",
   "safeMargin": 120,
   "theme": "pop",
@@ -18,67 +18,92 @@
   "scenes": [
     {
       "id": "scene-1",
-      "durationInFrames": 319,
+      "durationInFrames": 180,
       "preset": "HeroKinetic",
-      "text": "Система собирала новости об искусственном интеллекте из сорока трёх источников.",
-      "accentColor": "#E6C475",
+      "title": "Открытые\nдогнали",
+      "subtitle": "и стоят ноль",
+      "text": "Открытые модели догнали закрытые.",
+      "accentColor": "#00FF88",
+      "badge": "2026",
       "audioUrl": "scene_00.wav"
     },
     {
       "id": "scene-2",
-      "durationInFrames": 252,
-      "preset": "TypewriterSub",
-      "text": "Она ни разу не упала. Логи были чистыми.",
-      "accentColor": "#E6C475",
+      "durationInFrames": 180,
+      "preset": "AiChatStream",
+      "title": "Спроси сам",
+      "text": "Отвечают не хуже платных.",
+      "accentColor": "#00FF88",
+      "messages": [
+        {
+          "from": "user",
+          "text": "Объясни attention в двух строках"
+        }
+      ],
+      "response": "Каждый токен смотрит на все остальные и решает, что важно.",
       "audioUrl": "scene_01.wav"
     },
     {
       "id": "scene-3",
-      "durationInFrames": 204,
-      "preset": "GridGridFloor",
-      "text": "И при этом публиковала неверные факты.",
-      "accentColor": "#E6C475",
+      "durationInFrames": 180,
+      "preset": "StatCounter",
+      "text": "Шестьсот семьдесят один миллиард параметров.",
+      "accentColor": "#00FF88",
+      "statValue": 671,
+      "statSuffix": "B",
+      "statLabel": "параметров в открытом весе",
       "audioUrl": "scene_02.wav"
     },
     {
       "id": "scene-4",
-      "durationInFrames": 247,
-      "preset": "HeroKinetic",
-      "text": "Один зависший источник обнулял весь сбор данных.",
-      "accentColor": "#E6C475",
+      "durationInFrames": 180,
+      "preset": "DonutFill",
+      "title": "Что внутри",
+      "text": "Больше половины обучения — обычный текст.",
+      "accentColor": "#00FF88",
+      "segments": [
+        {
+          "label": "Текст",
+          "value": 62
+        },
+        {
+          "label": "Код",
+          "value": 24
+        },
+        {
+          "label": "Изображения",
+          "value": 14
+        }
+      ],
       "audioUrl": "scene_03.wav"
     },
     {
       "id": "scene-5",
-      "durationInFrames": 348,
-      "preset": "TypewriterSub",
-      "text": "Регулярное выражение выдало тринадцать миллиардов параметров вместо тридцати трёх.",
-      "accentColor": "#E6C475",
+      "durationInFrames": 180,
+      "preset": "CompareSplit",
+      "title": "Цена вопроса",
+      "text": "Разница в цене — двадцать долларов против нуля.",
+      "accentColor": "#00FF88",
+      "cards": [
+        {
+          "title": "Закрытая",
+          "value": "$20/мес"
+        },
+        {
+          "title": "Открытая",
+          "value": "$0"
+        }
+      ],
       "audioUrl": "scene_04.wav"
     },
     {
       "id": "scene-6",
-      "durationInFrames": 324,
-      "preset": "GridGridFloor",
-      "text": "Генератор видео система описала как языковую модель. Девять таких дефектов.",
-      "accentColor": "#E6C475",
+      "durationInFrames": 180,
+      "preset": "QuoteCard",
+      "text": "Лучшая модель — та, которую можно запустить самому.",
+      "accentColor": "#00FF88",
+      "author": "LLM Hubs",
       "audioUrl": "scene_05.wav"
-    },
-    {
-      "id": "scene-7",
-      "durationInFrames": 170,
-      "preset": "HeroKinetic",
-      "text": "Ни один не выглядел как ошибка.",
-      "accentColor": "#E6C475",
-      "audioUrl": "scene_06.wav"
-    },
-    {
-      "id": "scene-8",
-      "durationInFrames": 252,
-      "preset": "TypewriterSub",
-      "text": "Разбор каждого — в канале ЛЛМ Хабс.",
-      "accentColor": "#E6C475",
-      "audioUrl": "scene_07.wav"
     }
   ]
 }

@@ -254,6 +254,33 @@ export const SceneEffectSchema = z.object({
   seed: z.number().optional(),
 });
 
+/** A HUD element rendered above a scene. See compositions/OverlayStack.tsx. */
+export const OverlaySchema = z
+  .object({
+    type: z.enum(['timer', 'notification', 'money']),
+    /** 0..1 scene progress at which it appears. */
+    at: z.number().min(0).max(1).optional(),
+    /** Seconds on screen. Omitted = until the scene ends. */
+    hold: z.number().positive().optional(),
+    position: z
+      .enum(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'top', 'bottom'])
+      .optional(),
+    // timer
+    seconds: z.number().positive().optional(),
+    countUp: z.boolean().optional(),
+    label: z.string().optional(),
+    // notification
+    appName: z.string().optional(),
+    title: z.string().optional(),
+    text: z.string().optional(),
+    icon: z.string().optional(),
+    // money
+    amount: z.number().optional(),
+    currency: z.string().optional(),
+    sender: z.string().optional(),
+  })
+  .passthrough();
+
 export const BaseSceneSchema = z
   .object({
     id: z.string().default('scene-1'),
@@ -301,6 +328,20 @@ export const BaseSceneSchema = z
      */
     contactName: z.string().optional(),
     contactStatus: z.string().optional(),
+    /**
+     * TgChat compose sequence: the message typed into the input field and sent
+     * on camera. Absent = no input bar, no cursor (the original behaviour), so
+     * existing specs are unaffected.
+     */
+    compose: z.string().optional(),
+    /** false = the text is already in the field; only the send is animated. */
+    typing: z.boolean().optional(),
+    /** false = send without a mouse pointer (use for phone/finger framing). */
+    showCursor: z.boolean().optional(),
+    /** false = keep the typing but hide the input bar entirely. */
+    showInputBar: z.boolean().optional(),
+    /** 0..1 — when in the scene the send button is pressed. Default 0.72. */
+    sendAtProgress: z.number().min(0).max(1).optional(),
     /** AiChatStream: the assistant reply that types out across the scene. */
     response: z.string().optional(),
     tokens: z.array(TokenRowSchema).optional(),
@@ -358,6 +399,60 @@ export const BaseSceneSchema = z
      * effect costs nothing visually.
      */
     effects: z.array(SceneEffectSchema).optional(),
+    /**
+     * HUD elements drawn above this scene: countdown timers, notification
+     * banners, money-credited toasts. Composes with ANY preset — that is the
+     * point — and sits outside the effect stack so a camera shake or colour
+     * grade does not move or tint the HUD.
+     */
+    overlays: z.array(OverlaySchema).optional(),
+    // ---------------------------------------------------------------- media
+    /** Image/video asset: a URL, or a path relative to remotion/public/. */
+    src: z.string().optional(),
+    /** ImageShowcase / ScreenRecord: several stills sharing the scene. */
+    images: z.array(z.string()).optional(),
+    fit: z.enum(['cover', 'contain']).optional(),
+    /** ImageShowcase: false disables the slow scale+pan drift. */
+    kenBurns: z.boolean().optional(),
+    /** VideoEmbed: skip into the source clip, in frames. */
+    startFrom: z.number().int().min(0).optional(),
+    showControls: z.boolean().optional(),
+    muted: z.boolean().optional(),
+    /** ScreenRecord: window chrome style and the text in its address bar. */
+    chrome: z.enum(['browser', 'window', 'none']).optional(),
+    urlBar: z.string().optional(),
+    appName: z.string().optional(),
+    showRec: z.boolean().optional(),
+    /** VoiceMemo: length in seconds, waveform shape seed, spoken text. */
+    duration: z.number().positive().optional(),
+    waveformSeed: z.number().optional(),
+    transcript: z.string().optional(),
+    // --------------------------------------------------------------- device
+    /**
+     * PhoneMockup: the preset rendered on the phone's screen, plus its props.
+     * Deliberately NOT a PresetTypeSchema enum — the schema cannot import the
+     * registry without a cycle, so an unknown name is reported at render time
+     * inside the phone screen instead of failing validation.
+     */
+    innerPreset: z.string().optional(),
+    innerProps: z.record(z.string(), z.unknown()).optional(),
+    device: z.enum(['phone', 'tablet']).optional(),
+    /** Idle Y-rotation in degrees. 0 = flat, editorial framing. */
+    tilt: z.number().optional(),
+    /** Internal recursion guard for nested mockups; callers leave it unset. */
+    depth: z.number().int().min(0).optional(),
+    // ---------------------------------------------------------------- audio
+    trackTitle: z.string().optional(),
+    artist: z.string().optional(),
+    cover: z.string().optional(),
+    /** VinylRecord: revolutions per minute (33, 45, 78) and spin toggle. */
+    rpm: z.number().positive().optional(),
+    spin: z.boolean().optional(),
+    // --------------------------------------------------------------- charts
+    /** RingStats: top of each ring's scale. Default 100. */
+    ringMax: z.number().positive().optional(),
+    /** Bars3D: extrusion depth in px. Defaults to a share of the bar width. */
+    barDepth: z.number().min(0).optional(),
   })
   .passthrough();
 
@@ -369,6 +464,16 @@ export const VideoSpecSchema = z.object({
   format: VideoFormatSchema.default('vertical'),
   safeMargin: z.number().default(120),
   theme: ThemeSchema.default('pop'),
+  /**
+   * Style kit name — the video-wide visual language (palette + fonts + motion
+   * character + backdrop + post-FX intent). See theme/styleKits.ts.
+   *
+   * Deliberately a plain string, not an enum: STYLE_KITS resolves unknown names
+   * to the default instead of throwing, so adding a kit does not require a
+   * schema change, and a typo degrades to the default look rather than failing
+   * a whole render. A scene may override it with its own `style`.
+   */
+  style: z.string().optional(),
   brandColors: z
     .object({
       bg: z.string().default('#0E0F11'),

@@ -4,6 +4,8 @@ import { TransitionSeries } from '@remotion/transitions';
 import { VideoSpec } from '../VideoSpec.schema';
 import { SceneDispatcher } from './SceneDispatcher';
 import { EffectStack } from './EffectStack';
+import { StyleProvider } from '../theme/StyleContext';
+import { OverlayStack } from './OverlayStack';
 import { buildPresentation, buildTiming, getTransitionPlan } from '../lib/transitions';
 
 /**
@@ -14,7 +16,13 @@ import { buildPresentation, buildTiming, getTransitionPlan } from '../lib/transi
  * that lays out this series (see Root.tsx) -- transitions consume timeline, so
  * the two must agree or the voice-over drifts out of sync with the picture.
  */
-export const MainComposition: React.FC<VideoSpec> = ({ scenes, audioUrl, width, height }) => {
+export const MainComposition: React.FC<VideoSpec> = ({
+  scenes,
+  audioUrl,
+  width,
+  height,
+  style,
+}) => {
   const plan = getTransitionPlan(scenes);
 
   // Index the plan by the scene it precedes for O(1) lookup while mapping.
@@ -25,9 +33,10 @@ export const MainComposition: React.FC<VideoSpec> = ({ scenes, audioUrl, width, 
   const resolveSrc = (src: string) => (src.startsWith('http') ? src : staticFile(src));
 
   return (
-    <div style={{ flex: 1, backgroundColor: '#0E0F11', display: 'flex' }}>
-      {audioUrl && <Audio src={resolveSrc(audioUrl)} />}
-      <TransitionSeries>
+    <StyleProvider style={style}>
+      <div style={{ flex: 1, backgroundColor: '#0E0F11', display: 'flex' }}>
+        {audioUrl && <Audio src={resolveSrc(audioUrl)} />}
+        <TransitionSeries>
         {scenes.flatMap((scene, index) => {
           const planned = transitionBefore.get(index);
 
@@ -37,9 +46,17 @@ export const MainComposition: React.FC<VideoSpec> = ({ scenes, audioUrl, width, 
               durationInFrames={scene.durationInFrames}
             >
               {scene.audioUrl && <Audio src={resolveSrc(scene.audioUrl)} />}
-              <EffectStack effects={scene.effects}>
-                <SceneDispatcher {...scene} />
-              </EffectStack>
+              {/* Per-scene style override: a scene may switch kit mid-video. */}
+              <StyleProvider style={scene.style ?? style} accentColor={scene.accentColor}>
+                <EffectStack effects={scene.effects}>
+                  <SceneDispatcher {...scene} />
+                </EffectStack>
+                {/* Overlays ride ABOVE the effect stack on purpose: a countdown
+                    or a payment toast is a HUD element, and putting it inside
+                    the stack would let a camera shake or a colour grade move
+                    and tint the HUD along with the content. */}
+                <OverlayStack overlays={scene.overlays} />
+              </StyleProvider>
             </TransitionSeries.Sequence>
           );
 
@@ -63,7 +80,8 @@ export const MainComposition: React.FC<VideoSpec> = ({ scenes, audioUrl, width, 
             sequence,
           ];
         })}
-      </TransitionSeries>
-    </div>
+        </TransitionSeries>
+      </div>
+    </StyleProvider>
   );
 };

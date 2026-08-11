@@ -91,7 +91,86 @@ const sunset: Theme = {
   accentWarm: '#FF7A6B',
 };
 
-export const THEMES: Record<string, Theme> = { pop, noir, glass, blueprint, sunset };
+/**
+ * Additional palettes so every style kit is visually distinct.
+ *
+ * WHY THESE EXIST
+ * ---------------
+ * Eight kits used to share five palettes: `editorial` and `clean` both pointed
+ * at `noir`, and `neon` and `retro` both at `sunset`. Measured on an identical
+ * RingStats frame rendered through each kit, those two pairs came out with a
+ * backdrop distance of 0.0 and the same ring colours — switching style did
+ * nothing visible. A "style" that cannot be told apart from another is not a
+ * style, so the four collided kits get their own palettes below.
+ */
+const paper: Theme = {
+  ...pop,
+  bg: '#0B0B0C',
+  surface: '#17181A',
+  gold: '#E8E2D4',
+  neon: '#F2EDE2',
+  cyan: '#C9C3B6',
+  text: '#FBF9F5',
+  muted: '#8A8578',
+  accentCyan: '#C9C3B6',
+  accentGreen: '#F2EDE2',
+  accentWarm: '#E8E2D4',
+};
+
+const vhs: Theme = {
+  ...pop,
+  bg: '#120A16',
+  surface: '#1F1024',
+  gold: '#FFD166',
+  neon: '#FF5FA2',
+  cyan: '#5FE0FF',
+  text: '#FFF0F8',
+  muted: '#A87FA0',
+  accentCyan: '#5FE0FF',
+  accentGreen: '#FF5FA2',
+  accentWarm: '#FFD166',
+};
+
+/** Broadcast red/white urgency — `news` used to share `pop`'s palette. */
+const broadcast: Theme = {
+  ...pop,
+  bg: '#0C0D10',
+  surface: '#191B20',
+  gold: '#FFC93C',
+  neon: '#FF3B30',
+  cyan: '#FFFFFF',
+  text: '#FFFFFF',
+  muted: '#8E949E',
+  accentCyan: '#FFFFFF',
+  accentGreen: '#FF3B30',
+  accentWarm: '#FFC93C',
+};
+
+const ink: Theme = {
+  ...pop,
+  bg: '#07080A',
+  surface: '#111317',
+  gold: '#FFFFFF',
+  neon: '#FFFFFF',
+  cyan: '#D6DAE0',
+  text: '#FFFFFF',
+  muted: '#7A8089',
+  accentCyan: '#D6DAE0',
+  accentGreen: '#FFFFFF',
+  accentWarm: '#FFFFFF',
+};
+
+export const THEMES: Record<string, Theme> = {
+  pop,
+  noir,
+  glass,
+  blueprint,
+  sunset,
+  paper,
+  vhs,
+  ink,
+  broadcast,
+};
 
 export const getTheme = (name?: string): Theme => THEMES[name || 'pop'] || pop;
 

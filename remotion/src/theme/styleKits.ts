@@ -87,7 +87,9 @@ export const STYLE_KITS: Record<string, StyleKit> = {
   editorial: {
     name: 'editorial',
     description: 'Swiss editorial: generous whitespace, restrained motion, typographic hierarchy.',
-    theme: 'noir',
+    // `paper`, not `noir`: `clean` also used noir, and the two kits rendered
+    // pixel-identical backdrops (measured distance 0.0).
+    theme: 'paper',
     fonts: 'editorial',
     motion: { damping: 20, stiffness: 120, mass: 1, tilt: 0, staggerScale: 1.3 },
     backdrop: 'plain',
@@ -139,10 +141,15 @@ export const STYLE_KITS: Record<string, StyleKit> = {
   news: {
     name: 'news',
     description: 'Broadcast news: condensed type, ticker motion, urgent pacing.',
-    theme: 'pop',
+    // `broadcast`, not `pop`: sharing pop's palette made the two kits render a
+    // combined bg+accent distance of 0.8 — indistinguishable.
+    theme: 'broadcast',
     fonts: 'news',
     motion: { damping: 14, stiffness: 190, mass: 0.65, tilt: 0, staggerScale: 0.8 },
-    backdrop: 'plain',
+    // `dots`: the kind was implemented in Backdrop.tsx but no kit referenced it,
+    // so it was unreachable. A dot matrix suits a ticker/news look and gives
+    // `news` its own texture instead of duplicating `editorial`'s plain wash.
+    backdrop: 'dots',
     effects: { grain: 0.05, vignette: 0.25, bloom: 0.25, chromatic: 0.06, scanlines: 0 },
     transition: 'pushCut',
     surface: 'flat',
@@ -152,7 +159,9 @@ export const STYLE_KITS: Record<string, StyleKit> = {
   retro: {
     name: 'retro',
     description: 'Retro CRT: scanlines, chromatic fringing, analogue warmth.',
-    theme: 'sunset',
+    // `vhs`, not `sunset`: `neon` also used sunset and the pair was
+    // indistinguishable in a rendered frame.
+    theme: 'vhs',
     fonts: 'poster',
     motion: { damping: 12, stiffness: 160, mass: 0.7, tilt: -1.5, staggerScale: 1 },
     backdrop: 'scanlines',
@@ -165,7 +174,7 @@ export const STYLE_KITS: Record<string, StyleKit> = {
   clean: {
     name: 'clean',
     description: 'Maximum contrast, no decoration. Safest for dense information.',
-    theme: 'noir',
+    theme: 'ink',
     fonts: 'modern',
     motion: { damping: 22, stiffness: 130, mass: 1, tilt: 0, staggerScale: 1.2 },
     backdrop: 'plain',
