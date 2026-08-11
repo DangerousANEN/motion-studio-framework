@@ -37,7 +37,7 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
   // Default: one continuous sweep from 12 o'clock. Segments blooming from
   // their own start points read as unrelated animations, not one chart.
   fillMode = 'fromOrigin',
-  centerContent = 'total',
+  centerContent = 'label',
   labelPlacement = 'legend',
   percentCounters = true,
   gapAngle = 2,
@@ -78,10 +78,15 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
       accentColor,
       BRAND.accentCyan,
       BRAND.accentGreen,
-      BRAND.gold,
-      '#FF6B9D',
+      // NOT BRAND.gold ('#E6C475'). That is a muted, desaturated sand meant for
+      // metallic surfaces like the BankCard mark; sitting next to neon green
+      // and cyan it read as dirty rather than as a third accent, and as body
+      // text in the legend it was the dimmest thing on screen. This magenta
+      // carries the same saturation as its neighbours.
+      '#FF4D9D',
       '#A78BFA',
       '#FFB86B',
+      BRAND.gold,
     ];
     const seen = new Set<string>();
     const unique: string[] = [];
@@ -96,23 +101,36 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
 
   // Geometry is derived from the safe box: at 1080x1920 the platform profile
   // leaves 920x1260, and the ring must not grow into the caption strip.
+  //
+  // The ring is also capped well short of the full safe width. Letting it take
+  // the whole 920px made it 85% of the 1080 frame with only the 80px platform
+  // margin either side, so it read as jammed against the edges while the tall
+  // vertical format sat empty above and below. 78% of the safe width keeps a
+  // real breathing margin and still dominates the composition.
   const legendRows = labelPlacement === 'legend' ? data.length : 0;
   const legendHeight = legendRows * 54 + (legendRows ? 24 : 0);
   const titleHeight = title ? 96 : 0;
-  const available = Math.min(safe.width, safe.height - legendHeight - titleHeight);
+  const available = Math.min(safe.width * 0.78, safe.height - legendHeight - titleHeight);
   const size = Math.max(240, available);
-  const stroke = thickness ?? (shape === 'pie' ? size / 2 : Math.round(size * 0.13));
+  // Stroke was 13% of the diameter — 120px on a 400px radius, i.e. 30% of the
+  // radius. At that ratio the arcs stop reading as a chart and turn into thick
+  // capsules, and the round caps (8.6deg of overhang each) dwarf the 2deg gap
+  // the spec asks for. 8% keeps the ring legible as a ring.
+  const stroke = thickness ?? (shape === 'pie' ? size / 2 : Math.round(size * 0.08));
   // Stroke straddles the path, so the radius must leave half of it inside.
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const sweep = SWEEP[shape] ?? 1;
 
   // A round linecap adds a half-disc of radius `stroke/2` to BOTH ends of every
-  // arc. At size 920 that is stroke 120 over radius 400 = 8.6deg of overhang per
-  // end, which is larger than the 2deg gap the spec asks for: measured on a
-  // 62/24/14 donut the arcs swallowed the gaps entirely (sum 359.9deg of 360)
-  // and the smallest segment rendered 18.8% instead of 14%. So the cap has to be
-  // paid for out of the dash length, and it only exists when a gap exists.
+  // arc. The overhang is stroke/2 over radius, so it scales with how thick the
+  // ring is: at the old stroke 120 / radius 400 it was 8.6deg per end, far more
+  // than the 2deg gap the spec asks for — the arcs swallowed the gaps entirely
+  // (sum 359.9deg of 360) and the smallest segment rendered 18.8% instead of
+  // 14%. At the current stroke 57 / radius 330 it is 4.9deg, still larger than
+  // the gap, so the compensation below is what actually keeps the separators
+  // visible: the cap is paid for out of the dash length, and only exists when a
+  // gap exists.
   const useRoundCap = gapAngle > 0;
   const capDegrees = useRoundCap ? (stroke / 2 / radius) * (180 / Math.PI) : 0;
   const capFraction = (capDegrees / 360) * 2; // both ends
@@ -192,6 +210,10 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
   const leader = arcs.reduce((a, b) => (b.share > a.share ? b : a), arcs[0]);
   const animatedTotal = arcs.reduce((acc, a) => acc + a.displayValue, 0);
 
+  // What the centre shows. 'total' is a trap on a percentage breakdown: the sum
+  // of the percentages is always 100%, so it displays a tautology and pulls the
+  // eye from the actual split. Default is now 'label' — the biggest segment's
+  // name — which is informative on its own.
   const centerText =
     centerContent === 'total'
       ? `${Math.round(animatedTotal)}${valueSuffix}`
@@ -326,7 +348,7 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
         </div>
 
         {labelPlacement === 'legend' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'center' }}>
             {arcs.map((arc, i) => (
               <div
                 key={arc.label + i}
@@ -351,10 +373,15 @@ export const DonutFill: React.FC<BaseSceneProps> = ({
                     fontSize: 30,
                     fontWeight: 700,
                     color: BRAND.text,
-                    flex: 1,
+                    // NOT flex:1. Stretching the label to fill the row pushed
+                    // the value to the far right of a 920px-wide row, leaving a
+                    // canyon of empty space between "Сцены" and "62%" — the eye
+                    // had to cross the whole frame to pair them. The row now
+                    // shrink-wraps its content and the group is centred.
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
+                    maxWidth: safe.width * 0.55,
                   }}
                 >
                   {arc.label}
