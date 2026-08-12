@@ -133,6 +133,13 @@ class VideoState(TypedDict, total=False):
     qa_passed: bool
     qa_report: Optional[Dict[str, Any]]
     error: Optional[str]
+    # ---- soundtrack (voice + music bed + SFX, mixed and ducked)
+    music: Optional[bool]
+    music_bed: Optional[str]
+    sfx: Optional[bool]
+    sfx_names: Optional[List[str]]
+    soundtrack_path: Optional[str]
+    soundtrack_report: Optional[Dict[str, Any]]
 
 
 def node_gate_check(state: VideoState) -> VideoState:
@@ -388,6 +395,75 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
     return state
 
 
+def node_soundtrack(state: VideoState) -> VideoState:
+    """Mix the per-scene voice clips with a music bed and SFX accents.
+
+    WHY THIS NODE EXISTS
+    --------------------
+    `msf/audio/` ships a ducking mixer, ten music beds and ~70 SFX, and the graph
+    imported NONE of it: every video was dry narration over silence. This node is
+    the bridge.
+
+    WHY IT REPLACES THE PER-SCENE AUDIO INSTEAD OF ADDING TO IT
+    ----------------------------------------------------------
+    Mixing cannot be per scene — a bed that restarts on every cut is audibly
+    wrong, and the duck envelope needs the whole voice track to know where to dip.
+    So the mix is ONE wav for the whole video, mounted as the spec's root
+    `audioUrl`, and each scene's `audio_url` is cleared. Leaving both would make
+    Remotion mount `<Audio>` twice for the same speech (root + scene), playing it
+    against a copy of itself; `validate_spec` rejects that outright.
+
+    Opt out with `music: False` and `sfx: False`, which falls back to the old
+    per-scene voice-only behaviour.
+    """
+    want_music = state.get("music", True)
+    want_sfx = state.get("sfx", True)
+    if not want_music and not want_sfx:
+        print("[audio] music and sfx both disabled — keeping per-scene voice only")
+        return state
+
+    scenes = state.get("scenes") or []
+    voice_wavs = state.get("audio_paths") or []
+    if not scenes or not voice_wavs:
+        print("[audio] no scenes or no voice clips — skipping soundtrack")
+        return state
+
+    from msf.audio.soundtrack import SOUNDTRACK_NAME, build_soundtrack
+
+    PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+    out_wav = PUBLIC_DIR / SOUNDTRACK_NAME
+
+    report = build_soundtrack(
+        scenes=scenes,
+        voice_wavs=voice_wavs,
+        fps=FPS,
+        out_path=out_wav,
+        music_bed=state.get("music_bed"),
+        sfx_names=state.get("sfx_names"),
+        music=bool(want_music),
+        sfx=bool(want_sfx),
+    )
+
+    # The mix now owns the audio; per-scene clips must not play alongside it.
+    for sc in scenes:
+        sc.pop("audio_url", None)
+        sc.pop("audioUrl", None)
+
+    state["soundtrack_path"] = SOUNDTRACK_NAME
+    state["soundtrack_report"] = report
+
+    print(f"[audio] soundtrack {report['duration_sec']}s  "
+          f"{report['lufs']} LUFS  peak {report['true_peak_dbfs']} dBFS  "
+          f"bed={report['music_bed']}  sfx={len(report['sfx'])}  "
+          f"duck={report['duck_depth_db']} dB")
+    if report["clipping"]:
+        raise RuntimeError(
+            "Soundtrack clips (true peak >= 0 dBFS). Refusing to ship distorted "
+            "audio; lower sfx_gain_db or the bed level."
+        )
+    return state
+
+
 def node_build_remotion_spec(state: VideoState) -> VideoState:
     """Generate VideoSpec via single source of truth msf.spec."""
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
@@ -407,6 +483,10 @@ def node_build_remotion_spec(state: VideoState) -> VideoState:
         fps=FPS,
         video_format=state.get("video_format"),
         theme=state.get("theme"),
+        # The mixed soundtrack (voice + bed + SFX) is mounted at the ROOT, and
+        # node_soundtrack has already cleared the per-scene urls. When the mix is
+        # disabled this is None and the per-scene voice clips play as before.
+        audio_url=state.get("soundtrack_path"),
     )
 
     # Fail fast at the graph level too: never persist or render an unusable spec.
@@ -719,6 +799,9 @@ def node_repair(state: VideoState) -> VideoState:
         fps=FPS,
         video_format=state.get("video_format"),
         theme=state.get("theme"),
+        # Repair must preserve the soundtrack too, or a QA retry silently ships
+        # the video with no audio at all.
+        audio_url=state.get("soundtrack_path"),
     )
     state["spec_dict"] = spec_dict
 
@@ -745,6 +828,7 @@ def build_msf_graph():
     workflow.add_node("gate_check", node_gate_check)
     workflow.add_node("script_split", node_script_split)
     workflow.add_node("voice_synthesis", node_voice_synthesis)
+    workflow.add_node("soundtrack", node_soundtrack)
     workflow.add_node("build_spec", node_build_remotion_spec)
     workflow.add_node("render", node_remotion_render)
     workflow.add_node("master_audio", node_master_audio)
@@ -754,7 +838,8 @@ def build_msf_graph():
     workflow.set_entry_point("gate_check")
     workflow.add_edge("gate_check", "script_split")
     workflow.add_edge("script_split", "voice_synthesis")
-    workflow.add_edge("voice_synthesis", "build_spec")
+    workflow.add_edge("voice_synthesis", "soundtrack")
+    workflow.add_edge("soundtrack", "build_spec")
     workflow.add_edge("build_spec", "render")
     workflow.add_edge("render", "master_audio")
     workflow.add_edge("master_audio", "qa")
