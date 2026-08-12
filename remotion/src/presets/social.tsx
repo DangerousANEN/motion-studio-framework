@@ -5,7 +5,8 @@ import { getSafeArea, type SafeAreaMode } from '../lib/safeArea';
 import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
-import { fitOneLine } from '../theme/layout';
+import { fitOneLine, fitWrapped, measure } from '../theme/layout';
+import { resolveModelIcon } from '../lib/modelIcons';
 
 /**
  * Social proof and engagement presets.
@@ -859,6 +860,56 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
   );
 };
 
+/**
+ * Brand logo for a model name, falling back to the gradient letter avatar.
+ *
+ * WHY THE LOGO SITS ON A NEUTRAL DISC
+ * -----------------------------------
+ * Brand marks come in every shape and weight: Qwen is a dense purple glyph,
+ * OpenAI is a thin white monoline, Mistral is a wide flat block. Dropped
+ * straight onto the dark backdrop they read as different sizes and the row
+ * looks ragged. A common disc gives every logo the same silhouette and the same
+ * optical weight, and `padding` keeps the mark off the disc edge so a wide logo
+ * cannot look bigger than a compact one.
+ */
+const BrandAvatar: React.FC<{
+  name: string;
+  size: number;
+  seed?: number;
+  fontSize?: number;
+}> = ({ name, size, seed = 42, fontSize }) => {
+  const icon = resolveModelIcon(name);
+  if (!icon) {
+    // Not a recognised model: the letter avatar is a better answer than a
+    // generic "AI" glyph, which would make an unknown model look identified.
+    return <AvatarCircle name={name} size={size} seed={seed} fontSize={fontSize} />;
+  }
+  const pad = Math.round(size * 0.18);
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.10)',
+        border: '1px solid rgba(255,255,255,0.16)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxSizing: 'border-box',
+        padding: pad,
+      }}
+    >
+      <img
+        src={icon.src}
+        alt={name}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+      />
+    </div>
+  );
+};
+
 /* ========================================================== Leaderboard */
 
 /**
@@ -942,46 +993,89 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
 
   const tableW = Math.min(safe.width, Math.round(height * 0.52));
   const rowH = Math.round(Math.min((safe.height - Math.round(height * 0.12)) / rows.length, height * 0.115));
-  const avatarSz = Math.round(rowH * 0.52);
   const fRank = Math.round(height * 0.022);
   const fVal = Math.round(height * 0.020);
 
-  // WIDTH BUDGET — the row must be SOLVED, not hoped for.
+  // LAYOUT: rank | logo | [ name over bar ] | value
   //
-  // Every element here was sized as an independent fraction, and at 5 rows they
-  // summed to 977px inside a 920px table: rank 92 + avatar 114 + bar 350 +
-  // value 166 + gaps 158 + padding 97. The name column is `flex: 1`, so it
-  // absorbed the entire 57px overflow and collapsed to ZERO width — the labels
-  // were not clipped, they were gone, and with `whiteSpace: nowrap` there was
-  // nothing on screen to hint why. Reserve the name column FIRST and give the
-  // bar whatever is genuinely left.
-  const pad = Math.round(rowH * 0.22);
-  const gap = Math.round(rowH * 0.18);
-  const rankW = Math.round(rowH * 0.42);
-  const valueW = Math.round(tableW * 0.16);
-  const nameW = Math.round(tableW * 0.34);
-  const fixed = pad * 2 + gap * 4 + rankW + avatarSz + valueW + nameW;
-  // The bar is the only elastic element: it can shrink to a stub and still read
-  // as a bar, whereas a truncated model name is misinformation.
-  const barMaxW = Math.max(Math.round(tableW * 0.08), tableW - fixed);
+  // The name and the bar used to sit SIDE BY SIDE, and four attempts at dividing
+  // that space all failed because the space is not there to divide. Measured, at
+  // 5 rows in a 920px table:
+  //
+  //   chrome  = padL 27 + padR 62 + rank 62 + logo 91 + gaps 76 = 318
+  //   content = 602, of which the value needs 102
+  //
+  // leaving 500px for a bar that needs ~250 to read as a measurement AND an
+  // 18-character model name ("Llama-4-Scout-109B") that needs ~310 at its
+  // smallest legible size. 560 into 500 does not go, so every side-by-side split
+  // shipped a visible defect:
+  //   1. flat font + ellipsis -> "Llama-4-Scout-1...", dropping the parameter
+  //      count that is the reason the name is on screen.
+  //   2. two-line wrap        -> nothing lost, but "GLM-5.2-Air" wrapped while
+  //      row 5 did not, so the rows sat on inconsistent baselines.
+  //   3. fitOneLine, bar gets -> fitOneLine CLAMPS at minFontSize instead of
+  //      the rest             promising a fit, so text overran the column and
+  //                             `overflow: hidden` sheared it mid-glyph: all four
+  //                             long names ended at exactly x=541, showing
+  //                             "Claude-Opus-4." with the 6 gone. Worse than an
+  //                             ellipsis, which at least admits it truncated.
+  //   4. name gets what it    -> no shear, but the bar collapsed from 301px to
+  //      needs, bar the rest     190px, undoing the widening it was asked for.
+  //
+  // STACKING them ends the fight: the row is 206px tall and was using ~40 of it.
+  // Name and bar each get the FULL 500px column, so the bar is wider than it has
+  // ever been and the name renders at ~35px instead of ~18px.
+  // padR was rowH*0.30 while the value column still overflowed and ate part of
+  // it; measured air was 38px. With the overflow gone the full padding plus
+  // `measure()`'s slack over the real glyph box came to 79px — two digits' worth
+  // of empty space, now the opposite defect. 0.15 lands at ~48px measured.
+  const padL = Math.round(rowH * 0.13);
+  const padR = Math.round(rowH * 0.15);
+  const gap = Math.round(rowH * 0.09);
+  const rankW = Math.round(rowH * 0.30);
+  const avatarSz = Math.round(rowH * 0.44);
+  const chrome = padL + padR + gap * 3 + rankW + avatarSz;
+  const content = Math.max(Math.round(tableW * 0.4), tableW - chrome);
 
-  // Size the longest name to the column instead of assuming height*0.021 fits.
-  // 2026 model names ("Qwen3.6-235B-A22B") are far wider than the "Aria Chen"
-  // the default rows were built around.
+  // The value column is MEASURED, not a percentage guess.
+  // A flat 17% share came to 102px while "77 %" renders 98px wide — technically
+  // enough, but any longer string ("9 840 pts") overflowed, and since every child
+  // is flexShrink: 0 the overflow pushed the row right and ATE padR: measured
+  // 25px of air where padR asks for 62.
+  const longestValue = rows.reduce((acc, r) => {
+    const s = `${r.value.toLocaleString()}${valueSuffix ? ` ${valueSuffix}` : ''}`;
+    return s.length > acc.length ? s : acc;
+  }, '');
   const longestName = rows.reduce(
     (acc, r) => (String(r.name ?? '').length > acc.length ? String(r.name ?? '') : acc),
     ''
   );
-  const fName = Math.min(
-    Math.round(height * 0.021),
-    fitOneLine({
-      text: longestName || 'Aria Chen',
-      maxWidth: nameW,
+  const valueW = Math.ceil(
+    measure({
+      text: longestValue || '100 %',
       fontFamily: fonts.display,
-      fontWeight: 800,
-      maxFontSize: Math.round(height * 0.021),
-      minFontSize: Math.round(height * 0.012),
-    })
+      fontSize: fVal,
+      fontWeight: 700,
+    }).width
+  ) + 2;
+
+  // Name and bar share this, stacked.
+  const colW = content - valueW - gap;
+  const barMaxW = colW;
+
+  // Font is DERIVED FROM A MEASUREMENT, not clamped by one. fitOneLine returns
+  // minFontSize when nothing fits, which is how the shear above happened; scaling
+  // a measured width guarantees the text fits the column it is given.
+  const probeSize = Math.round(height * 0.02);
+  const probeW = measure({
+    text: longestName || 'Aria Chen',
+    fontFamily: fonts.display,
+    fontSize: probeSize,
+    fontWeight: 800,
+  }).width;
+  const fName = Math.max(
+    Math.round(height * 0.013),
+    Math.min(Math.round(height * 0.023), Math.floor((probeSize * colW * 0.98) / probeW))
   );
   const staggerFrames = Math.max(5, Math.round(durationInFrames / (rows.length + 2)));
 
@@ -1069,7 +1163,7 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                   borderRadius: Math.round(rowH * 0.28),
                   display: 'flex',
                   alignItems: 'center',
-                  padding: `0 ${pad}px`,
+                  padding: `0 ${padR}px 0 ${padL}px`,
                   gap,
                   boxSizing: 'border-box',
                   opacity: rowProgress,
@@ -1081,7 +1175,7 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                 {/* Rank badge */}
                 <div
                   style={{
-                    width: Math.round(rowH * 0.42),
+                    width: rankW,
                     textAlign: 'center',
                     flexShrink: 0,
                   }}
@@ -1102,38 +1196,40 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                   )}
                 </div>
 
-                {/* Avatar */}
-                <AvatarCircle name={nameStr} size={avatarSz} seed={seed} fontSize={Math.round(avatarSz * 0.40)} />
+                {/* Brand logo when the label names a known model, letter avatar otherwise. */}
+                <BrandAvatar name={nameStr} size={avatarSz} seed={seed} fontSize={Math.round(avatarSz * 0.40)} />
 
-                {/* Name — a FIXED column, not `flex: 1`. Flex let the name
-                    absorb the row's overflow and collapse to nothing. */}
-                <span
+                {/* NAME STACKED OVER BAR — both get the full column.
+                    Side by side, neither fit: see the layout comment above. */}
+                <div
                   style={{
-                    fontFamily: fonts.display,
-                    fontSize: fName,
-                    fontWeight: isLeader ? 800 : 600,
-                    color: theme.text,
-                    width: nameW,
+                    width: colW,
                     flexShrink: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: Math.round(rowH * 0.07),
                   }}
                 >
-                  {row.name}
-                </span>
-
-                {/* Bar + value. Sized from the SAME budget as the row above, so
-                    `valueW` here must stay in sync with the reservation. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      fontFamily: fonts.display,
+                      fontSize: fName,
+                      fontWeight: isLeader ? 800 : 600,
+                      color: theme.text,
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {row.name}
+                  </span>
                   <div
                     style={{
                       width: barMaxW,
-                      height: Math.round(rowH * 0.14),
-                      borderRadius: Math.round(rowH * 0.07),
+                      height: Math.round(rowH * 0.15),
+                      borderRadius: Math.round(rowH * 0.075),
                       background: `${barFill}22`,
                       overflow: 'hidden',
-                      flexShrink: 0,
                     }}
                   >
                     <div
@@ -1141,27 +1237,30 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                         width: barW,
                         height: '100%',
                         background: barFill,
-                        borderRadius: Math.round(rowH * 0.07),
+                        borderRadius: Math.round(rowH * 0.075),
                         boxShadow: `0 0 ${Math.round(rowH * 0.12)}px ${barFill}88`,
                       }}
                     />
                   </div>
-                  <span
-                    style={{
-                      fontFamily: fonts.display,
-                      fontSize: fVal,
-                      fontWeight: 700,
-                      color: rowAccent,
-                      width: valueW,
-                      flexShrink: 0,
-                      textAlign: 'right',
-                      whiteSpace: 'nowrap',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {row.value.toLocaleString()}{valueSuffix ? ` ${valueSuffix}` : ''}
-                  </span>
                 </div>
+
+                {/* Value — width MEASURED from the longest string so it cannot
+                    overflow and eat the row's right padding. */}
+                <span
+                  style={{
+                    fontFamily: fonts.display,
+                    fontSize: fVal,
+                    fontWeight: 700,
+                    color: rowAccent,
+                    width: valueW,
+                    flexShrink: 0,
+                    textAlign: 'right',
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {row.value.toLocaleString()}{valueSuffix ? ` ${valueSuffix}` : ''}
+                </span>
               </div>
             );
           })}
