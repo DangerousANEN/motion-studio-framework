@@ -140,6 +140,19 @@ class VideoState(TypedDict, total=False):
     sfx_names: Optional[List[str]]
     soundtrack_path: Optional[str]
     soundtrack_report: Optional[Dict[str, Any]]
+    # ---- deep research (fail-closed; opt-in via `research` or `research_query`)
+    research: Optional[bool]
+    research_query: Optional[str]
+    research_detailed: Optional[bool]
+    research_iters: Optional[int]
+    research_qpi: Optional[int]
+    research_results: Optional[int]
+    research_min_sources: Optional[int]
+    research_timeout: Optional[float]
+    research_scenes: Optional[int]
+    research_facts: Optional[Dict[str, Any]]
+    research_summary: Optional[str]
+    research_sources: Optional[List[str]]
 
 
 def node_gate_check(state: VideoState) -> VideoState:
@@ -189,6 +202,114 @@ def node_gate_check(state: VideoState) -> VideoState:
         )
 
     return state
+
+
+def node_deep_research(state: VideoState) -> VideoState:
+    """Gather real, cited facts before any script exists. FAIL-CLOSED.
+
+    OPT-IN: does nothing unless `research` is truthy or `research_query` is set.
+    Once enabled it can only succeed or raise — there is no degraded mode, and
+    that is the entire design.
+
+    WHY FAIL-CLOSED MATTERS HERE SPECIFICALLY
+    -----------------------------------------
+    This graph makes videos about fast-moving subjects (model releases,
+    benchmarks, prices). A model answering from memory does not say "I am not
+    sure" — it invents a plausible model name and a plausible benchmark score,
+    and the pipeline renders them as confident on-screen statistics. A silent
+    zero-source research run is therefore WORSE than a crash: the crash costs
+    minutes, the invented fact ships.
+
+    `msf.skills_bridge.deep_research` raises unless it can prove real sources
+    were fetched. This node adds nothing to that contract; it just refuses to
+    catch it.
+    """
+    if not (state.get("research") or state.get("research_query")):
+        return state
+
+    from msf.skills_bridge.deep_research import research as run_research
+
+    query = state.get("research_query") or state.get("text") or ""
+    if not query.strip():
+        raise ValueError(
+            "research was requested but there is no `research_query` and no `text` "
+            "to derive one from."
+        )
+
+    facts = run_research(
+        query,
+        detailed=bool(state.get("research_detailed")),
+        iters=int(state.get("research_iters") or 2),
+        qpi=int(state.get("research_qpi") or 3),
+        results=int(state.get("research_results") or 8),
+        min_sources=int(state.get("research_min_sources") or 1),
+        timeout=float(state.get("research_timeout") or 1800.0),
+    )
+
+    state["research_facts"] = facts.to_dict()
+    state["research_summary"] = facts.summary
+    state["research_sources"] = facts.urls()
+
+    # A storyboard supplied by the caller is authoritative — research then serves
+    # as verification material for whoever wrote it, not as a rewrite mandate.
+    if state.get("storyboard"):
+        print(f"[research] storyboard supplied; keeping it. "
+              f"{facts.source_count} sources attached for verification.")
+        return state
+
+    state["text"] = _script_from_facts(facts, state)
+    return state
+
+
+def _script_from_facts(facts: Any, state: VideoState) -> str:
+    """Turn a cited research summary into narration.
+
+    Grounding rule in the prompt is deliberately blunt: the summary is the ONLY
+    permitted source of numbers and names. The point of the research step is
+    defeated if the script-writing model tops up the facts from memory, which is
+    exactly what a softer instruction invites.
+    """
+    from msf.agents.llm_client import LLMClient
+    from msf.config import MSFConfig
+
+    n_scenes = int(state.get("research_scenes") or 5)
+    cfg = MSFConfig()
+    llm = LLMClient(cfg.llm)
+
+    system = (
+        "Ты сценарист коротких вертикальных видео (Shorts/Reels). "
+        "Пиши по-русски, живо и без канцелярита."
+    )
+    user = (
+        f"Ниже — результат исследования с источниками. Напиши закадровый текст "
+        f"для видео из {n_scenes} сцен.\n\n"
+        "ЖЁСТКИЕ ПРАВИЛА:\n"
+        "1. Все факты, цифры, названия и версии бери ТОЛЬКО из исследования ниже. "
+        "Ничего не добавляй по памяти. Если чего-то нет в тексте — не упоминай.\n"
+        "2. Одна сцена — одно предложение, 8-16 слов, произносимое вслух.\n"
+        f"3. Ровно {n_scenes} предложений, каждое с новой строки, без нумерации "
+        "и без markdown.\n"
+        "4. Первое предложение — цепляющее, последнее — вывод.\n\n"
+        f"ИССЛЕДОВАНИЕ:\n{facts.summary[:6000]}\n"
+    )
+
+    text = llm.chat(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        temperature=0.6,
+    ).strip()
+
+    lines = [
+        ln.strip(" -•*\t")
+        for ln in text.splitlines()
+        if ln.strip(" -•*\t")
+    ]
+    if not lines:
+        raise RuntimeError(
+            "the script model returned nothing usable from a successful research run."
+        )
+
+    print(f"[research] script: {len(lines)} lines from {facts.source_count} sources")
+    return " ".join(lines)
 
 
 def node_script_split(state: VideoState) -> VideoState:
@@ -826,6 +947,7 @@ def build_msf_graph():
     workflow = StateGraph(VideoState)
 
     workflow.add_node("gate_check", node_gate_check)
+    workflow.add_node("deep_research", node_deep_research)
     workflow.add_node("script_split", node_script_split)
     workflow.add_node("voice_synthesis", node_voice_synthesis)
     workflow.add_node("soundtrack", node_soundtrack)
@@ -836,7 +958,10 @@ def build_msf_graph():
     workflow.add_node("repair", node_repair)
 
     workflow.set_entry_point("gate_check")
-    workflow.add_edge("gate_check", "script_split")
+    # Research sits between the gate and the split: it can REPLACE `text`, so it
+    # must run before the text is cut into scenes. It is a no-op unless asked for.
+    workflow.add_edge("gate_check", "deep_research")
+    workflow.add_edge("deep_research", "script_split")
     workflow.add_edge("script_split", "voice_synthesis")
     workflow.add_edge("voice_synthesis", "soundtrack")
     workflow.add_edge("soundtrack", "build_spec")
