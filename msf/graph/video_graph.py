@@ -298,7 +298,13 @@ def _scene_kwargs(
         duration_in_frames=normalised.get("duration_in_frames", 90),
         preset=normalised.get("preset", default_preset),
         accent_color=normalised.get("accent_color") or accent_color,
-        audio_url=f"scene_{index:02d}.wav",
+        # A scene may carry its own voice-over file (node_voice_synthesis writes
+        # one per scene, and a hand-authored storyboard can name an existing wav).
+        # This used to be an unconditional f-string, which silently overwrote any
+        # supplied path: the only reachable audio was scene_NN.wav, and a spec
+        # pointing at its own asset rendered against the wrong track — or against
+        # a file that did not exist, which Remotion turns into pure silence.
+        audio_url=normalised.get("audio_url") or f"scene_{index:02d}.wav",
     )
     return kwargs
 
@@ -366,7 +372,13 @@ def node_voice_synthesis(state: VideoState) -> VideoState:
 
         audio_paths.append(str(dst_wav))
         sc["duration_in_frames"] = frames_for(dur, FPS)
-        sc["audio_file"] = scene_wav_name
+        # MUST be `audio_url`: that is the Scene dataclass field name, and
+        # _scene_kwargs normalises wire keys onto dataclass fields. Writing
+        # `audio_file` here left the key unread by anything — the render only
+        # worked because _scene_kwargs happened to rebuild the same filename
+        # from the index. Any change to the naming scheme silently desynced
+        # the two and produced a spec pointing at a nonexistent wav.
+        sc["audio_url"] = scene_wav_name
         # A storyboard scene names its own preset; only auto-rotate when it didn't.
         if not sc.get("preset"):
             sc["preset"] = _rotated_preset(base_preset, i)

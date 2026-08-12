@@ -510,6 +510,32 @@ def validate_spec(spec: Dict[str, Any]) -> None:
                     "nothing to come from. Move it to scene[1]."
                 )
 
+    # ------------------------------------------------------------ audio wiring
+    # Main.tsx mounts BOTH a root <Audio> and a per-scene <Audio>. Supplying both
+    # is never what the author meant: the narration plays twice, offset by the
+    # scene start, which sounds like an echo rather than an obvious bug. Catch it
+    # here — it is inaudible in a still frame and easy to miss in review.
+    root_audio = spec.get("audioUrl")
+    scene_audio = [i for i, sc in enumerate(scenes) if sc.get("audioUrl")]
+    if root_audio and scene_audio:
+        raise ValueError(
+            f"Spec validation failed: spec has a root 'audioUrl' ({root_audio!r}) AND "
+            f"per-scene 'audioUrl' on scenes {scene_audio}. Remotion mounts both, so "
+            "the voice-over would play twice overlapping itself. Keep one: per-scene "
+            "tracks for narration, root only for a single continuous mix."
+        )
+
+    # A spec where SOME scenes speak and others do not is almost always a bug in
+    # the voicing step rather than an artistic choice, and the result is a video
+    # that goes silent partway through. Warn loudly; do not block, because a
+    # deliberately silent B-roll scene is legitimate.
+    if scene_audio and len(scene_audio) != len(scenes):
+        silent = [i for i in range(len(scenes)) if i not in scene_audio]
+        print(
+            f"[spec] WARNING: scenes {silent} have no 'audioUrl' while "
+            f"{len(scene_audio)}/{len(scenes)} do — those stretches render silent."
+        )
+
 
 # ---------------------------------------------------------------- builder
 

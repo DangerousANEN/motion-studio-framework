@@ -41,7 +41,12 @@ _VOICES_JSON = _REPO_ROOT / "assets" / "voices" / "voices.json"
 # Fallback when no voice registry entry is selected.
 # Default voice key from the registry. Points at a trimmed human recording that
 # is verified to work in ICL mode — see assets/voices/voices.json.
-DEFAULT_VOICE = "syenduk"
+# The default MUST be a key that exists in voices.json WITH a transcript.
+# It used to be "syenduk", which is absent from the registry: resolve_voice(None)
+# fell through to the bare DEFAULT_REF_AUDIO path with ref_text=None, silently
+# downgrading every unattended render to x-vector mode (timbre copy, flat
+# prosody) instead of the ICL prosody transfer Qwen3-TTS is chosen for.
+DEFAULT_VOICE = "voice_3"
 
 # Absolute fallback if the registry is missing entirely.
 DEFAULT_REF_AUDIO = str(_REPO_ROOT / "assets" / "voices" / "refs" / "syenduk_8s_24k.wav")

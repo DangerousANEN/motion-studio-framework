@@ -117,7 +117,15 @@ export const buildPresentation = ({ config, width, height }: BuildArgs): AnyPres
     case 'none':
       return none();
     case 'fade':
-      return fade();
+      // `shouldFadeOutExitingScene` is NOT optional decoration — without it
+      // there is no cross-fade at all, only a fade-IN of the incoming scene on
+      // top of a fully opaque outgoing one. Upstream:
+      //     opacity: isEntering ? progress
+      //            : passedProps.shouldFadeOutExitingScene ? 1 - progress : 1
+      // The default leaves the exiting scene at opacity 1 for the whole overlap
+      // and then unmounts it, so the cut lands on the last frame of the window.
+      // With both sides animating, the overlap actually blends.
+      return fade({ shouldFadeOutExitingScene: true });
     // 'dissolve' is deliberately absent — do not re-add it.
     //
     // It is not a cross-fade and it never blends the two scenes. The shader
