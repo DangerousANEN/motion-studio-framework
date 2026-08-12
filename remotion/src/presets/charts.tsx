@@ -5,6 +5,7 @@ import { getSafeArea } from '../lib/safeArea';
 import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
+import { fitWrapped } from '../theme/layout';
 
 /**
  * Extra data presets: radial gauges and 3D bars.
@@ -273,11 +274,26 @@ export const Bars3D: React.FC<BaseSceneProps> = ({
 
   const plotH = Math.round(safe.height * (title ? 0.6 : 0.74));
   const gap = Math.round(safe.width * 0.03);
-  const barW = Math.max(
-    24,
-    Math.min((safe.width - gap * (shown.length - 1)) / shown.length, safe.width * 0.17)
+  // A column is WIDER than its bar: the isometric block extends `depth` to the
+  // right. Budget the column first, then derive the bar, or the extrusion pushes
+  // neighbours together and the last column overflows the safe box (seen as
+  // "labels crammed on one line, shifted left, bars touching").
+  const DEPTH_RATIO = 0.34;
+  const colW = Math.max(
+    32,
+    Math.min((safe.width - gap * (shown.length - 1)) / shown.length, safe.width * 0.2)
   );
-  const depth = typeof barDepth === 'number' ? barDepth : Math.round(barW * 0.34);
+  const barW = Math.round(colW / (1 + DEPTH_RATIO));
+  const depth = typeof barDepth === 'number' ? barDepth : Math.round(barW * DEPTH_RATIO);
+  // Every column reserves the same label slot so one-line and two-line labels
+  // cannot shift their bars off the shared baseline. Two lines plus leading.
+  const labelSlotH = Math.round(barW * 0.19 * 2 * 1.15);
+  // The tallest bar must leave room for: the isometric cap it lifts (depth*0.52),
+  // the value text above it, the ground shadow and the label slot below. Without
+  // this the block grew past the plot box and the value collided with the title.
+  const valueH = Math.round(barW * 0.3 * 1.2);
+  const chromeH = valueH + labelSlotH + Math.round(barW * 0.25) + Math.round(depth * 0.52);
+  const barMaxH = Math.max(40, plotH - chromeH);
 
   /** Shade a hex colour by a factor for the top/side faces. */
   const shade = (hex: string, f: number): string => {
@@ -334,20 +350,44 @@ export const Bars3D: React.FC<BaseSceneProps> = ({
           {shown.map((s, i) => {
             const target = (s.value ?? 0) / maxValue;
             const grow = animate(frame - i * 6, 0, 1);
-            const h = Math.max(2, plotH * 0.84 * target * grow);
+            const h = Math.max(2, barMaxH * target * grow);
             const color = s.color || colors[i % colors.length];
             const displayed = Math.round((s.value ?? 0) * grow);
+
+            // ISOMETRIC EXTRUSION VIA clip-path, NOT CSS 3D ROTATION.
+            // The faces used to be three divs rotated -90deg/90deg inside a
+            // parent at rotateX(6deg), under a `perspective` on the flex row with
+            // perspectiveOrigin 50% 78%. Two things went wrong:
+            //   * a face rotated -90deg against a parent tilted only 6deg ends up
+            //     ~84deg to the camera, i.e. nearly edge-on, so the top face
+            //     rendered as a 1-2px sliver instead of a cap;
+            //   * the bars stand ABOVE the perspective origin, so the camera sees
+            //     the UNDERSIDE of that cap — a backface — which is why what
+            //     survived looked like a detached triangular shard at the
+            //     top-right corner rather than part of the block.
+            // Vision check on the render: "top face missing / detached shard" on
+            // all three bars. Perspective-free isometric polygons cannot fail
+            // that way: dx/dy are fixed pixel offsets, so the cap is always a
+            // real parallelogram and the block always reads as solid.
+            const dx = depth;
+            const dy = Math.round(depth * 0.52);
+            const blockW = barW + dx;
+            const blockH = h + dy;
+            // Front face occupies y = dy..dy+h; the cap rises to y = 0 at x = dx.
+            const front = `polygon(0px ${dy}px, ${barW}px ${dy}px, ${barW}px ${blockH}px, 0px ${blockH}px)`;
+            const cap = `polygon(0px ${dy}px, ${dx}px 0px, ${blockW}px 0px, ${barW}px ${dy}px)`;
+            const side = `polygon(${barW}px ${dy}px, ${blockW}px 0px, ${blockW}px ${h}px, ${barW}px ${blockH}px)`;
 
             return (
               <div
                 key={i}
                 style={{
-                  width: barW,
+                  width: colW,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  justifyContent: 'flex-end',
                   gap: Math.round(barW * 0.14),
-                  transformStyle: 'preserve-3d',
                 }}
               >
                 <span
@@ -364,51 +404,32 @@ export const Bars3D: React.FC<BaseSceneProps> = ({
                   {valueSuffix}
                 </span>
 
-                {/* the extruded bar: front face + top face + right side */}
-                <div
-                  style={{
-                    position: 'relative',
-                    width: barW,
-                    height: h,
-                    transformStyle: 'preserve-3d',
-                    transform: 'rotateX(6deg) rotateY(-16deg)',
-                  }}
-                >
-                  {/* front */}
+                {/* the extruded bar: front face + cap + right side, all clipped
+                    out of one box so they cannot drift apart */}
+                <div style={{ position: 'relative', width: blockW, height: blockH }}>
                   <div
                     style={{
                       position: 'absolute',
                       inset: 0,
+                      clipPath: cap,
+                      background: shade(color, 1.3),
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      clipPath: side,
+                      background: `linear-gradient(180deg, ${shade(color, 0.62)}, ${shade(color, 0.4)})`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      clipPath: front,
                       background: `linear-gradient(180deg, ${color}, ${shade(color, 0.72)})`,
-                      borderRadius: `${barW * 0.06}px ${barW * 0.06}px 0 0`,
-                      boxShadow: `0 0 ${barW * 0.5}px ${color}33`,
-                    }}
-                  />
-                  {/* top */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 0,
-                      width: barW,
-                      height: depth,
-                      background: shade(color, 1.28),
-                      transformOrigin: 'top',
-                      transform: `rotateX(-90deg)`,
-                      borderRadius: 2,
-                    }}
-                  />
-                  {/* right side */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      width: depth,
-                      height: h,
-                      background: shade(color, 0.5),
-                      transformOrigin: 'right',
-                      transform: `rotateY(90deg)`,
+                      filter: `drop-shadow(0 0 ${Math.round(barW * 0.3)}px ${color}44)`,
                     }}
                   />
                 </div>
@@ -424,19 +445,48 @@ export const Bars3D: React.FC<BaseSceneProps> = ({
                   }}
                 />
 
-                {s.label && (
-                  <span
-                    style={{
-                      fontFamily: fonts.body,
-                      fontSize: Math.round(barW * 0.19),
-                      color: theme.muted,
-                      fontWeight: 600,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {s.label}
-                  </span>
-                )}
+                {/* FIXED-HEIGHT LABEL SLOT.
+                    The row is aligned flex-end, so the column's BOTTOM edge is
+                    what lines up — not the bar's. A one-line label ("GLM-5.2")
+                    made its column shorter than a two-line one ("Qwen3.6-27B"),
+                    pushing that bar visibly below the others' baseline (caught in
+                    review as "the gold bar sits lower"). Reserving the same slot
+                    for every label puts all bars back on one line.
+                    Size is measured, not assumed: model names are long and a
+                    fixed barW*0.19 clipped them under `overflow: hidden`. */}
+                <div
+                  style={{
+                    height: labelSlotH,
+                    width: colW,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {s.label && (
+                    <span
+                      style={{
+                        fontFamily: fonts.body,
+                        fontSize: fitWrapped({
+                          text: s.label,
+                          maxWidth: colW * 0.96,
+                          maxHeight: labelSlotH,
+                          fontFamily: fonts.body,
+                          fontWeight: 600,
+                          maxLines: 2,
+                          maxFontSize: Math.round(barW * 0.19),
+                          minFontSize: Math.round(height * 0.011),
+                        }).fontSize,
+                        color: theme.muted,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {s.label}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
