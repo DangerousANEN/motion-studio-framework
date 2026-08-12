@@ -5,6 +5,7 @@ import { getSafeArea } from '../lib/safeArea';
 import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
+import { fitOneLine } from '../theme/layout';
 
 /**
  * Stage preset pack — music, gaming, and show scenes.
@@ -724,7 +725,24 @@ export const CountdownHero: React.FC<BaseSceneProps> = (props) => {
   // Sizes.
   const numFontSize = Math.round(height * 0.22);
   const labelFontSize = Math.round(height * 0.032);
-  const finalFontSize = Math.round(height * 0.14);
+  // MEASURE THE FINAL WORD, DON'T ASSUME IT FITS.
+  // A flat `height * 0.14` (269px at 1920) only fits ~6 wide glyphs across the
+  // safe area. "ДОГНАЛИ" (7 caps) rendered 1080px wide in a 1080px frame: the
+  // leading Д and trailing И were sliced off by the viewport, so the hero beat
+  // of the scene read "ОГНАЛ". Any word longer than ~6 characters hit this, and
+  // because the middle of the word still looked correct the frame passed a
+  // glance. Measure against the safe width and only ever shrink.
+  const finalFontSize = Math.min(
+    Math.round(height * 0.14),
+    fitOneLine({
+      text: finalWord,
+      maxWidth: safe.width,
+      fontFamily: fonts.display,
+      fontWeight: 900,
+      maxFontSize: Math.round(height * 0.14),
+      minFontSize: Math.round(height * 0.05),
+    })
+  );
   const ringBase = Math.round(Math.min(width, height) * 0.36);
 
   // Global entrance for the whole composition.
