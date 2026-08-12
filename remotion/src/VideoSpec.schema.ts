@@ -528,18 +528,22 @@ export const BaseSceneSchema = z
     subscribers: z.number().optional(),
     buttonText: z.string().optional(),
     subscribedText: z.string().optional(),
-    /** Leaderboard: ranked rows. */
+    /** Leaderboard: ranked rows. `label` is accepted as an alias for `name`,
+     *  matching segments[].label used by every other data preset. */
     rows: z
       .array(
         z
           .object({
             name: z.string().optional(),
+            label: z.string().optional(),
             value: z.number().optional(),
             avatar: z.string().optional(),
           })
           .passthrough()
       )
       .optional(),
+    /** Leaderboard: rank rows by value (default true). */
+    sortRows: z.boolean().optional(),
     // ----------------------------------------------------------------- learn
     /** QuizCard: question, answers, which one is right, when to reveal it. */
     question: z.string().optional(),

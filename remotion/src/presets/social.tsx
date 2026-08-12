@@ -5,6 +5,7 @@ import { getSafeArea, type SafeAreaMode } from '../lib/safeArea';
 import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
+import { fitOneLine } from '../theme/layout';
 
 /**
  * Social proof and engagement presets.
@@ -869,7 +870,17 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
  * position 0 gets the accent colour highlight and a larger bar.
  */
 type LeaderboardRow = {
-  name: string;
+  name?: string;
+  /**
+   * Alias for `name`. EVERY other data preset in the library keys its items on
+   * `label` (segments[].label in RingStats, Bars3D, DonutFill), so a caller —
+   * human or pipeline — naturally writes `label` here too. It used to be
+   * ignored, and the failure was silent and bizarre rather than loud: the row
+   * rendered with NO text at all, and `AvatarCircle` got the string "undefined"
+   * so every avatar showed the letter "U". The chart looked like an unfinished
+   * template instead of like bad input.
+   */
+  label?: string;
   value: number;
   avatar?: string;
 };
@@ -878,6 +889,13 @@ type LeaderboardProps = BaseSceneProps & {
   title?: string;
   rows?: LeaderboardRow[];
   valueSuffix?: string;
+  /**
+   * Rank by value (default). The medals make this a correctness issue, not a
+   * preference: 🥇 is painted on row 0, so trusting caller order let a row
+   * scoring 81 sit fifth wearing no medal while a 77 took gold. Set false only
+   * when the given order IS the ranking (e.g. alphabetical or chronological).
+   */
+  sortRows?: boolean;
 };
 
 const DEFAULT_ROWS: LeaderboardRow[] = [
@@ -895,11 +913,24 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
     title = 'Leaderboard',
     rows: rawRows,
     valueSuffix = 'pts',
+    sortRows = true,
   } = props as LeaderboardProps;
 
-  const rows: LeaderboardRow[] = Array.isArray(rawRows) && rawRows.length > 0
+  const supplied: LeaderboardRow[] = Array.isArray(rawRows) && rawRows.length > 0
     ? (rawRows as LeaderboardRow[])
     : DEFAULT_ROWS;
+
+  // Normalise `label` onto `name` and rank by value. Both fixes exist because a
+  // leaderboard that paints 🥇 on row 0 is ASSERTING a ranking, so silently
+  // trusting caller order is a factual error on screen, not a layout nit.
+  const rows: LeaderboardRow[] = React.useMemo(() => {
+    const named = supplied.map((r) => ({
+      ...r,
+      name: r.name ?? r.label ?? '',
+      value: typeof r.value === 'number' ? r.value : 0,
+    }));
+    return sortRows ? [...named].sort((a, b) => b.value - a.value) : named;
+  }, [supplied, sortRows]);
 
   const frame = useCurrentFrame();
   const { width, height, fps, durationInFrames } = useVideoConfig();
@@ -913,9 +944,45 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
   const rowH = Math.round(Math.min((safe.height - Math.round(height * 0.12)) / rows.length, height * 0.115));
   const avatarSz = Math.round(rowH * 0.52);
   const fRank = Math.round(height * 0.022);
-  const fName = Math.round(height * 0.021);
   const fVal = Math.round(height * 0.020);
-  const barMaxW = Math.round(tableW * 0.38);
+
+  // WIDTH BUDGET — the row must be SOLVED, not hoped for.
+  //
+  // Every element here was sized as an independent fraction, and at 5 rows they
+  // summed to 977px inside a 920px table: rank 92 + avatar 114 + bar 350 +
+  // value 166 + gaps 158 + padding 97. The name column is `flex: 1`, so it
+  // absorbed the entire 57px overflow and collapsed to ZERO width — the labels
+  // were not clipped, they were gone, and with `whiteSpace: nowrap` there was
+  // nothing on screen to hint why. Reserve the name column FIRST and give the
+  // bar whatever is genuinely left.
+  const pad = Math.round(rowH * 0.22);
+  const gap = Math.round(rowH * 0.18);
+  const rankW = Math.round(rowH * 0.42);
+  const valueW = Math.round(tableW * 0.16);
+  const nameW = Math.round(tableW * 0.34);
+  const fixed = pad * 2 + gap * 4 + rankW + avatarSz + valueW + nameW;
+  // The bar is the only elastic element: it can shrink to a stub and still read
+  // as a bar, whereas a truncated model name is misinformation.
+  const barMaxW = Math.max(Math.round(tableW * 0.08), tableW - fixed);
+
+  // Size the longest name to the column instead of assuming height*0.021 fits.
+  // 2026 model names ("Qwen3.6-235B-A22B") are far wider than the "Aria Chen"
+  // the default rows were built around.
+  const longestName = rows.reduce(
+    (acc, r) => (String(r.name ?? '').length > acc.length ? String(r.name ?? '') : acc),
+    ''
+  );
+  const fName = Math.min(
+    Math.round(height * 0.021),
+    fitOneLine({
+      text: longestName || 'Aria Chen',
+      maxWidth: nameW,
+      fontFamily: fonts.display,
+      fontWeight: 800,
+      maxFontSize: Math.round(height * 0.021),
+      minFontSize: Math.round(height * 0.012),
+    })
+  );
   const staggerFrames = Math.max(5, Math.round(durationInFrames / (rows.length + 2)));
 
   // Title
@@ -1002,8 +1069,8 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                   borderRadius: Math.round(rowH * 0.28),
                   display: 'flex',
                   alignItems: 'center',
-                  padding: `0 ${Math.round(rowH * 0.22)}px`,
-                  gap: Math.round(rowH * 0.18),
+                  padding: `0 ${pad}px`,
+                  gap,
                   boxSizing: 'border-box',
                   opacity: rowProgress,
                   transform: `translateX(${rowSlideX}px)`,
@@ -1038,15 +1105,16 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                 {/* Avatar */}
                 <AvatarCircle name={nameStr} size={avatarSz} seed={seed} fontSize={Math.round(avatarSz * 0.40)} />
 
-                {/* Name */}
+                {/* Name — a FIXED column, not `flex: 1`. Flex let the name
+                    absorb the row's overflow and collapse to nothing. */}
                 <span
                   style={{
                     fontFamily: fonts.display,
                     fontSize: fName,
                     fontWeight: isLeader ? 800 : 600,
-                    color: isLeader ? theme.text : theme.text,
-                    flex: 1,
-                    minWidth: 0,
+                    color: theme.text,
+                    width: nameW,
+                    flexShrink: 0,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1055,8 +1123,9 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                   {row.name}
                 </span>
 
-                {/* Bar + value */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(fVal * 0.5), flexShrink: 0 }}>
+                {/* Bar + value. Sized from the SAME budget as the row above, so
+                    `valueW` here must stay in sync with the reservation. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap, flexShrink: 0 }}>
                   <div
                     style={{
                       width: barMaxW,
@@ -1083,8 +1152,10 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
                       fontSize: fVal,
                       fontWeight: 700,
                       color: rowAccent,
-                      minWidth: Math.round(tableW * 0.18),
+                      width: valueW,
+                      flexShrink: 0,
                       textAlign: 'right',
+                      whiteSpace: 'nowrap',
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >

@@ -76,13 +76,24 @@ export const RingStats: React.FC<BaseSceneProps> = ({
   const perRow = shown.length <= 3 ? shown.length : Math.ceil(shown.length / 2);
   const rows = Math.ceil(shown.length / perRow);
   const gap = Math.round(safe.width * 0.05);
+  // Cell must leave room for the label slot below the ring, or a 6-ring layout
+  // overflows the safe box vertically once labels are reserved.
   const cell = Math.min(
     (safe.width - gap * (perRow - 1)) / perRow,
-    (safe.height * (title ? 0.66 : 0.86) - gap * (rows - 1)) / rows
+    ((safe.height * (title ? 0.66 : 0.86) - gap * (rows - 1)) / rows) * 0.8
   );
   const stroke = Math.max(8, Math.round(cell * 0.085));
   const r = (cell - stroke) / 2;
   const circumference = 2 * Math.PI * r;
+
+  // FIXED-HEIGHT LABEL SLOT, same reason as Bars3D.
+  // The wrap container centres its items, so a two-line label made its column
+  // taller and shoved that ring UP relative to its neighbours — three rings on
+  // three different centre lines. "Qwen3.6-235B-A22B" wraps while
+  // "GLM-5.2-Air" does not, so mixed model names always broke the row.
+  // Reserving two lines for every label keeps every ring on one axis.
+  const labelFont = Math.round(cell * 0.1);
+  const labelSlotH = Math.round(labelFont * 1.15 * 2);
 
   return (
     <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.bg, overflow: 'hidden' }}>
@@ -194,19 +205,42 @@ export const RingStats: React.FC<BaseSceneProps> = ({
                     </span>
                   </div>
                 </div>
-                {s.label && (
-                  <span
-                    style={{
-                      fontFamily: fonts.body,
-                      fontSize: Math.round(cell * 0.1),
-                      color: theme.muted,
-                      textAlign: 'center',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {s.label}
-                  </span>
-                )}
+                {/* Label slot: fixed height so a wrapping name cannot lift its
+                    ring off the shared centre line. Font is MEASURED — a long
+                    model name at a flat cell*0.1 overflowed the cell width. */}
+                <div
+                  style={{
+                    height: labelSlotH,
+                    width: cell,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {s.label && (
+                    <span
+                      style={{
+                        fontFamily: fonts.body,
+                        fontSize: fitWrapped({
+                          text: s.label,
+                          maxWidth: cell * 0.98,
+                          maxHeight: labelSlotH,
+                          fontFamily: fonts.body,
+                          fontWeight: 600,
+                          maxLines: 2,
+                          maxFontSize: labelFont,
+                          minFontSize: Math.round(height * 0.011),
+                        }).fontSize,
+                        color: theme.muted,
+                        textAlign: 'center',
+                        fontWeight: 600,
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {s.label}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
