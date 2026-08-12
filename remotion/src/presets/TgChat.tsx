@@ -9,7 +9,8 @@ import { getSafeArea } from '../lib/safeArea';
  * optionally a composed message being typed and sent on camera.
  *
  * Reads: messages[]{from,text,time,read,out}, contactName, contactStatus, title,
- *        compose, typing, showCursor, showInputBar, sendAtProgress
+ *        compose, typing, showCursor, showInputBar, sendAtProgress, tgTheme,
+ *        datePill
  *
  * WHY THE COMPOSE SEQUENCE EXISTS
  * -------------------------------
@@ -39,24 +40,93 @@ import { getSafeArea } from '../lib/safeArea';
  * to scene progress rather than absolute frames means the same spec works at
  * any scene length instead of the send landing off the end of a short scene.
  *
+ * FIDELITY TO THE REAL CLIENT
+ * ---------------------------
+ * Reviewed side by side against an Android screenshot; every difference below
+ * was a reason the mockup read as "not Telegram", in rough order of how loudly
+ * it announced itself:
+ *
+ *   1. FONT. This preset set no `fontFamily`, so it inherited the composition's
+ *      serif display face. Telegram is a system sans (Roboto/SF/Inter) — nothing
+ *      else makes a chat look this wrong this fast. Now pinned explicitly.
+ *   2. LIGHT THEME. The reference is the light theme on a doodled sky-blue
+ *      wallpaper; this preset only had the dark one. `tgTheme` picks, and light
+ *      is the default because that is what a screenshot-in-a-video usually is.
+ *   3. TAILS AND GROUPING. Every bubble had a tail. The real client draws a nib
+ *      only on the LAST bubble of a same-sender run and squares the inner
+ *      corners of the rest, which is what makes a burst of messages read as one
+ *      block. Grouping also collapses the vertical gap within a run (2px) versus
+ *      between runs (10px).
+ *   4. INLINE META. Time and ticks sit on the SAME line as short text, indented
+ *      into the text flow by a reserved inline spacer — not on their own line
+ *      under it. Getting this wrong makes every bubble one line too tall.
+ *   5. HEADER CHROME. Back arrow, call handset and the 3-dot menu were missing,
+ *      and the avatar was a flat gradient disc with no initial in it.
+ *   6. DATE PILL. A centred translucent capsule above the first message.
+ *
  * GEOMETRY NOTE
  * -------------
- * Bubble corner radii, the input bar height and the tail placement follow the
- * reference screenshot: tails on the bottom-outer corner, 6% of frame height
- * for the bar, attachment + record button on the right of the field.
+ * Bubble radius is 18px with 6px on grouped inner corners, the input bar is 6%
+ * of frame height, and the send/record button is a filled circle to the right of
+ * the field — all measured off the reference.
  */
 
-const TG = {
-  bg: '#0E1621',
-  bubbleIn: '#182533',
-  bubbleOut: '#2B5278',
-  text: '#FFFFFF',
-  meta: '#6D7F8F',
-  bar: '#17212B',
-  field: '#242F3D',
-  accent: '#5288C1',
-  tick: '#5FD3F3',
-};
+/** Palette per Telegram theme, sampled from the reference screenshots. */
+const THEMES = {
+  light: {
+    bg: '#D3ECFA',
+    doodle: 'rgba(120, 178, 220, 0.22)',
+    bubbleIn: '#FFFFFF',
+    // Telegram's outgoing bubble is BLUE with white text, not the pale green of
+    // WhatsApp — sampled off the reference screenshot as #3996EC. Using green
+    // here made the mockup read as the wrong app entirely, which review caught
+    // as the single most obvious difference.
+    bubbleOut: '#3996EC',
+    textIn: '#000000',
+    textOut: '#FFFFFF',
+    metaIn: 'rgba(0,0,0,0.35)',
+    metaOut: 'rgba(255,255,255,0.78)',
+    header: '#FFFFFF',
+    headerText: '#1D242D',
+    headerMeta: '#82919E',
+    bar: '#FFFFFF',
+    barIcon: '#8794A1',
+    placeholder: '#9CA9B4',
+    accent: '#3390EC',
+    tick: 'rgba(255,255,255,0.92)',
+    pill: 'rgba(125, 160, 190, 0.55)',
+    pillText: '#FFFFFF',
+    shadow: '0 1px 2px rgba(16,35,47,0.12)',
+  },
+  dark: {
+    bg: '#0E1621',
+    doodle: 'rgba(255, 255, 255, 0.035)',
+    bubbleIn: '#182533',
+    bubbleOut: '#2B5278',
+    textIn: '#FFFFFF',
+    textOut: '#FFFFFF',
+    metaIn: '#6D7F8F',
+    metaOut: 'rgba(255,255,255,0.62)',
+    header: '#17212B',
+    headerText: '#FFFFFF',
+    headerMeta: '#7D8E9C',
+    bar: '#17212B',
+    barIcon: '#707E8B',
+    placeholder: '#6D7F8F',
+    accent: '#5288C1',
+    tick: '#5FD3F3',
+    pill: 'rgba(24, 37, 51, 0.72)',
+    pillText: 'rgba(255,255,255,0.86)',
+    shadow: '0 1px 3px rgba(0,0,0,0.35)',
+  },
+} as const;
+
+/**
+ * Telegram renders in the platform UI font. Inheriting the composition's serif
+ * display face was the single most obvious tell that this was not a real client.
+ */
+const TG_FONT =
+  '"Inter", "Segoe UI", Roboto, "Helvetica Neue", "SF Pro Text", Arial, sans-serif';
 
 interface ChatMessage {
   from?: string;
@@ -70,30 +140,69 @@ interface ChatMessage {
 const estimateWidth = (text: string, fontSize: number): number =>
   Math.min(text.length * fontSize * 0.54, 10_000);
 
+/**
+ * Sent/read ticks. The real glyph is two overlapping checks offset by ~4px with
+ * the second clipped by the first, not two independent strokes at a distance.
+ */
 const Tick: React.FC<{ read: boolean; color: string; size?: number }> = ({
   read,
   color,
   size = 16,
 }) => (
-  <svg width={size} height={(size * 11) / 16} viewBox="0 0 16 11" style={{ marginLeft: 4 }}>
+  <svg
+    width={size}
+    height={(size * 11) / 16}
+    viewBox="0 0 16 11"
+    style={{ marginLeft: 3, display: 'block' }}
+  >
     <path
-      d="M1 5.5L4.5 9L11 2"
+      d={read ? 'M0.8 5.9L3.9 9L9.7 2.2' : 'M2.4 5.9L5.5 9L11.3 2.2'}
       stroke={color}
-      strokeWidth={1.6}
+      strokeWidth={1.7}
       fill="none"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
     {read && (
       <path
-        d="M6 9L12.5 2"
+        d="M6.4 9L12.2 2.2"
         stroke={color}
-        strokeWidth={1.6}
+        strokeWidth={1.7}
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     )}
+  </svg>
+);
+
+/**
+ * The bubble nib. Telegram's is a curved flick off the bottom corner, not a
+ * triangle — a straight-edged triangle is instantly recognisable as a fake.
+ *
+ * GEOMETRY: the svg is placed so its LEFT edge sits on the bubble's right edge
+ * (`right: -size`) and its bottom aligns with the bubble's bottom. The path fills
+ * from the top-left corner (which meets the bubble's straightened corner) out to
+ * the flick. An earlier version used `right: -size*0.52` with a path drawn in the
+ * left half of the viewBox, which put the visible ink back INSIDE the bubble and
+ * rendered no tail at all — pixel-checked: the bubble's right edge was a plain
+ * rounded corner, max x identical on every row.
+ */
+const Tail: React.FC<{ out: boolean; color: string; size: number }> = ({ out, color, size }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 12 12"
+    style={{
+      position: 'absolute',
+      bottom: 0,
+      [out ? 'right' : 'left']: -size + 0.5,
+      transform: out ? undefined : 'scaleX(-1)',
+      display: 'block',
+    }}
+  >
+    {/* Straight left edge glued to the bubble; concave sweep back to the point. */}
+    <path d="M0 0V12H8.4C4.2 11 1.6 7.4 0.6 2.4Z" fill={color} />
   </svg>
 );
 
@@ -134,12 +243,67 @@ const Cursor: React.FC<{ x: number; y: number; size: number; pressed: boolean }>
   </div>
 );
 
+/**
+ * The doodle wallpaper. Telegram's light theme is never flat — a plain fill is
+ * a tell. The real one is line-art doodles (cats, planes, cups); these are
+ * simplified vector glyphs tiled in a repeating group, which reads correctly at
+ * the size a phone screen occupies in a 9:16 frame. Polka dots did not: review
+ * flagged them as "simple polka-dot pattern, not Telegram's vector line-art".
+ */
+const Wallpaper: React.FC<{ color: string; tile: number }> = ({ color, tile }) => {
+  const s = 100; // glyph space; the whole group is scaled by `tile`
+  const stroke = {
+    fill: 'none',
+    stroke: color,
+    strokeWidth: 2.4,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <svg
+        width="100%"
+        height="100%"
+        style={{ position: 'absolute', inset: 0 }}
+        aria-hidden
+      >
+        <defs>
+          <pattern id="tgdoodle" width={tile} height={tile} patternUnits="userSpaceOnUse">
+            <g transform={`scale(${tile / s})`}>
+              {/* paper plane */}
+              <path d="M8 22L34 12L24 34L21 26Z" {...stroke} />
+              {/* cup */}
+              <path d="M58 12H76V22a9 9 0 01-9 9 9 9 0 01-9-9Z" {...stroke} />
+              <path d="M76 15h4a4 4 0 010 8h-4" {...stroke} />
+              {/* cat face */}
+              <circle cx="22" cy="66" r="10" {...stroke} />
+              <path d="M14 58l2-6 5 4M30 58l-2-6-5 4" {...stroke} />
+              <circle cx="19" cy="65" r="1.4" fill={color} />
+              <circle cx="25" cy="65" r="1.4" fill={color} />
+              {/* heart */}
+              <path
+                d="M70 78c-6-4-10-7-10-11a5 5 0 019-3 5 5 0 019 3c0 4-4 7-10 11Z"
+                {...stroke}
+              />
+              {/* stars */}
+              <path d="M46 44l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" {...stroke} />
+              <circle cx="88" cy="52" r="2.4" fill={color} />
+              <circle cx="6" cy="42" r="1.8" fill={color} />
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#tgdoodle)" />
+      </svg>
+    </div>
+  );
+};
+
 export const TgChat: React.FC<BaseSceneProps> = ({
   title,
   contactName,
   contactStatus,
   messages,
-  accentColor = TG.accent,
+  accentColor,
   motion,
   safeArea = 'platform',
   compose,
@@ -147,10 +311,15 @@ export const TgChat: React.FC<BaseSceneProps> = ({
   showCursor = true,
   showInputBar = true,
   sendAtProgress = 0.72,
+  tgTheme = 'light',
+  datePill,
+  isGroup = false,
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps, durationInFrames } = useVideoConfig();
   const safe = getSafeArea(width, height, safeArea);
+  const TG = THEMES[tgTheme === 'dark' ? 'dark' : 'light'];
+  const accent = accentColor || TG.accent;
 
   const list: ChatMessage[] = Array.isArray(messages) && messages.length
     ? (messages as ChatMessage[])
@@ -162,9 +331,11 @@ export const TgChat: React.FC<BaseSceneProps> = ({
 
   const animate = resolveMotion(motion, fps, 'reveal');
 
-  const bubbleFont = Math.round(height * 0.021);
-  const metaFont = Math.round(height * 0.013);
-  const maxBubble = safe.width * 0.74;
+  const bubbleFont = Math.round(height * 0.0198);
+  const metaFont = Math.round(height * 0.0126);
+  // Wider than the old 0.76: at 0.76 a line the real client fits on one row
+  // ("хз, я юзаю, норм вроде всё с ним") wrapped onto two.
+  const maxBubble = safe.width * 0.84;
 
   // ---------------------------------------------------------------- compose
   const composeText = typeof compose === 'string' ? compose : '';
@@ -201,8 +372,12 @@ export const TgChat: React.FC<BaseSceneProps> = ({
   const pressed = hasCompose && frame >= sendFrame - 2 && frame < sendFrame + pressFrames;
 
   // Thread = incoming list, plus the composed message once it has been sent.
+  // The composed bubble needs a clock like any other: an empty `time` left the
+  // last bubble showing a bare tick, which no real client does. Default to the
+  // last message's time so the run stays coherent.
+  const composeTime = list.length ? (list[list.length - 1].time ?? '') : '';
   const thread: ChatMessage[] = sent
-    ? [...list, { text: composeText, out: true, read: false, time: '' }]
+    ? [...list, { text: composeText, out: true, read: false, time: composeTime }]
     : list;
 
   // Stagger sized to the scene: a fixed per-message delay either runs off the
@@ -212,10 +387,15 @@ export const TgChat: React.FC<BaseSceneProps> = ({
   const stagger = Math.min(18, Math.max(6, staggerBudget / Math.max(1, list.length)));
 
   const barHeight = Math.round(height * 0.062);
-  const barTop = safe.top + safe.height - barHeight;
+  // The bar sits on the SCREEN's bottom edge, not the safe area's. Anchoring it
+  // to safe.top + safe.height left a fifth of the frame as bare wallpaper below
+  // it — flagged in review, and obviously wrong for a client whose composer is
+  // flush above the navigation bar. Nested in a PhoneMockup the safe area is
+  // 'loose', so this now lands on the phone's screen edge as intended.
+  const barTop = height - barHeight;
   // Send button centre — the cursor's destination and the press target.
-  const sendSize = Math.round(barHeight * 0.62);
-  const sendCx = safe.left + safe.width - sendSize / 2 - Math.round(barHeight * 0.16);
+  const sendSize = Math.round(barHeight * 0.72);
+  const sendCx = width - sendSize / 2 - Math.round(safe.left * 0.7);
   const sendCy = barTop + barHeight / 2;
 
   const cursorSize = Math.round(height * 0.032);
@@ -229,68 +409,166 @@ export const TgChat: React.FC<BaseSceneProps> = ({
   const cursorX = interpolate(travel, [0, 1], [safe.left + safe.width * 0.34, sendCx - cursorSize * 0.18]);
   const cursorY = interpolate(travel, [0, 1], [barTop + barHeight * 1.15, sendCy - cursorSize * 0.16]);
 
+  const avatarSize = Math.round(height * 0.032);
+  const iconSize = Math.round(height * 0.024);
+  const initial = (contactName || title || 'Аня').trim().charAt(0).toUpperCase();
+  // Full-width action bar height, sized like the real one (icon + padding).
+  const headerH = Math.round(height * 0.058);
+
   return (
-    <div style={{ position: 'absolute', inset: 0, backgroundColor: TG.bg, overflow: 'hidden' }}>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundColor: TG.bg,
+        overflow: 'hidden',
+        fontFamily: TG_FONT,
+      }}
+    >
+      <Wallpaper color={TG.doodle} tile={Math.round(width * 0.17)} />
+
+      {/* ------------------------------------------------------- chat header
+          EDGE TO EDGE. The real Android action bar spans the full width and is
+          flush with the top; rendering it as a floating rounded card inset by the
+          safe area was flagged in review as an immediate tell. It sits outside the
+          safe-area column for that reason, and the thread below is padded by its
+          height so no bubble hides underneath. */}
       <div
         style={{
           position: 'absolute',
-          top: safe.top,
+          top: 0,
+          left: 0,
+          width,
+          height: headerH,
+          display: 'flex',
+          alignItems: 'center',
+          gap: Math.round(width * 0.026),
+          padding: `0 ${safe.left}px`,
+          boxSizing: 'border-box',
+          backgroundColor: TG.header,
+          boxShadow: TG.shadow,
+          zIndex: 10,
+        }}
+      >
+        {/* back arrow */}
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <path
+            d="M20 12H4M4 12L10.5 5.5M4 12L10.5 18.5"
+            fill="none"
+            stroke={TG.headerText}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        <div
+          style={{
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: '50%',
+            background: `linear-gradient(135deg, ${accent}, #8FB8E0)`,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFFFFF',
+            fontSize: Math.round(avatarSize * 0.46),
+            fontWeight: 600,
+          }}
+        >
+          {initial}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: Math.round(height * 0.0185),
+              fontWeight: 600,
+              color: TG.headerText,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              lineHeight: 1.25,
+            }}
+          >
+            {contactName || title || 'Аня'}
+          </span>
+          {(contactStatus ?? 'в сети') !== '' && (
+            <span
+              style={{
+                fontSize: metaFont,
+                color: isTyping ? accent : TG.headerMeta,
+                lineHeight: 1.25,
+              }}
+            >
+              {/* While the user types, Telegram shows "печатает…" in the header —
+                  the detail that makes the mockup read as live. */}
+              {isTyping ? 'печатает…' : (contactStatus ?? 'в сети')}
+            </span>
+          )}
+        </div>
+
+        {/* call + menu, right-aligned like the real header */}
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <path
+            d="M6.6 3.5c.6 0 1.1.4 1.3 1l.8 2.6c.2.6 0 1.2-.5 1.6l-1.2.9a12 12 0 005.4 5.4l.9-1.2c.4-.5 1-.7 1.6-.5l2.6.8c.6.2 1 .7 1 1.3v2.4c0 .9-.8 1.6-1.7 1.5C10.3 19.6 4.4 13.7 3.6 5.2 3.5 4.3 4.2 3.5 5.1 3.5z"
+            fill={TG.headerMeta}
+          />
+        </svg>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <circle cx="12" cy="5" r="1.9" fill={TG.headerMeta} />
+          <circle cx="12" cy="12" r="1.9" fill={TG.headerMeta} />
+          <circle cx="12" cy="19" r="1.9" fill={TG.headerMeta} />
+        </svg>
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          top: Math.max(safe.top, headerH),
           left: safe.left,
           width: safe.width,
-          height: safe.height,
+          height: safe.height - Math.max(0, headerH - safe.top),
           display: 'flex',
           flexDirection: 'column',
           boxSizing: 'border-box',
         }}
       >
-        {/* chat header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '10px 4px 18px',
-            borderBottom: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          <div
-            style={{
-              width: Math.round(height * 0.028),
-              height: Math.round(height * 0.028),
-              borderRadius: '50%',
-              background: `linear-gradient(135deg, ${accentColor}, #8FB8E0)`,
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span
-              style={{
-                fontSize: Math.round(height * 0.019),
-                fontWeight: 700,
-                color: TG.text,
-              }}
-            >
-              {contactName || title || 'Аня'}
-            </span>
-            <span style={{ fontSize: metaFont, color: TG.meta }}>
-              {/* While the user types, Telegram shows "печатает…" in the header —
-                  the detail that makes the mockup read as live. */}
-              {isTyping ? 'печатает…' : (contactStatus ?? 'в сети')}
-            </span>
-          </div>
-        </div>
-
-        {/* bubbles, bottom-aligned like a real thread */}
+        {/* ------------------------------------------------------------ thread */}
         <div
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'flex-end',
-            gap: 10,
-            paddingBottom: hasCompose && showInputBar ? barHeight + 14 : 8,
+            paddingTop: Math.round(height * 0.012),
+            // Clear the composer, which is now anchored to the screen bottom
+            // rather than to the safe area.
+            paddingBottom:
+              hasCompose && showInputBar
+                ? Math.max(8, safe.top + safe.height - barTop + Math.round(height * 0.008))
+                : 8,
           }}
         >
+          {datePill && (
+            <div
+              style={{
+                alignSelf: 'center',
+                marginBottom: Math.round(height * 0.012),
+                padding: `${Math.round(height * 0.004)}px ${Math.round(width * 0.022)}px`,
+                borderRadius: 999,
+                backgroundColor: TG.pill,
+                color: TG.pillText,
+                fontSize: metaFont,
+                fontWeight: 500,
+                opacity: animate(frame, 0, 1),
+              }}
+            >
+              {datePill}
+            </div>
+          )}
+
           {thread.map((m, i) => {
             const isComposed = sent && i === thread.length - 1;
             // The composed bubble has its own launch animation starting at the
@@ -302,12 +580,50 @@ export const TgChat: React.FC<BaseSceneProps> = ({
             const text = m.text ?? '';
             const wide = estimateWidth(text, bubbleFont) > maxBubble * 0.8;
 
+            // GROUPING. A run of messages from the same sender is one visual
+            // block: only the last bubble gets a tail, the inner corners are
+            // squared off, and the gap inside a run is tighter than between
+            // runs. Giving every bubble a tail was one of the loudest tells.
+            const prev = thread[i - 1];
+            const next = thread[i + 1];
+            const firstOfRun = !prev || Boolean(prev.out) !== out;
+            const lastOfRun = !next || Boolean(next.out) !== out;
+            const R = Math.round(height * 0.0095);
+            const rSmall = Math.round(R * 0.34);
+            const tailSize = Math.round(R * 0.85);
+
+            const radius = out
+              ? {
+                  borderTopLeftRadius: R,
+                  borderBottomLeftRadius: R,
+                  borderTopRightRadius: firstOfRun ? R : rSmall,
+                  // The tail is glued to this corner, so it must be square —
+                  // a rounded corner leaves a visible notch between bubble and nib.
+                  borderBottomRightRadius: lastOfRun ? 0 : rSmall,
+                }
+              : {
+                  borderTopRightRadius: R,
+                  borderBottomRightRadius: R,
+                  borderTopLeftRadius: firstOfRun ? R : rSmall,
+                  borderBottomLeftRadius: lastOfRun ? 0 : rSmall,
+                };
+
+            const bubbleBg = out ? TG.bubbleOut : TG.bubbleIn;
+            const metaColor = out ? TG.metaOut : TG.metaIn;
+            // Reserve inline room so the time+ticks can sit on the SAME line as
+            // a short message, indented into the text flow, the way the real
+            // client lays it out. Without this every bubble is a line too tall.
+            const metaW = Math.round(
+              (m.time ?? '').length * metaFont * 0.56 + (out ? metaFont * 1.5 : 0) + metaFont * 0.6
+            );
+
             return (
               <div
                 key={i}
                 style={{
                   display: 'flex',
                   justifyContent: out ? 'flex-end' : 'flex-start',
+                  marginTop: i === 0 ? 0 : firstOfRun ? Math.round(height * 0.0062) : Math.round(height * 0.0016),
                   opacity: appear,
                   // Bubbles rise into place from the side they belong to; the
                   // composed one launches upward out of the input field.
@@ -318,47 +634,62 @@ export const TgChat: React.FC<BaseSceneProps> = ({
               >
                 <div
                   style={{
+                    position: 'relative',
                     maxWidth: maxBubble,
                     minWidth: wide ? maxBubble * 0.5 : undefined,
-                    backgroundColor: out ? TG.bubbleOut : TG.bubbleIn,
-                    color: TG.text,
-                    borderRadius: 16,
-                    borderBottomRightRadius: out ? 5 : 16,
-                    borderBottomLeftRadius: out ? 16 : 5,
-                    padding: '10px 13px 8px',
+                    backgroundColor: bubbleBg,
+                    color: out ? TG.textOut : TG.textIn,
+                    ...radius,
+                    padding: `${Math.round(height * 0.0042)}px ${Math.round(width * 0.022)}px ${Math.round(height * 0.0042)}px`,
                     fontSize: bubbleFont,
-                    lineHeight: 1.32,
+                    lineHeight: 1.31,
                     boxSizing: 'border-box',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.28)',
+                    boxShadow: TG.shadow,
+                    // The tail hangs outside the bubble box, so the run must be
+                    // inset by the nib's width or it would be clipped by the
+                    // thread column.
+                    marginRight: out ? tailSize : 0,
+                    marginLeft: !out ? tailSize : 0,
                   }}
                 >
-                  {!out && m.from && m.from !== 'me' && (
+                  {/* Sender name belongs to GROUP chats only. Real Telegram never
+                      labels the other party inside a 1-on-1 thread — their name
+                      is already in the header. `isGroup` opts in. */}
+                  {!out && isGroup && m.from && m.from !== 'me' && firstOfRun && (
                     <div
                       style={{
                         fontSize: metaFont,
-                        fontWeight: 700,
-                        color: accentColor,
-                        marginBottom: 3,
+                        fontWeight: 600,
+                        color: accent,
+                        marginBottom: 2,
                       }}
                     >
                       {m.from}
                     </div>
                   )}
-                  <span>{text}</span>
+                  <span>
+                    {text}
+                    {/* inline spacer that keeps the last line clear of the meta */}
+                    <span style={{ display: 'inline-block', width: metaW, height: 1 }} />
+                  </span>
                   <div
                     style={{
+                      position: 'absolute',
+                      right: Math.round(width * 0.02),
+                      bottom: Math.round(height * 0.005),
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      gap: 2,
-                      marginTop: 4,
+                      gap: 1,
                       fontSize: metaFont,
-                      color: out ? 'rgba(255,255,255,0.62)' : TG.meta,
+                      color: metaColor,
+                      lineHeight: 1,
                     }}
                   >
                     {m.time ?? ''}
-                    {out && <Tick read={Boolean(m.read)} color={TG.tick} size={metaFont * 1.1} />}
+                    {out && <Tick read={Boolean(m.read)} color={TG.tick} size={metaFont * 1.15} />}
                   </div>
+
+                  {lastOfRun && <Tail out={out} color={bubbleBg} size={tailSize} />}
                 </div>
               </div>
             );
@@ -366,33 +697,34 @@ export const TgChat: React.FC<BaseSceneProps> = ({
         </div>
       </div>
 
-      {/* ------------------------------------------------------- input bar */}
+      {/* --------------------------------------------------------- input bar
+          EDGE TO EDGE, like the header: the real bar is a full-width strip at the
+          bottom of the screen, not a floating capsule inset from the sides. */}
       {hasCompose && showInputBar && (
         <div
           style={{
             position: 'absolute',
-            left: safe.left,
+            left: 0,
             top: barTop,
-            width: safe.width,
+            width,
             height: barHeight,
             backgroundColor: TG.bar,
-            borderRadius: barHeight * 0.44,
             display: 'flex',
             alignItems: 'center',
             gap: Math.round(barHeight * 0.2),
-            padding: `0 ${Math.round(barHeight * 0.16)}px`,
+            padding: `0 ${Math.round(safe.left * 0.7)}px`,
             boxSizing: 'border-box',
             zIndex: 20,
-            boxShadow: '0 -6px 22px rgba(0,0,0,0.35)',
+            boxShadow: TG.shadow,
           }}
         >
           {/* emoji button */}
           <svg width={barHeight * 0.42} height={barHeight * 0.42} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="9.2" fill="none" stroke={TG.meta} strokeWidth="1.7" />
-            <circle cx="9" cy="10" r="1.25" fill={TG.meta} />
-            <circle cx="15" cy="10" r="1.25" fill={TG.meta} />
+            <circle cx="12" cy="12" r="9.2" fill="none" stroke={TG.barIcon} strokeWidth="1.7" />
+            <circle cx="9" cy="10" r="1.25" fill={TG.barIcon} />
+            <circle cx="15" cy="10" r="1.25" fill={TG.barIcon} />
             <path d="M8.2 14.2C9.3 15.6 10.6 16.2 12 16.2C13.4 16.2 14.7 15.6 15.8 14.2"
-              fill="none" stroke={TG.meta} strokeWidth="1.7" strokeLinecap="round" />
+              fill="none" stroke={TG.barIcon} strokeWidth="1.7" strokeLinecap="round" />
           </svg>
 
           {/* the field: typed text, or the placeholder before typing starts */}
@@ -402,7 +734,7 @@ export const TgChat: React.FC<BaseSceneProps> = ({
               display: 'flex',
               alignItems: 'center',
               fontSize: Math.round(barHeight * 0.34),
-              color: typedChars > 0 ? TG.text : TG.meta,
+              color: !sent && typedChars > 0 ? TG.headerText : TG.placeholder,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               minWidth: 0,
@@ -412,11 +744,12 @@ export const TgChat: React.FC<BaseSceneProps> = ({
               style={{
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                // Sent: the field empties, exactly as the real client does.
-                opacity: sent ? 0 : 1,
               }}
             >
-              {typedChars > 0 ? typedText : 'Сообщение'}
+              {/* Sent: the field returns to the placeholder, exactly as the real
+                  client does. Blanking it entirely (opacity 0) left an empty
+                  composer, which no real screenshot ever shows. */}
+              {sent || typedChars === 0 ? 'Сообщение' : typedText}
             </span>
             {/* caret — blinks on a 30-frame cycle while the field has focus */}
             {!sent && typedChars > 0 && (
@@ -426,7 +759,7 @@ export const TgChat: React.FC<BaseSceneProps> = ({
                   width: 2,
                   height: Math.round(barHeight * 0.4),
                   marginLeft: 2,
-                  backgroundColor: accentColor,
+                  backgroundColor: accent,
                   opacity: frame % 30 < 16 ? 1 : 0,
                 }}
               />
@@ -438,19 +771,22 @@ export const TgChat: React.FC<BaseSceneProps> = ({
             <path
               d="M16.5 6.5L8.9 14.1a2.4 2.4 0 003.4 3.4l7.2-7.2a4 4 0 00-5.7-5.7l-7.4 7.4a5.6 5.6 0 007.9 7.9l6.4-6.4"
               fill="none"
-              stroke={TG.meta}
+              stroke={TG.barIcon}
               strokeWidth="1.7"
               strokeLinecap="round"
             />
           </svg>
 
-          {/* send button — the click target */}
+          {/* Composer action: microphone while the field is empty, send once
+              there is text — the real client swaps them, and showing a send
+              button over an empty field is a tell. It stays the click target
+              either way, so the cursor still lands on it. */}
           <div
             style={{
               width: sendSize,
               height: sendSize,
               borderRadius: '50%',
-              backgroundColor: accentColor,
+              backgroundColor: accent,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -458,13 +794,27 @@ export const TgChat: React.FC<BaseSceneProps> = ({
               // Press feedback: dips and brightens under the cursor.
               transform: `scale(${pressed ? 0.88 : 1})`,
               boxShadow: pressed
-                ? `0 0 0 ${Math.round(sendSize * 0.18)}px ${accentColor}33`
-                : '0 2px 8px rgba(0,0,0,0.4)',
+                ? `0 0 0 ${Math.round(sendSize * 0.18)}px ${accent}33`
+                : '0 1px 4px rgba(16,35,47,0.28)',
             }}
           >
-            <svg width={sendSize * 0.52} height={sendSize * 0.52} viewBox="0 0 24 24">
-              <path d="M3.2 11.4L20 4.2L13.2 20.6L11 13.6Z" fill="#FFFFFF" />
-            </svg>
+            {!sent && typedChars > 0 ? (
+              <svg width={sendSize * 0.52} height={sendSize * 0.52} viewBox="0 0 24 24">
+                <path d="M3.2 11.4L20 4.2L13.2 20.6L11 13.6Z" fill="#FFFFFF" />
+              </svg>
+            ) : (
+              <svg width={sendSize * 0.5} height={sendSize * 0.5} viewBox="0 0 24 24">
+                <rect x="9" y="2.6" width="6" height="11.2" rx="3" fill="#FFFFFF" />
+                <path
+                  d="M6 11.4a6 6 0 0012 0"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                />
+                <path d="M12 17.4V21" stroke="#FFFFFF" strokeWidth="1.9" strokeLinecap="round" />
+              </svg>
+            )}
           </div>
         </div>
       )}
@@ -476,3 +826,5 @@ export const TgChat: React.FC<BaseSceneProps> = ({
     </div>
   );
 };
+
+export default TgChat;

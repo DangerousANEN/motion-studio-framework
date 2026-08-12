@@ -371,6 +371,20 @@ export const BaseSceneSchema = z
     showInputBar: z.boolean().optional(),
     /** 0..1 — when in the scene the send button is pressed. Default 0.72. */
     sendAtProgress: z.number().min(0).max(1).optional(),
+    /**
+     * TgChat palette. 'light' (default) is the sky-blue doodled wallpaper of the
+     * stock Android/iOS client — what a screenshot in a video almost always is.
+     * 'dark' is the old built-in palette, kept so existing specs can opt back in.
+     */
+    tgTheme: z.enum(['light', 'dark']).optional(),
+    /** TgChat: centred translucent date capsule above the first message. */
+    datePill: z.string().optional(),
+    /**
+     * TgChat: true = group thread, so incoming bubbles carry the sender's name.
+     * A 1-on-1 chat (default) must NOT — the real client only labels senders in
+     * groups, and doing it in a DM is an instant tell.
+     */
+    isGroup: z.boolean().optional(),
     /** AiChatStream: the assistant reply that types out across the scene. */
     response: z.string().optional(),
     tokens: z.array(TokenRowSchema).optional(),
