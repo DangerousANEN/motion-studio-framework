@@ -6,6 +6,8 @@ import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
 import { fitWrapped, measure } from '../theme/layout';
+import { blend } from '../theme/color';
+import { MIN_DWELL_SEC, paceSequence, settleBy } from '../lib/pacing';
 
 /**
  * Learn preset pack — educational and explanatory scenes.
@@ -528,8 +530,16 @@ export const ProgressPath: React.FC<BaseSceneProps> = (props) => {
               const isDone = i < cur;
               const isCurrent = i === cur;
 
-              let dotBg = `${theme.muted}33`;
-              let dotBorder = `${theme.muted}55`;
+              // OPAQUE fills, not alpha suffixes.
+              //
+              // These were `${theme.muted}33` / `${theme.muted}55`. The connector
+              // track is painted BEFORE the dots and runs through their centres,
+              // so a translucent fill let it show through as a faint vertical
+              // stripe inside every pending circle. `blend` resolves the same
+              // tone against the background and returns solid hex, so the dot
+              // covers the track instead of tinting it.
+              let dotBg = blend(theme.muted, theme.bg, 0.2);
+              let dotBorder = blend(theme.muted, theme.bg, 0.33);
               let labelColor = theme.muted;
               if (isDone) {
                 dotBg = accent;
@@ -733,8 +743,10 @@ export const ProgressPath: React.FC<BaseSceneProps> = (props) => {
             const isDone = i < cur;
             const isCurrent = i === cur;
 
-            let dotBg = `${theme.muted}33`;
-            let dotBorder = `${theme.muted}55`;
+            // Opaque for the same reason as the vertical branch: the horizontal
+            // track is drawn behind these dots.
+            let dotBg = blend(theme.muted, theme.bg, 0.2);
+            let dotBorder = blend(theme.muted, theme.bg, 0.33);
             let labelColor = theme.muted;
             if (isDone || isCurrent) {
               dotBg = accent;
@@ -894,25 +906,37 @@ export const DefinitionCard: React.FC<BaseSceneProps> = (props) => {
   const barEntry = animate(frame, 0, 1);
   const barH = safe.height * barEntry;
 
+  // PACING: the reveal chain is scheduled BACKWARDS from a dwell guarantee.
+  //
+  // This was `revealFrames = durationInFrames * 0.75 - defDelay`, with the
+  // example at 0.85 of that and the source 0.3s later. Every step was a fraction
+  // of the scene, so the reading time scaled with the scene instead of with the
+  // text. Measured at 180 frames: the definition finished typing at 2.68s of a
+  // 3.0s scene (0.30s of dwell) and the source landed at 2.68s too — the two
+  // things a viewer most needs to read arrived last and left immediately.
+  //
+  // Now the last reveal must be settled with MIN_DWELL_SEC to spare, and the
+  // chain is distributed across whatever window that leaves. The definition gets
+  // the bulk of it (weight 6) since it is the payload; the example and source are
+  // short confirmations (2 and 1).
+  const chainStart = Math.round(fps * 0.15);
+  const chainEnd = settleBy(durationInFrames, fps, MIN_DWELL_SEC);
+  const [termStep, defStep, exStep, srcStep] = paceSequence(chainStart, chainEnd, [1, 6, 2, 1]);
+
   // Term slide-in
-  const termDelay = Math.round(fps * 0.15);
-  const termOpacity = clamp01(animate(frame - termDelay, 0, 1));
+  const termOpacity = clamp01(animate(frame - termStep.start, 0, 1));
   const termY = (1 - termOpacity) * 28;
 
-  // Definition reveal — character by character
-  const defDelay = Math.round(fps * 0.4);
-  const revealFrames = Math.round(durationInFrames * 0.75) - defDelay;
-  const defProgress = clamp01((frame - defDelay) / Math.max(1, revealFrames));
+  // Definition reveal — character by character across its own slice
+  const defProgress = clamp01((frame - defStep.start) / Math.max(1, defStep.frames));
   const revealedChars = Math.round(defProgress * def.length);
   const visibleDef = def.slice(0, revealedChars);
 
-  // Example fade in after definition is mostly visible
-  const exDelay = defDelay + revealFrames * 0.85;
-  const exOpacity = clamp01(animate(frame - exDelay, 0, 1));
+  // Example fades in as the definition lands
+  const exOpacity = clamp01(animate(frame - exStep.start, 0, 1));
 
-  // Source fade
-  const srcDelay = exDelay + Math.round(fps * 0.3);
-  const srcOpacity = clamp01(animate(frame - srcDelay, 0, 1));
+  // Source last
+  const srcOpacity = clamp01(animate(frame - srcStep.start, 0, 1));
 
   // Sizes.
   //
@@ -1206,7 +1230,17 @@ export const TimelineReveal: React.FC<BaseSceneProps> = (props) => {
 
   // Each event gets a time window within the scene.
   // Events reveal sequentially: event i starts at i / count * durationInFrames
-  const eventWindowFrames = durationInFrames / count;
+  // EVENT CASCADE MUST END BEFORE THE CUT, NOT AT IT.
+  //
+  // This was `durationInFrames / count`, so the last event STARTED its reveal at
+  // (count-1)/count of the scene — 75% with 4 events — and its label finished
+  // fading at the very last frame. Measured at 180 frames: the bottom two bands
+  // settled at 2.80s of 3.0s, dwell 0.18s. The most recent entry in a chronology
+  // is usually the point of the video and it was the one nobody could read.
+  //
+  // The cascade now fits inside settleBy(), so the final event is settled with
+  // MIN_DWELL_SEC left on the clock.
+  const eventWindowFrames = settleBy(durationInFrames, fps) / count;
 
   // Axis line: central vertical spine
   const axisFontSize = Math.round(height * 0.021);
@@ -1331,7 +1365,14 @@ export const TimelineReveal: React.FC<BaseSceneProps> = (props) => {
               })
             );
 
-            const dotColor = isActive ? accent : isPast ? `${accent}88` : `${theme.muted}55`;
+            // Opaque dot fill/border — the vertical axis is painted behind these
+            // dots and showed through translucent fills as a stripe. `accent88`
+            // for past events has the same problem, so it is blended too.
+            const dotColor = isActive
+              ? accent
+              : isPast
+                ? blend(accent, theme.bg, 0.53)
+                : blend(theme.muted, theme.bg, 0.33);
             const dateColor = isActive ? accent : theme.muted;
             const labelColor = isActive ? theme.text : `${theme.text}99`;
             const top = Math.round(rowH * i);
@@ -1373,7 +1414,7 @@ export const TimelineReveal: React.FC<BaseSceneProps> = (props) => {
                     height: dotDiameter,
                     borderRadius: '50%',
                     backgroundColor: dotColor,
-                    border: `2px solid ${isActive ? accent : `${theme.muted}44`}`,
+                    border: `2px solid ${isActive ? accent : blend(theme.muted, theme.bg, 0.27)}`,
                     transform: `scale(${dotScale})`,
                     flexShrink: 0,
                     zIndex: 2,

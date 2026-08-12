@@ -67,6 +67,12 @@ HEIGHT = FORMATS[DEFAULT_FORMAT].height
 
 TAIL_PAD_FRAMES = 12
 
+# Reading speed for the on-screen dwell check in validate_spec. MUST match
+# READ_CHARS_PER_SEC in remotion/src/lib/pacing.ts and CHARS_PER_SEC in
+# tools/timing_probe.py — three places grade the same contract, and if they
+# disagree the warning fires on scenes the presets consider fine.
+READ_CHARS_PER_SEC = 12.0
+
 
 def resolve_format(fmt: Optional[Any]) -> VideoFormat:
     """Accept a format name, a VideoFormat, or an explicit (width, height)."""
@@ -509,6 +515,41 @@ def validate_spec(spec: Dict[str, Any]) -> None:
                     "transition runs BETWEEN two scenes and the first scene has "
                     "nothing to come from. Move it to scene[1]."
                 )
+
+    # ---------------------------------------------------- reading time on screen
+    # A scene can be perfectly composed and still unreadable: the text is sized
+    # to fit, nothing overflows, and it is on screen for 0.4s. This is invisible
+    # to a still frame and to every layout check, and it was the actual complaint
+    # about the channel's output.
+    #
+    # Russian prose reads at roughly 12 chars/sec on a phone (deliberately
+    # generous — a viewer re-reads a headline rather than parsing it once). The
+    # presets now guarantee their reveals SETTLE with MIN_DWELL_SEC to spare
+    # (remotion/src/lib/pacing.ts), but no preset can conjure time that the
+    # scene's duration does not contain.
+    #
+    # Warn rather than block: duration comes from the narration length, so a
+    # dense scene is a script problem to fix upstream, and a decorative scene
+    # with a long caption nobody needs to read is legitimate.
+    fps_val = spec.get("fps") or FPS
+    for i, sc in enumerate(scenes):
+        chars = sum(
+            len(v)
+            for k, v in sc.items()
+            if isinstance(v, str) and k not in {"id", "preset", "audioUrl"} and not k.endswith("Color")
+        )
+        if not chars:
+            continue
+        need = chars / READ_CHARS_PER_SEC
+        have = int(sc["durationInFrames"]) / fps_val
+        if have < need * 0.6:  # 0.6: allow overlap with narration continuing
+            print(
+                f"[spec] WARNING: scene[{i}] (id={sc.get('id')!r}, preset={sc.get('preset')!r}) "
+                f"shows {chars} chars in {have:.1f}s; reading that needs about "
+                f"{need:.1f}s. The viewer will not finish it."
+            )
+
+
 
     # ------------------------------------------------------------ audio wiring
     # Main.tsx mounts BOTH a root <Audio> and a per-scene <Audio>. Supplying both

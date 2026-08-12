@@ -7,6 +7,7 @@ import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
 import { fitOneLine, fitWrapped, measure } from '../theme/layout';
 import { resolveModelIcon } from '../lib/modelIcons';
+import { settleBy } from '../lib/pacing';
 
 /**
  * Social proof and engagement presets.
@@ -992,7 +993,42 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
   const maxVal = rows.reduce((m, r) => Math.max(m, r.value), 0) || 1;
 
   const tableW = Math.min(safe.width, Math.round(height * 0.52));
-  const rowH = Math.round(Math.min((safe.height - Math.round(height * 0.12)) / rows.length, height * 0.115));
+
+  // ROW HEIGHT IS SOLVED FOR THE WHOLE STACK, INCLUDING THE GAPS.
+  //
+  // This was `min((safe.height - height*0.12) / rows.length, height*0.115)`,
+  // which divided the column by the row count and then added a `rowH * 0.12` gap
+  // between every pair — 4 gaps of 25px that came out of nowhere. The reserve
+  // (height * 0.12 = 230px) was meant to cover the title, and it does, so the
+  // 100px of gaps simply overflowed: measured content reached y=1561 and the
+  // card edge y=1630, i.e. 90px inside the 380px band the platform reserves for
+  // its caption and action rail.
+  //
+  // Solve it as one equation instead: n rows plus (n-1) gaps plus the measured
+  // title block must fit safe.height. gapRatio must match the `gap` style below.
+  //
+  // The title's line count must be MEASURED, not assumed to be 1. "ТОП ОТКРЫТЫХ
+  // МОДЕЛЕЙ" wraps to two lines at this size, so a one-line assumption
+  // under-reserved by 77px and the stack overflowed again — 1556 instead of 1540.
+  const titleFontSize = Math.round(height * 0.033);
+  const titleGap = Math.round(height * 0.03);
+  const titleLines = title
+    ? fitWrapped({
+        text: title,
+        maxWidth: safe.width,
+        fontFamily: fonts.display,
+        fontWeight: 800,
+        maxLines: 4,
+        maxFontSize: titleFontSize,
+        minFontSize: titleFontSize,
+      }).lines.length
+    : 0;
+  const titleBlockH = title ? Math.round(titleFontSize * 1.25 * titleLines) + titleGap : 0;
+  const gapRatio = 0.12;
+  const rowsAvail = safe.height - titleBlockH;
+  const rowH = Math.round(
+    Math.min(rowsAvail / (rows.length + gapRatio * (rows.length - 1)), height * 0.115)
+  );
   const fRank = Math.round(height * 0.022);
   const fVal = Math.round(height * 0.020);
 
@@ -1077,7 +1113,21 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
     Math.round(height * 0.013),
     Math.min(Math.round(height * 0.023), Math.floor((probeSize * colW * 0.98) / probeW))
   );
-  const staggerFrames = Math.max(5, Math.round(durationInFrames / (rows.length + 2)));
+  // STAGGER IS SOLVED FROM THE DWELL BUDGET, NOT FROM THE SCENE LENGTH.
+  //
+  // This was `durationInFrames / (rows.length + 2)`, which spends the WHOLE scene
+  // staggering: the last row arrives at rows.length/(rows.length+2) of the way in
+  // — 5/7 = 71% — and its bar then needs another 2 stagger units to fill, landing
+  // at 100%. Measured at 180 frames: the bottom row settled at 2.25s of 3.0s,
+  // dwell 0.73s. The row a "top N" video exists to show gets the least time.
+  //
+  // Now the whole cascade (last row's arrival plus its bar fill, 2 units) must be
+  // done by settleBy(), so every row is readable for at least MIN_DWELL_SEC.
+  const cascadeUnits = rows.length + 2;
+  const staggerFrames = Math.max(
+    3,
+    Math.floor(settleBy(durationInFrames, fps) / cascadeUnits)
+  );
 
   // Title
   const titleOp = animate(frame, 0, 1);
@@ -1096,7 +1146,7 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: Math.round(height * 0.03),
+          gap: titleGap,
         }}
       >
         {/* Title */}
@@ -1104,7 +1154,7 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
           <div
             style={{
               fontFamily: fonts.display,
-              fontSize: Math.round(height * 0.033),
+              fontSize: titleFontSize,
               fontWeight: 800,
               color: theme.text,
               textAlign: 'center',
@@ -1122,7 +1172,7 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: Math.round(rowH * 0.12),
+            gap: Math.round(rowH * gapRatio),
             width: tableW,
           }}
         >
