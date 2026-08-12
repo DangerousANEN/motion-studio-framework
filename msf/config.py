@@ -32,10 +32,15 @@ class LLMConfig:
 class TTSConfig:
     """Text-to-Speech synthesis parameters."""
     # The render path calls Qwen3-TTS with ICL voice cloning
-    # (msf/skills_bridge/qwen3_tts.py, DEFAULT_VOICE="syenduk"). The former
-    # silero/kseniya defaults described a provider no longer in the pipeline.
+    # (msf/skills_bridge/qwen3_tts.py). The former silero/kseniya defaults
+    # described a provider no longer in the pipeline.
     provider: str = "qwen3"
-    speaker: str = "syenduk"
+    # MUST be a key that exists in assets/voices/voices.json. It was "syenduk",
+    # which is NOT in the registry — resolve_voice("syenduk") raises ValueError,
+    # so anything that honoured this config value failed voice synthesis outright
+    # and fell through to a female fallback voice. Guarded by
+    # tests/test_config_parity.py against qwen3_tts.DEFAULT_VOICE.
+    speaker: str = "voice_3"
     sample_rate: int = 24000
     speed: float = 1.0
 

@@ -1,7 +1,18 @@
 """MSF Voice Agent.
 
-Generates Russian speech synthesis for SceneSpec narration using Silero TTS v4 (Torch) locally,
-or falls back to edge-tts. Extracts word-level timestamps via faster-whisper.
+Generates Russian narration for a SceneSpec.
+
+SPEAKER IDENTITY IS PART OF THE CONTRACT
+----------------------------------------
+The project's voice is a cloned MALE reference from assets/voices/voices.json,
+synthesised by Qwen3-TTS with ICL prosody transfer. Silero ("kseniya") and
+edge-tts ("ru-RU-SvetlanaNeural") are both FEMALE and cannot clone, so a fallback
+does not degrade quality — it changes who is speaking. Both fallbacks are
+therefore gated behind `allow_voice_substitution`; without it, failure is an
+error rather than a different narrator.
+
+Word-level timestamps come from faster-whisper, with proportional estimation as a
+fallback.
 """
 
 from __future__ import annotations
@@ -9,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import os
 import wave
+from pathlib import Path
 from typing import Any, Optional
 
 from msf.agents.base import BaseAgent
@@ -116,45 +128,97 @@ class VoiceAgent(BaseAgent[SceneSpec, VoiceResult]):
             suggestions=[],
         )
     def _synthesize_qwen3_tts(self, text: str, output_path: str, sample_rate: int) -> bool:
-        """Synthesize Russian text using Qwen3-TTS 1.7B Base Zero-Shot Voice Clone."""
+        """Synthesize Russian text with Qwen3-TTS zero-shot cloning.
+
+        WHY THIS WAS PRODUCING A FEMALE VOICE
+        -------------------------------------
+        It never ran at all. The reference was a hardcoded absolute path into the
+        Hermes audio cache:
+
+            'C:/Users/ANEN/AppData/Local/hermes/cache/audio/audio_3463d054d38f.mp3'
+
+        That file does not exist (verified: No such file or directory). Cache files
+        are transient, so this broke the moment the cache was cleared. The
+        FileNotFoundError was swallowed by the `except` below, logged as a warning
+        nobody reads, and the chain fell through to _synthesize_silero — speaker
+        "kseniya", a FEMALE voice — and then to edge-tts "ru-RU-SvetlanaNeural",
+        also female. Both male references in assets/voices/voices.json sat unused.
+
+        So the voice was not chosen; it was the second fallback of a silent
+        failure. Routing through the registry fixes the cause: resolve_voice()
+        returns the reference AND its transcript, which also keeps ICL prosody
+        transfer on instead of the flat x_vector_only_mode=True used here.
+        """
         try:
-            import torch
-            import soundfile as sf
-            import warnings
-            warnings.filterwarnings('ignore')
-            os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+            from msf.skills_bridge.qwen3_tts import describe_reference, synthesize_voice_clone
 
-            from qwen_tts import Qwen3TTSModel
+            voice = self._requested_voice()
+            info = describe_reference(voice)
+            if not info.get("exists"):
+                # Loud, not swallowed: a missing reference means the fallback is
+                # about to change the speaker's gender, which is never what the
+                # caller wanted.
+                self.logger.error(
+                    "Voice reference missing: %s. Fix assets/voices/voices.json — "
+                    "falling back would silently change the speaker.",
+                    info.get("ref_audio"),
+                )
+                return False
 
-            ref_audio = 'C:/Users/ANEN/AppData/Local/hermes/cache/audio/audio_3463d054d38f.mp3'
-
-            model = Qwen3TTSModel.from_pretrained(
-                'Qwen/Qwen3-TTS-12Hz-1.7B-Base',
-                device_map='cuda:0',
-                dtype=torch.bfloat16,
-                attn_implementation='eager'
+            self.logger.info(
+                "Qwen3-TTS voice=%s mode=%s ref=%s",
+                voice or "(registry default)",
+                info.get("mode"),
+                Path(str(info.get("ref_audio"))).name,
             )
 
-            wavs, sr = model.generate_voice_clone(
+            wav_path, _duration = synthesize_voice_clone(
                 text=text,
-                language='Russian',
-                ref_audio=ref_audio,
-                x_vector_only_mode=True
+                voice=voice,
+                output_path=output_path,
             )
-
-            audio = wavs[0]
-            max_val = abs(audio).max()
-            if max_val > 0:
-                audio = audio / max_val * 0.95
-
-            sf.write(output_path, audio, sr)
-            return True
+            return bool(wav_path) and os.path.exists(output_path)
         except Exception as e:
             self.logger.warning(f"Qwen3-TTS error: {e}")
             return False
 
+    def _requested_voice(self) -> Optional[str]:
+        """Voice key for this run: explicit attribute, then config, then registry default.
+
+        Returning None is meaningful — resolve_voice(None) picks the registry
+        DEFAULT_VOICE and carries its transcript, so ICL stays on.
+
+        Reads `config.tts.speaker`, which is the actual field name (TTSConfig);
+        there is no `config.voice.reference`.
+        """
+        explicit = getattr(self, "voice", None)
+        if explicit:
+            return str(explicit)
+        speaker = getattr(getattr(self.config, "tts", None), "speaker", None)
+        if speaker:
+            return str(speaker)
+        return None
+
     def _synthesize_silero(self, text: str, output_path: str, sample_rate: int) -> bool:
-        """Synthesize Russian text using Silero TTS v4 locally via PyTorch."""
+        """Silero TTS v4 — a LAST-RESORT fallback, and it changes the speaker.
+
+        Silero cannot clone: `speaker="kseniya"` is a fixed FEMALE synthetic voice,
+        so reaching this path silently replaces the male cloned voice the project
+        is built around. That is the bug the user reported, and the fix is upstream
+        (see _synthesize_qwen3_tts) — this method stays only so a machine without
+        CUDA can still produce sound.
+
+        It is therefore opt-in. `allow_voice_substitution` must be set, otherwise
+        producing audio in the wrong voice is worse than producing none: a silent
+        run gets noticed, a wrong-gender narration ships.
+        """
+        if not getattr(self, "allow_voice_substitution", False):
+            self.logger.error(
+                "Refusing Silero fallback: speaker 'kseniya' is a different (female) "
+                "voice than the configured clone reference. Set "
+                "allow_voice_substitution=True to accept a substituted speaker."
+            )
+            return False
         try:
             import torch
 
@@ -194,10 +258,24 @@ class VoiceAgent(BaseAgent[SceneSpec, VoiceResult]):
             return False
 
     def _synthesize_edge_tts(self, text: str, output_path: str) -> None:
-        """Fallback synthesis using edge-tts (Russian voice ru-RU-SvetlanaNeural or ru-RU-DmitryNeural)."""
+        """edge-tts fallback — also a different speaker, and it needs network.
+
+        "ru-RU-SvetlanaNeural" is female, so this is the second way a broken clone
+        reference turned into a female narration. Same rule as Silero: opt in
+        explicitly or get an error.
+        """
+        if not getattr(self, "allow_voice_substitution", False):
+            raise RuntimeError(
+                "All voice synthesis failed and edge-tts would substitute a different "
+                "speaker (ru-RU-SvetlanaNeural, female). Fix the Qwen3-TTS reference in "
+                "assets/voices/voices.json, or set allow_voice_substitution=True to "
+                "accept a substituted speaker."
+            )
+
         import edge_tts
 
         voice = "ru-RU-SvetlanaNeural"
+        self.logger.warning("Substituting speaker: edge-tts %s (not the clone voice)", voice)
 
         async def _run() -> None:
             communicate = edge_tts.Communicate(text, voice)

@@ -40,6 +40,51 @@ interface Token {
 const maskAddress = (addr: string): string =>
   addr.length <= 14 ? addr : `${addr.slice(0, 6)}···${addr.slice(-4)}`;
 
+/**
+ * Brand colour for a ticker, so a spec that only supplies symbol/amount still
+ * renders visually distinct rows.
+ *
+ * Without this, `t.color ?? accentColor` painted every dot the same green and
+ * ETH/BTC/SOL read as three identical placeholders — a "the icons didn't load"
+ * frame rather than a wallet. These are the tokens' own brand colours; an unknown
+ * ticker gets a deterministic hue from its own characters, which is arbitrary but
+ * stable and, crucially, DIFFERENT from its neighbours.
+ */
+const TOKEN_COLORS: Record<string, string> = {
+  BTC: '#F7931A',
+  ETH: '#7B8CFF',
+  USDT: '#26A17B',
+  USDC: '#2775CA',
+  SOL: '#B45CFF',
+  BNB: '#F3BA2F',
+  XRP: '#23292F',
+  ADA: '#0033AD',
+  DOGE: '#C2A633',
+  TON: '#0098EA',
+  TRX: '#EB0029',
+  MATIC: '#8247E5',
+  POL: '#8247E5',
+  AVAX: '#E84142',
+  DOT: '#E6007A',
+  LINK: '#2A5ADA',
+  LTC: '#BFBBBB',
+  ARB: '#28A0F0',
+  OP: '#FF0420',
+  NEAR: '#00C08B',
+  SUI: '#4DA2FF',
+  APT: '#06D6A0',
+};
+
+const tokenColor = (symbol: string): string | undefined => {
+  const key = symbol?.trim().toUpperCase();
+  if (!key) return undefined;
+  if (TOKEN_COLORS[key]) return TOKEN_COLORS[key];
+  // Deterministic fallback hue from the ticker itself.
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+  return `hsl(${h}, 62%, 58%)`;
+};
+
 const fmt = (n: number, digits = 2): string =>
   n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
@@ -210,7 +255,11 @@ export const CryptoWallet: React.FC<BaseSceneProps> = ({
                     width: Math.round(height * 0.026),
                     height: Math.round(height * 0.026),
                     borderRadius: '50%',
-                    backgroundColor: t.color ?? accentColor,
+                    // Brand colour per token, resolved from its symbol when the
+                    // spec does not supply one. Falling back to `accentColor`
+                    // painted every dot the same green, so ETH/BTC/SOL read as
+                    // three identical placeholders — the frame looked unfinished.
+                    backgroundColor: t.color ?? tokenColor(t.symbol) ?? accentColor,
                     flexShrink: 0,
                   }}
                 />

@@ -416,6 +416,43 @@ _DATA_REQUIREMENTS = {
 }
 
 
+# Required keys INSIDE each item of a list-valued field.
+#
+# _DATA_REQUIREMENTS above only asks "is the list there". A list that is present
+# but whose rows are the wrong SHAPE is a different failure with a different blast
+# radius, and the two classes below are NOT interchangeable — I checked each field
+# against src/VideoSpec.schema.ts rather than assuming.
+#
+# HARD: the TS schema declares these item keys as REQUIRED (no `.optional()`), so a
+# missing one fails Zod inside Root.tsx and degrades the ENTIRE video to a red
+# ERROR card — not one placeholder scene, the whole render. Found with
+# `tokens: [{name, symbol, value, change}]`: plausible, accepted by every Python
+# check, and `value` is not `amount`, so all three rows failed `invalid_type`. A
+# rendered red card is worse than an exception because it is a FILE: it uploads.
+_ROW_SHAPES_HARD: Dict[str, tuple] = {
+    "tokens": ("symbol", "amount"),        # TokenRowSchema
+    "transactions": ("label", "amount"),   # TransactionSchema
+    "segments": ("label", "value"),        # SegmentSchema
+    "messages": ("text",),                 # ChatMessageSchema
+}
+
+# SOFT: the TS schema declares these items with all-optional keys plus
+# `.passthrough()`, so Zod accepts them and the render succeeds — it just draws a
+# row with nothing in it. Raising the red-card warning here would be a lie; these
+# get their own message about blank content.
+_ROW_SHAPES_SOFT: Dict[str, tuple] = {
+    "rows": ("name",),        # `label` is an accepted alias — see _ROW_ALIASES
+    "comments": ("text",),
+    "events": ("label",),     # `date` alone renders a dated row with no event
+}
+
+# Fields where an alias is legitimately accepted by the TS schema, so requiring
+# the canonical key alone would reject a valid spec.
+_ROW_ALIASES: Dict[str, Dict[str, tuple]] = {
+    "rows": {"name": ("name", "label")},
+}
+
+
 def validate_spec(spec: Dict[str, Any]) -> None:
     """Fail fast on a spec that cannot produce a meaningful video.
 
@@ -479,14 +516,70 @@ def validate_spec(spec: Dict[str, Any]) -> None:
             )
 
         # Data-driven presets would silently render their ⚠ placeholder otherwise.
+        #
+        # The test is TRUTHINESS, not `is not None`. `tokens: []` and `rows: []` are
+        # not None, so an `is not None` check accepted them — and an empty list
+        # renders exactly the empty chrome this guard exists to prevent.
+        #
+        # But truthiness alone would reject a legitimate `statValue: 0` or
+        # `health: 0`, so a numeric zero counts as content. Only empty containers
+        # and empty strings are rejected.
+        def _has_content(v: Any) -> bool:
+            if isinstance(v, bool):
+                return True
+            if isinstance(v, (int, float)):
+                return True  # 0 is a real value a counter may want to show
+            return bool(v)
+
         preset = sc.get("preset")
         required = _DATA_REQUIREMENTS.get(preset)
-        if required and not any(sc.get(k) is not None for k in required):
+        if required and not any(_has_content(sc.get(k)) for k in required if k in sc):
+            supplied = {k: sc.get(k) for k in required if k in sc}
             raise ValueError(
                 f"Spec validation failed: scene[{i}] (id={sc.get('id')!r}) uses preset "
-                f"{preset!r} which needs one of {list(required)}, but none were supplied. "
-                "That would render a placeholder instead of real content."
+                f"{preset!r} which needs one of {list(required)}, but none were supplied "
+                f"with content (got {supplied!r}). That would render a placeholder "
+                "instead of real content."
             )
+
+        # ROW SHAPE. The check above proves the list exists; this proves its items
+        # are the shape the TS side expects.
+        for field, req_keys in _ROW_SHAPES_HARD.items():
+            items = sc.get(field)
+            if not isinstance(items, list):
+                continue
+            for j, item in enumerate(items):
+                if not isinstance(item, dict):
+                    continue  # bare strings are legal shorthand in several fields
+                for key in req_keys:
+                    if item.get(key) is None:
+                        raise ValueError(
+                            f"Spec validation failed: scene[{i}] (id={sc.get('id')!r}, "
+                            f"preset={preset!r}) {field}[{j}] is missing required "
+                            f"{key!r}. Got keys {sorted(item)}. The TypeScript schema "
+                            "rejects this and Remotion renders a red ERROR card for the "
+                            "WHOLE video — which is a real mp4 that can be uploaded."
+                        )
+
+        # Soft shapes pass Zod and render an empty row. Warn: a decorative row with
+        # no label is conceivable, an entire wall of them is a bug upstream.
+        for field, req_keys in _ROW_SHAPES_SOFT.items():
+            items = sc.get(field)
+            if not isinstance(items, list):
+                continue
+            aliases = _ROW_ALIASES.get(field, {})
+            for j, item in enumerate(items):
+                if not isinstance(item, dict):
+                    continue
+                for key in req_keys:
+                    accepted = aliases.get(key, (key,))
+                    if not any(item.get(a) is not None for a in accepted):
+                        alt = f" (or {', '.join(accepted[1:])})" if len(accepted) > 1 else ""
+                        print(
+                            f"[spec] WARNING: scene[{i}] (id={sc.get('id')!r}, "
+                            f"preset={preset!r}) {field}[{j}] has no {key!r}{alt}; "
+                            f"keys are {sorted(item)}. That row renders blank."
+                        )
 
         # An unknown transition name fails Zod in Root.tsx, which degrades the
         # whole render to a red ERROR card. Same failure mode as a bad theme.

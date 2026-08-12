@@ -3,6 +3,7 @@ import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
 import { resolveMotion } from '../lib/motion';
 import { getSafeArea } from '../lib/safeArea';
+import { settleBy } from '../lib/pacing';
 
 /**
  * AiChatStream — an LLM chat with the response streaming token by token.
@@ -56,8 +57,18 @@ export const AiChatStream: React.FC<BaseSceneProps> = ({
   const headerIn = appear(frame, 0, 1);
 
   // Stream the reply across most of the scene, starting after the history lands.
+  //
+  // `streamDur` was `durationInFrames - startAt - 4`, i.e. the stream finished 4
+  // frames before the cut — 0.07s of dwell on the answer that IS the scene. At
+  // 90% of a 180-frame scene the reply still read "...проседает после" with the
+  // sentence unfinished, which looks like a truncation bug rather than a stream.
+  // The typing cursor is the only thing distinguishing the two, and it blinks off
+  // half the time.
+  //
+  // Now the last character lands at settleBy(), so the completed answer plus its
+  // token footer are readable for MIN_DWELL_SEC.
   const startAt = Math.min(durationInFrames * 0.28, 30);
-  const streamDur = durationInFrames - startAt - 4;
+  const streamDur = Math.max(1, settleBy(durationInFrames, fps) - startAt);
   const total = estimateChars(reply);
   const shown = Math.max(0, Math.min(total, Math.round(((frame - startAt) / streamDur) * total)));
   const cursorOn = frame % 24 < 14;

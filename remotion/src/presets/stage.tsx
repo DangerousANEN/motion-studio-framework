@@ -6,6 +6,7 @@ import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
 import { fitOneLine } from '../theme/layout';
+import { settleBy } from '../lib/pacing';
 
 /**
  * Stage preset pack — music, gaming, and show scenes.
@@ -358,10 +359,20 @@ export const ScoreHud: React.FC<BaseSceneProps> = (props) => {
   const { theme, fonts, accent } = useStyle();
   const animate = resolveMotion(props.motion ?? props.intensity, fps, 'value');
 
-  const sceneProgress = clamp01(frame / durationInFrames);
+  // The HUD's numbers must LAND, not still be moving at the cut.
+  //
+  // `sceneProgress` was `frame / durationInFrames` and the score/health used raw
+  // `animate(frame, ...)`, so the score was still rolling and the timer still
+  // counting at the final frame. Measured at 180 frames: bands 2 (score) and 8-9
+  // (health bar + timer) settled at 99.4%, dwell 0.00s — a scoreboard whose final
+  // score is never held is the one thing a scoreboard must not do.
+  //
+  // Remap the clock so everything reaches its final value at settleBy() and holds.
+  const settleFrame = settleBy(durationInFrames, fps);
+  const hudFrame = Math.min(frame, settleFrame);
 
-  // Score rolls from 0 → score over the scene.
-  const displayScore = Math.round(animate(frame, 0, score));
+  // Score rolls from 0 → score, landing before the cut.
+  const displayScore = Math.round(animate(hudFrame, 0, score));
 
   // Health 0..100 → 0..1 (health bar fill).
   const healthFraction = clamp01(health / 100);
@@ -369,7 +380,7 @@ export const ScoreHud: React.FC<BaseSceneProps> = (props) => {
   const isDangerous = healthFraction <= HEALTH_DANGER_THRESHOLD;
   const healthColor = isDangerous ? HEALTH_LOW_COLOR : HEALTH_FULL_COLOR;
   // Bar shrinks as scene progresses (simulates taking damage to final health).
-  const animatedHealth = clamp01(animate(frame, 1, healthFraction));
+  const animatedHealth = clamp01(animate(hudFrame, 1, healthFraction));
 
   // Combo pulse: when combo > 1 a sinusoidal scale pulse runs at 2 Hz.
   const comboPulse =
@@ -377,8 +388,17 @@ export const ScoreHud: React.FC<BaseSceneProps> = (props) => {
       ? 1 + 0.12 * Math.sin((frame / fps) * 2 * Math.PI * 2)
       : 1;
 
-  // Timer counts from timeLeft down toward 0 across durationInFrames.
-  const displayTime = Math.max(0, Math.round(timeLeft * (1 - sceneProgress)));
+  // Timer ticks in REAL TIME, then freezes before the cut.
+  //
+  // This was `timeLeft * (1 - sceneProgress)`, i.e. the whole round clock elapsed
+  // over the scene: 60 seconds of game time in a 3-second shot, always landing on
+  // "00". Two things wrong with that. It is a lie — a 3-second clip does not
+  // contain a minute of play — and "00" on a round timer reads as *time up*, which
+  // is why the frame looked like an unfinished placeholder rather than a HUD.
+  //
+  // One frame of video is one frame of game time, so tick once per second and
+  // freeze at the settle point so the final value is held, not still moving.
+  const displayTime = Math.max(0, timeLeft - Math.floor(hudFrame / fps));
 
   // Layout sizes.
   const scoreFontSize = Math.round(height * 0.088);
@@ -391,6 +411,16 @@ export const ScoreHud: React.FC<BaseSceneProps> = (props) => {
   const blockOpacity = animate(frame, 0, 1);
 
   // Seeded sparks for combo > 1 (deterministic particles).
+  //
+  // The seed includes `frame`, so every frame draws a completely different spark
+  // layout — that is the intended shimmer, and it is why the timing probe reports
+  // this band as "never settles, dwell 0.00s". Unlike a smooth pulse the change is
+  // large (990 changed pixels between consecutive frames), so the probe's
+  // peak-relative floor cannot dismiss it either.
+  //
+  // Verified by cropping the band: it is the "КОМБО ×3" multiplier with its
+  // sparkles, and the surrounding numbers (score, health, timer) do land and hold.
+  // Nothing here needs slowing down; a shimmer is not a late reveal.
   const rng = mulberry32(combo * 31 + frame);
   const sparkCount = combo > 1 ? 6 : 0;
   const sparks = Array.from({ length: sparkCount }, (_, si) => ({

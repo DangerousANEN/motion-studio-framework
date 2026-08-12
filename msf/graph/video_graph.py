@@ -337,42 +337,72 @@ def node_script_split(state: VideoState) -> VideoState:
 
 # Rotating presets for multi-scene videos.
 #
-# WHY THIS LIST IS LONGER THAN IT WAS
-# Rotation used to cycle three names: HeroKinetic, TypewriterSub, GridGridFloor.
-# Every generated video therefore looked the same — three typography cards on a
-# loop — while 17 presets sat registered and unused. The registry marks which
-# presets need structured data (`dataDriven: true` in remotion/src/registry/),
-# and the ones that do NOT are exactly the presets plain narration can drive:
+# BOTH LISTS COME FROM THE REGISTRY NOW
+# -------------------------------------
+# These were hand-written and had drifted badly. Measured against
+# remotion/src/registry at the time of the fix:
 #
-#   HeroKinetic    typography   title
-#   TypewriterSub  typography   text
-#   QuoteCard      narrative    text + author        (author falls back below)
-#   GridGridFloor  typography   title
-#   TokenCloud3D   three        pointCount (defaulted)
-#   ModelOrbit3D   three        modelUrl — needs an asset, so NOT rotated
+#   _TEXT_SAFE_PRESETS held 5 names; the registry marks 13 as rotation-safe.
+#   ScoreHud, SubscribeCTA, MusicPlayer, VinylRecord, VoiceMemo, BankCard,
+#   CountdownHero and ModelOrbit3D could therefore NEVER appear in a generated
+#   video — every narration-only render cycled the same five typography cards.
 #
-# QuoteCard and TokenCloud3D were text-safe all along and were simply left out.
-# Adding them doubles the visual vocabulary of a narration-only video at zero
-# risk of a ⚠ placeholder.
+#   _DATA_DRIVEN_PRESETS held 11 of the registry's 25. The 14 it omitted
+#   (Leaderboard, QuizCard, TimelineReveal, PostCard, CommentWall, ...) were
+#   eligible for blind rotation, which hands a data preset a scene carrying only
+#   narration and renders its ⚠ placeholder.
 #
-# Order is deliberate, not alphabetical: it alternates weight so consecutive
-# scenes never share a silhouette. A big title card is followed by running text,
-# then a quote, then a 3D field — the eye gets a different shape every time.
-_TEXT_SAFE_PRESETS = [
-    "HeroKinetic",
-    "TypewriterSub",
-    "QuoteCard",
-    "GridGridFloor",
-    "TokenCloud3D",
-]
-
-# Presets that need structured data. Kept here so _rotated_preset can assert it
-# never hands one of these to a scene that carries only narration text.
-_DATA_DRIVEN_PRESETS = frozenset({
-    "StatCounter", "DonutFill", "CompareSplit", "FlowDiagram",
-    "SwipePanels", "CodeReveal", "LayerStack3D",
-    "TgChat", "AiChatStream", "CryptoWallet", "BankCard",
+# msf/registry.py parses the same TypeScript the renderer imports, so neither
+# list can drift again. See tests/test_registry_parity.py.
+#
+# ROTATION IS FILTERED FURTHER THAN "rotation_safe"
+# -------------------------------------------------
+# `rotation_safe` only means "not data-driven" — it does NOT mean the preset shows
+# the narration. Rendering all 13 and reading the frames showed three groups:
+#
+#   uses title AND text   QuoteCard, TypewriterSub
+#   uses title only       HeroKinetic, GridGridFloor, TokenCloud3D, MusicPlayer,
+#                         VinylRecord, VoiceMemo, ModelOrbit3D
+#   ignores both, shows   CountdownHero ("СТАРТ"), ScoreHud (PLAYER 1 / 9750),
+#   its own demo data     SubscribeCTA (TechChannel / 142.0K), BankCard (VISA
+#                         4242 / ALEXEY NIKITIN)
+#
+# The third group is why "rotation-safe" is not the right filter on its own: those
+# four render believable but FICTIONAL content — a fake cardholder name, an
+# invented subscriber count — with no relation to the script. Rotating them in
+# would put invented facts on screen, which is exactly what node_deep_research
+# exists to prevent. They stay available when a caller names them explicitly with
+# data; they are not substituted automatically.
+_ROTATION_BLOCKLIST = frozenset({
+    "CountdownHero",   # renders "СТАРТ", ignores title and text
+    "ScoreHud",        # PLAYER 1 / СЧЁТ 9750 / КОМБО x3 — invented game stats
+    "SubscribeCTA",    # TechChannel / 142.0K подписчиков — invented channel
+    "BankCard",        # VISA ···· 4242 / ALEXEY NIKITIN — invented cardholder
+    "ModelOrbit3D",    # needs modelUrl; without an asset there is nothing to orbit
 })
+
+
+def _text_safe_presets() -> List[str]:
+    """Presets rotation may substitute into a narration-only scene."""
+    from msf import registry
+
+    safe = [p for p in registry.rotation_safe_presets() if p not in _ROTATION_BLOCKLIST]
+    # An empty registry means the parse failed. Falling back to a short hardcoded
+    # list is what produced the original bug, so prefer a loud, obviously-degraded
+    # single preset over silently shrinking the library again.
+    return safe or ["HeroKinetic"]
+
+
+def _data_driven_presets() -> frozenset:
+    from msf import registry
+
+    return registry.data_driven_presets() or frozenset({"StatCounter", "TgChat"})
+
+
+# Kept as module-level names because callers and tests import them. Computed once
+# at import; the registry is a file on disk that does not change mid-run.
+_TEXT_SAFE_PRESETS = _text_safe_presets()
+_DATA_DRIVEN_PRESETS = _data_driven_presets()
 
 
 ACCENT_NAMES = {

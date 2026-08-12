@@ -116,5 +116,85 @@ class TestLLMParity(unittest.TestCase):
                          "LLMConfig default api_key differs from YAML.")
 
 
+class TestVoiceRegistryParity(unittest.TestCase):
+    """The configured speaker must be resolvable, or synthesis silently changes voice.
+
+    `tts.speaker` was "syenduk" in both the YAML and TTSConfig, while
+    assets/voices/voices.json only holds voice_2 and voice_3. resolve_voice()
+    raises ValueError on an unknown key, the caller swallowed it, and the fallback
+    chain reached Silero ("kseniya") and edge-tts ("ru-RU-SvetlanaNeural") — both
+    FEMALE. So a stale config value silently changed the narrator's gender.
+    """
+
+    def _known_voices(self):
+        from msf.skills_bridge.qwen3_tts import load_voices
+        return {k for k in load_voices() if not k.startswith("_")}
+
+    def test_yaml_speaker_exists_in_the_voice_registry(self):
+        cfg = load_default_yml()
+        known = self._known_voices()
+        self.assertIn(
+            cfg.tts.speaker, known,
+            f"config/default.yml tts.speaker={cfg.tts.speaker!r} is not in "
+            f"assets/voices/voices.json ({sorted(known)}). Voice synthesis would "
+            "fail and fall back to a different (female) speaker."
+        )
+
+    def test_dataclass_default_speaker_exists(self):
+        known = self._known_voices()
+        self.assertIn(
+            TTSConfig().speaker, known,
+            f"TTSConfig().speaker={TTSConfig().speaker!r} is not a registry key."
+        )
+
+    def test_dataclass_speaker_matches_yaml(self):
+        cfg = load_default_yml()
+        self.assertEqual(TTSConfig().speaker, cfg.tts.speaker)
+
+    def test_module_default_voice_exists_and_supports_icl(self):
+        """DEFAULT_VOICE must resolve WITH a transcript.
+
+        Without ref_text the model drops to x_vector_only_mode — timbre copied,
+        prosody flat. That is the "robotic voice" failure, and it is silent.
+        """
+        from msf.skills_bridge.qwen3_tts import DEFAULT_VOICE, resolve_voice
+        self.assertIn(DEFAULT_VOICE, self._known_voices())
+        ref_audio, ref_text = resolve_voice(None)
+        self.assertTrue(Path(ref_audio).is_file(), f"missing reference wav: {ref_audio}")
+        self.assertTrue(ref_text, "registry default has no transcript — ICL disabled")
+
+    def test_every_registry_voice_resolves_to_a_real_file(self):
+        from msf.skills_bridge.qwen3_tts import resolve_voice
+        for key in sorted(self._known_voices()):
+            ref_audio, ref_text = resolve_voice(key)
+            self.assertTrue(Path(ref_audio).is_file(), f"{key}: missing {ref_audio}")
+            self.assertTrue(ref_text, f"{key}: no transcript, ICL would be disabled")
+
+
+class TestVoiceSubstitutionIsGated(unittest.TestCase):
+    """Fallback TTS engines use a different speaker and must not fire silently."""
+
+    def _agent(self):
+        from msf.agents.voice_agent import VoiceAgent
+        return VoiceAgent.__new__(VoiceAgent)  # no __init__: no model loading
+
+    def test_silero_refuses_without_explicit_opt_in(self):
+        import logging
+        agent = self._agent()
+        agent.logger = logging.getLogger("test-silero")
+        self.assertFalse(
+            agent._synthesize_silero("текст", "/tmp/none.wav", 24000),
+            "Silero ('kseniya', female) must not run unless substitution is allowed."
+        )
+
+    def test_edge_tts_raises_without_explicit_opt_in(self):
+        import logging
+        agent = self._agent()
+        agent.logger = logging.getLogger("test-edge")
+        with self.assertRaises(RuntimeError) as ctx:
+            agent._synthesize_edge_tts("текст", "/tmp/none.wav")
+        self.assertIn("different", str(ctx.exception).lower())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

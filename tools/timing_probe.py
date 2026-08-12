@@ -109,6 +109,7 @@ def analyse(seq_dir: Path) -> dict:
         # what remains is decoration.
         step = (np.abs(np.diff(band, axis=0)) > 10).reshape(n_frames - 1, -1).mean(1)
         settle_i = None
+        perpetual = False
         if appear_i is not None:
             peak = float(step[appear_i:].max()) if appear_i < len(step) else 0.0
             floor = max(SETTLE_FRAC, peak * 0.08)
@@ -120,6 +121,39 @@ def analyse(seq_dir: Path) -> dict:
                     break
             if settle_i is None:
                 settle_i = n_frames - 1
+                # Never settles. Two very different causes, and calling both
+                # "reveals too late" sent me hunting a bug that did not exist:
+                #
+                #   a) a genuinely late reveal — motion RAMPS and ends near the cut
+                #   b) perpetual decorative animation — ScoreHud reseeds its combo
+                #      sparks with `frame`, so 990 pixels change every frame, from
+                #      the first frame to the last, forever.
+                #
+                # (b) shows motion in the final third as strong as in the first: a
+                # reveal decelerates, a shimmer does not. The peak-relative floor
+                # above cannot catch it because the change is large, not subtle.
+                #
+                # THE THRESHOLD MATTERS AND MY FIRST ONE WAS WRONG. At `> 0.5` the
+                # pre-fix score roll (measured last/first = 0.54) was classified as
+                # perpetual, so the probe reported that ScoreHud was FINE while the
+                # score was still counting at 99.4% of the scene — the carve-out
+                # masked exactly the defect it was written to distinguish itself
+                # from. Measured profiles:
+                #
+                #   score roll (a real late reveal):  ratio 0.54, cv 1.37
+                #   combo sparks (true shimmer):      ratio 1.02, cv 0.43
+                #
+                # So require BOTH near-constant energy (ratio >= 0.8) and low
+                # variability (cv < 0.8). A decaying or bursty profile is a reveal.
+                tail = step[appear_i:]
+                if len(tail) >= 6:
+                    third = max(2, len(tail) // 3)
+                    first_mean = float(tail[:third].mean())
+                    last_mean = float(tail[-third:].mean())
+                    mean = float(tail.mean())
+                    cv = float(tail.std()) / mean if mean > 0 else 99.0
+                    ratio = last_mean / first_mean if first_mean > 0 else 0.0
+                    perpetual = ratio >= 0.8 and cv < 0.8
 
         if appear_i is None:
             rows.append({"band": bi, "y": [int(y0) * 2, int(y1) * 2], "empty": True})
@@ -141,6 +175,7 @@ def analyse(seq_dir: Path) -> dict:
                 "dwell_frames": dwell_frames,
                 "dwell_sec": round(dwell_frames / fps, 2),
                 "settle_pct": round(100 * settle_f / max(1, total), 1),
+                "perpetual": perpetual,
             }
         )
 
@@ -149,8 +184,11 @@ def analyse(seq_dir: Path) -> dict:
     chars = len(text)
     need_sec = max(MIN_DWELL_SEC, chars / CHARS_PER_SEC)
 
+    # Perpetually animated bands are excluded from the dwell verdict: a decorative
+    # shimmer has no settle point by design and is not a late reveal.
     filled = [r for r in rows if not r["empty"]]
-    worst = min(filled, key=lambda r: r["dwell_sec"]) if filled else None
+    judged = [r for r in filled if not r.get("perpetual")]
+    worst = min(judged, key=lambda r: r["dwell_sec"]) if judged else None
 
     # Two independent failures, kept separate because they are fixed in different
     # places. A preset that reveals too late is a preset bug. A scene too short
@@ -167,6 +205,7 @@ def analyse(seq_dir: Path) -> dict:
         "reading_budget_sec": round(need_sec, 2),
         "bands": rows,
         "worst_band_dwell_sec": worst["dwell_sec"] if worst else None,
+        "perpetual_bands": [r["band"] for r in filled if r.get("perpetual")],
         "pacing": "OK" if paced_ok else "REVEALS_TOO_LATE",
         "duration": "OK" if fits_reading else "SCENE_TOO_SHORT_FOR_TEXT",
     }

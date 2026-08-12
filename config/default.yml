@@ -11,7 +11,10 @@ tts:
   # provider this pipeline no longer uses. Key is `speaker`, not `voice` --
   # _section_from_dict() silently drops unknown keys.
   provider: qwen3
-  speaker: syenduk
+  # Must be a key in assets/voices/voices.json. Was "syenduk", which is not in
+  # the registry — resolving it raises, and the failure path substitutes a
+  # female voice.
+  speaker: voice_3
   sample_rate: 24000
 render:
   # MUST stay 60. msf/spec.py FPS=60 and the render path passes it explicitly,

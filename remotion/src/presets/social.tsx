@@ -222,8 +222,14 @@ export const PostCard: React.FC<BaseSceneProps> = (props) => {
   const { theme, fonts, accent } = useStyle();
   const animate = resolveMotion(props.motion, fps, 'reveal');
 
-  // Card reveal: slide up + fade in
-  const totalDur = durationInFrames;
+  // Card reveal: slide up + fade in.
+  //
+  // `totalDur` was `durationInFrames`, so the metric counters finished rolling at
+  // 0.25 + 0.55 = 80% of the scene. Measured at 180 frames: the metrics band
+  // settled at 79.4%, dwell 0.60s. The counters are the animated payoff of the
+  // card; scaling them against the readable window keeps their proportions and
+  // lands them with time to read.
+  const totalDur = settleBy(durationInFrames, fps);
   const cardProgress = animate(frame, 0, 1);
 
   // Metric counters start after the card appears (25% of scene)
@@ -437,7 +443,17 @@ export const CommentWall: React.FC<BaseSceneProps> = (props) => {
 
   // How many cards fit in the viewport
   const maxVisible = Math.floor((safe.height - Math.round(height * 0.08)) / (cardBaseH + gap));
-  const staggerFrames = Math.max(6, Math.round(durationInFrames / Math.max(items.length, 1)));
+  // COMMENTS MUST ALL BE UP BEFORE THE CUT.
+  //
+  // This was `durationInFrames / items.length`, which spends the entire scene
+  // arriving: the last comment lands at (n-1)/n and its own 0.6-unit entrance
+  // finishes at 100%. Measured at 180 frames with 4 comments: the bottom bands
+  // settled at 90%, dwell 0.28s — and a comment wall is read bottom-up, so the
+  // newest comment is the one that vanished.
+  const staggerFrames = Math.max(
+    4,
+    Math.round(settleBy(durationInFrames, fps) / Math.max(items.length + 1, 1))
+  );
 
   // Title entrance
   const titleY = animate(frame, -Math.round(height * 0.04), 0);
@@ -623,8 +639,11 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
   const {
     channelName = 'TechChannel',
     subscribers = 142000,
-    buttonText = 'Subscribe',
-    subscribedText = 'Subscribed',
+    // Russian defaults, matching every other caption in the pack. These were
+    // 'Subscribe'/'Subscribed', so a fully Russian spec rendered an English
+    // button — the one element the whole scene exists to show.
+    buttonText = 'Подписаться',
+    subscribedText = 'Вы подписаны',
   } = props as SubscribeCTAProps;
 
   const frame = useCurrentFrame();
@@ -633,7 +652,16 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
   const { theme, fonts, accent } = useStyle();
   const animate = resolveMotion(props.motion, fps, 'reveal');
 
-  const D = durationInFrames;
+  // PHASES ARE FRACTIONS OF THE READABLE WINDOW, NOT OF THE SCENE.
+  //
+  // These were fractions of `durationInFrames`, so the payoff — the subscribed
+  // state and the ringing bell, the entire point of a CTA — started at 0.72–0.75
+  // and had 0.25 of the scene left. Measured at 180 frames: settled at 76.7%,
+  // dwell 0.68s.
+  //
+  // Rescaling against settleBy() keeps the choreography's proportions exactly and
+  // simply finishes it early enough to be seen.
+  const D = settleBy(durationInFrames, fps);
   // Scene phases (in frames)
   const phaseCard    = Math.round(D * 0.25); // card appears
   const phaseCursor  = Math.round(D * 0.55); // cursor done moving
@@ -675,6 +703,27 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
   const countBase = subscribers as number;
   const displayCount = isSubscribed ? countBase + 1 : countBase;
 
+  // "12,4 тыс. подписчиков" — Russian pluralisation, since the count is dynamic
+  // (+1 on subscribe) and "12400 подписчик" would be wrong for most values. Rules:
+  // 1 → подписчик, 2-4 → подписчика, 0/5-20 and anything ending 11-14 → подписчиков.
+  const pluralSubs = (n: number): string => {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'подписчиков';
+    switch (n % 10) {
+      case 1:
+        return 'подписчик';
+      case 2:
+      case 3:
+      case 4:
+        return 'подписчика';
+      default:
+        return 'подписчиков';
+    }
+  };
+  // fmtNum abbreviates large counts ("12.4K"), and an abbreviation is read as a
+  // plural quantity regardless of the exact number behind it.
+  const subscribersLabel = displayCount >= 1000 ? 'подписчиков' : pluralSubs(displayCount);
+
   // Bell swing: oscillating rotation after bell phase
   const bellFrameLocal = Math.max(0, frame - phaseBell);
   const bellSwing = isSubscribed
@@ -688,11 +737,52 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
     extrapolateRight: 'clamp',
   });
 
+  // === BUTTON GEOMETRY (needed by the cursor path below) ===
+  const cardW = Math.min(safe.width * 0.82, Math.round(height * 0.42));
+  const btnH = Math.round(height * 0.062);
+
+  // BUTTON WIDTH AND LABEL SIZE ARE MEASURED AGAINST THE ACTUAL CAPTION.
+  //
+  // `btnW` was a flat `cardW * 0.52` and `fBtn` a flat `height * 0.023`, sized for
+  // "Subscribe" (9 Latin chars). Switching the defaults to Russian broke it
+  // immediately: "Вы подписаны" is 12 Cyrillic chars, so the caption wrapped to two
+  // lines inside a fixed-height pill and the second line spilled outside the
+  // rounded background — the button, which is the entire point of this scene.
+  //
+  // Both captions must fit, because the button switches between them mid-scene and
+  // a width suiting only one would resize on click. So: measure the longer of the
+  // two, widen the pill up to the card, and only shrink the type if it still does
+  // not fit.
+  const bellSpace = Math.round(btnH * 0.62) + Math.round(btnH * 0.22);
+  const btnPad = Math.round(btnH * 0.34);
+  const fBtnMax = Math.round(height * 0.023);
+  const longestCaption =
+    String(subscribedText).length >= String(buttonText).length
+      ? String(subscribedText)
+      : String(buttonText);
+  const captionW = Math.ceil(
+    measure({
+      text: longestCaption,
+      fontFamily: fonts.display,
+      fontSize: fBtnMax,
+      fontWeight: 800,
+      letterSpacing: '0.02em',
+    }).width
+  );
+  // The subscribed state also carries the bell, so reserve it in BOTH states —
+  // otherwise the pill visibly grows when the bell appears.
+  const btnW = Math.min(
+    Math.round(cardW * 0.92),
+    Math.max(Math.round(cardW * 0.52), captionW + bellSpace + btnPad * 2)
+  );
+  const captionSpace = btnW - bellSpace - btnPad * 2;
+  const fBtn = Math.max(
+    Math.round(height * 0.015),
+    Math.min(fBtnMax, Math.floor((fBtnMax * captionSpace) / Math.max(1, captionW)))
+  );
+
   // === CURSOR ===
   // Channel area center in safe coordinates — cursor travels from off-screen to button
-  const cardW = Math.min(safe.width * 0.82, Math.round(height * 0.42));
-  const btnW = Math.round(cardW * 0.52);
-  const btnH = Math.round(height * 0.062);
   const cursorSize = Math.round(height * 0.038);
 
   // Cursor path: starts bottom-right of card, moves to button center
@@ -724,7 +814,6 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
   const avatarSz = Math.round(height * 0.09);
   const fChannelName = Math.round(height * 0.028);
   const fSubs = Math.round(height * 0.02);
-  const fBtn = Math.round(height * 0.023);
   const pd = Math.round(cardW * 0.07);
   const bellSz = Math.round(btnH * 0.62);
 
@@ -793,7 +882,7 @@ export const SubscribeCTA: React.FC<BaseSceneProps> = (props) => {
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {fmtNum(displayCount)} subscribers
+            {fmtNum(displayCount)} {subscribersLabel}
           </span>
 
           {/* Subscribe button */}

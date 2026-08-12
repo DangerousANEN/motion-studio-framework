@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSF Control Panel</title>
+<style>
+:root{
+  --bg:#0c0d10; --panel:#14161b; --panel2:#1b1e25; --line:#262a33;
+  --text:#e8eaf0; --muted:#8b93a4; --accent:#00e58a; --accent2:#4d8dff;
+  --warn:#ffb84d; --err:#ff5c5c; --radius:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.5 "Segoe UI",Roboto,system-ui,sans-serif}
+a{color:var(--accent2)}
+code,pre{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px}
+
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;
+  background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.02em}
+header .sp{flex:1}
+.pill{padding:3px 10px;border-radius:999px;background:var(--panel2);
+  border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.pill.ok{color:var(--accent);border-color:#1d4a36}
+.pill.bad{color:var(--err);border-color:#4a1d1d}
+
+nav{display:flex;gap:4px;padding:0 20px;background:var(--panel);
+  border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:none;color:var(--muted);padding:10px 14px;
+  cursor:pointer;font-size:13px;border-bottom:2px solid transparent;white-space:nowrap}
+nav button:hover{color:var(--text)}
+nav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+main{padding:20px;max-width:1600px;margin:0 auto}
+.view{display:none}
+.view.on{display:block}
+
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+input,select,textarea,button.act{background:var(--panel2);color:var(--text);
+  border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent2)}
+button.act{cursor:pointer}
+button.act:hover{border-color:var(--accent)}
+button.act.primary{background:var(--accent);color:#06231a;border-color:var(--accent);font-weight:600}
+button.act:disabled{opacity:.5;cursor:default}
+label.chk{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;cursor:pointer}
+
+.grid{display:grid;gap:12px}
+.g-cards{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.g-two{grid-template-columns:1fr 1fr}
+@media(max-width:1000px){.g-two{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.card h3{margin:0 0 4px;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card .sum{color:var(--muted);font-size:12px;margin:6px 0 10px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted)}
+.tag.used{color:var(--accent);border-color:#1d4a36}
+.tag.data{color:var(--accent2);border-color:#1d2f4a}
+.tag.blocked{color:var(--warn);border-color:#4a3a1d}
+.tag.three{color:#c98bff;border-color:#3a1d4a}
+.fields{font-size:11px;color:var(--muted);margin-top:8px;word-break:break-word}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tr:hover td{background:var(--panel2)}
+
+pre.log{background:#08090b;border:1px solid var(--line);border-radius:8px;padding:12px;
+  max-height:420px;overflow:auto;white-space:pre-wrap;color:#c8cddb;margin:0}
+.err{color:var(--err)} .ok{color:var(--accent)} .muted{color:var(--muted)} .warn{color:var(--warn)}
+
+.previewbox{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.previewbox img{max-height:640px;border-radius:8px;border:1px solid var(--line);background:#000}
+.spinner{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+audio{height:32px;vertical-align:middle}
+.stepper{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.step{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted)}
+.step.done{color:var(--accent);border-color:#1d4a36}
+.step.now{color:#06231a;background:var(--accent);border-color:var(--accent);font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.empty{color:var(--muted);padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>MSF Control Panel</h1>
+  <span class="pill" id="hdr-scenes">…</span>
+  <span class="pill" id="hdr-effects">…</span>
+  <span class="pill" id="hdr-voice">…</span>
+  <span class="sp"></span>
+  <span class="pill" id="hdr-health">…</span>
+</header>
+
+<nav>
+  <button data-view="status" class="on">Статус</button>
+  <button data-view="scenes">Сцены</button>
+  <button data-view="effects">Эффекты</button>
+  <button data-view="voices">Голоса</button>
+  <button data-view="audio">Звук</button>
+  <button data-view="ldr">LDR</button>
+  <button data-view="runs">Прогоны</button>
+</nav>
+
+<main>
+  <section class="view on" id="view-status"></section>
+  <section class="view" id="view-scenes"></section>
+  <section class="view" id="view-effects"></section>
+  <section class="view" id="view-voices"></section>
+  <section class="view" id="view-audio"></section>
+  <section class="view" id="view-ldr"></section>
+  <section class="view" id="view-runs"></section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
