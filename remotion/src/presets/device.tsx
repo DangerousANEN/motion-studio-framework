@@ -72,13 +72,43 @@ export const PhoneMockup: React.FC<BaseSceneProps> = (props) => {
   const Nested = useNestedPreset(innerPreset as string | undefined);
 
   // Phone body sized to the safe box, leaving room for a caption.
-  const bodyH = Math.round(safe.height * (title || subtitle ? 0.78 : 0.94));
-  // 19.5:9, the modern phone aspect.
-  const bodyW = Math.min(safe.width, Math.round((bodyH * 9) / 19.5));
+  const availH = Math.round(safe.height * (title || subtitle ? 0.78 : 0.94));
+
+  // THE SCREEN MUST MATCH THE CANVAS ASPECT, NOT A REAL PHONE'S.
+  // A nested scene lays out against the FULL canvas (useVideoConfig is the
+  // composition's, not this wrapper's), so it can only be placed by uniform
+  // scale. Uniform scale into a screen of a different aspect leaves slack on one
+  // axis, and every way of spending that slack is a visible defect:
+  //   * scale by height  -> overflows the sides, silently eating the first and
+  //     last character of every line (measured 80px/side: "Разбери код" -> "Разбери к")
+  //   * scale by width, centre -> letterbox above AND below the content
+  //   * scale by width, bottom-anchor -> one big dead band at the top; on a chat
+  //     that read as 26% of the screen being empty black above the header, when
+  //     a real Telegram header is pinned to the top edge.
+  // Hardcoding 19.5:9 here was the root cause: 9:16 content can never fill it.
+  // Deriving the screen from the canvas aspect makes the fit exact, so there is
+  // no slack to misplace. The body is then whatever that screen plus bezel needs.
+  //
+  // Closed form: with bezel = BEZEL_RATIO * bodyW and A = height / width,
+  //   bodyH = screenW * A + 2 * bezel = bodyW * ((1 - 2*BEZEL_RATIO) * A + 2*BEZEL_RATIO)
+  const BEZEL_RATIO = 0.022;
+  const A = height / width;
+  const bodyToWidth = (1 - 2 * BEZEL_RATIO) * A + 2 * BEZEL_RATIO;
+  let bodyW = Math.min(safe.width, Math.floor(availH / bodyToWidth));
+  let bezel = Math.max(6, Math.round(bodyW * BEZEL_RATIO));
+  let screenW = bodyW - bezel * 2;
+  let screenH = Math.round(screenW * A);
+  let bodyH = screenH + bezel * 2;
+  // The max(6, ...) floor on bezel can push a very small phone over budget.
+  if (bodyH > availH) {
+    const shrink = availH / bodyH;
+    bodyW = Math.floor(bodyW * shrink);
+    bezel = Math.max(6, Math.round(bodyW * BEZEL_RATIO));
+    screenW = bodyW - bezel * 2;
+    screenH = Math.round(screenW * A);
+    bodyH = screenH + bezel * 2;
+  }
   const radius = Math.round(bodyW * 0.115);
-  const bezel = Math.max(6, Math.round(bodyW * 0.022));
-  const screenW = bodyW - bezel * 2;
-  const screenH = bodyH - bezel * 2;
 
   // A gentle idle rotation makes the slab feel like an object rather than a
   // rectangle. `tilt: 0` opts out for a flat, editorial framing.
@@ -91,28 +121,15 @@ export const PhoneMockup: React.FC<BaseSceneProps> = (props) => {
     // instead would make every internal `height * 0.03` font microscopic — the
     // scene would be laid out for a 300px-tall viewport.
     //
-    // FIT THE WIDTH, THEN ANCHOR THE SCENE TO THE BOTTOM OF THE SCREEN.
-    // Previous versions scaled by `max(screenW/width, screenH/height)` to avoid
-    // a gap at the bottom. That choice fills the screen but overflows the sides
-    // by (width * hRatio - screenW) / 2 — a measured **80px per side** on a
-    // 640px screen, i.e. 7.4% of the canvas width gone at each edge. The old
-    // comment called that "a few pixels"; in practice it silently ate the first
-    // and last characters of every line, turning "Разбери код" into "Разбери к"
-    // and "Не могу" into "е могу". Clipped words are a worse failure than a
-    // letterbox, because the frame still looks plausible.
-    //
-    // Scaling by width never cuts a character, but a 9:16 canvas inside a
-    // 9:19.5 screen then leaves screenH - height*scale (≈284px of 1422) unused.
-    // A nested scene lays out against its OWN canvas height, so stretching this
-    // wrapper does not stretch it — the leftover space stays empty wherever we
-    // put it. Bottom-anchoring is what a chat UI wants: the input bar lands on
-    // the screen's bottom edge and the slack sits above the first bubble, which
-    // is exactly how a real conversation looks. Scenes whose content is
-    // vertically centred are unaffected.
+    // The screen is derived from the canvas aspect above, so `screenW / width`
+    // and `screenH / height` are the same ratio: the fit is exact on both axes.
+    // There is no slack left to letterbox or to overflow, which is what used to
+    // either clip the first/last character of every line (scale-by-height) or
+    // leave a dead band above the chat header (scale-by-width, bottom-anchored).
     <div
       style={{
         position: 'absolute',
-        top: screenH - height * (screenW / width),
+        top: 0,
         left: 0,
         width,
         height,
