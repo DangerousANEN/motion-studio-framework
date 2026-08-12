@@ -5,6 +5,7 @@ import { getSafeArea } from '../lib/safeArea';
 import { resolveMotion } from '../lib/motion';
 import { useStyle } from '../theme/StyleContext';
 import { Backdrop } from '../theme/Backdrop';
+import { fitWrapped, measure } from '../theme/layout';
 
 /**
  * Learn preset pack — educational and explanatory scenes.
@@ -374,8 +375,85 @@ export const ProgressPath: React.FC<BaseSceneProps> = (props) => {
   // Render
   if (isVertical) {
     // --- VERTICAL layout ---
-    const totalH = safe.height * (title ? 0.82 : 0.92);
-    const stepSpacing = count > 1 ? totalH / (count - 1) : totalH / 2;
+    //
+    // STEP SPACING IS SOLVED FROM THE REAL COLUMN HEIGHT.
+    //
+    // It used to be `safe.height * (title ? 0.82 : 0.92) / (count - 1)`, and the
+    // 0.82 was doing two incompatible jobs: standing in for the title block and
+    // reserving room for the last step's own height. It did neither. The title
+    // lives ABOVE the path area, so its height was subtracted from nothing —
+    // the last dot landed at titleBlock + totalH, and its label extended past
+    // that. Measured with 5 steps and a title: content ran to y=1656, which is
+    // 116px inside the 380px bottom band that platform reserves for the caption
+    // and the action rail. Nothing was clipped, so no probe complained; the last
+    // step would simply have sat under TikTok's UI.
+    //
+    // Now the title block is measured, the last row's height is reserved, and the
+    // steps are distributed across what genuinely remains.
+    const gapX = Math.round(safe.width * 0.045);
+    const labelColW = safe.width - dotDiameter - gapX;
+
+    // ROW HEIGHT MUST BE MEASURED FROM THE WRAPPED LINES, NOT DIVIDED WIDTHS.
+    //
+    // A `ceil(width / colW)` estimate is wrong in both directions and this
+    // preset hit both. CSS breaks on word boundaries, so a string 1.05 columns
+    // wide takes 2 lines while the estimate says 2 only if it exceeds 1.0 —
+    // and, worse, a string 1.9 columns wide can take 3 lines once the last word
+    // will not fit. `fitWrapped` returns the library's real line breakdown at a
+    // FIXED size (maxFontSize == minFontSize pins it), so the count matches what
+    // the browser will actually do.
+    const wrapLines = (
+      text: string,
+      fontSize: number,
+      colW: number,
+      family: string,
+      weight: number
+    ) => {
+      if (!text) return 0;
+      return fitWrapped({
+        text,
+        maxWidth: colW,
+        fontFamily: family,
+        fontWeight: weight,
+        maxLines: 6,
+        maxFontSize: fontSize,
+        minFontSize: fontSize,
+      }).lines.length;
+    };
+
+    const rowHeights = normalized.map((s, i) => {
+      // The current step renders at weight 800, the rest at 600.
+      const labelH =
+        wrapLines(s.label, labelFontSize, labelColW, fonts.display, i === cur ? 800 : 600) *
+        labelFontSize *
+        1.25;
+      const descH = s.description
+        ? wrapLines(s.description, descFontSize, labelColW, fonts.body, 400) *
+            descFontSize *
+            1.3 +
+          Math.round(height * 0.005)
+        : 0;
+      return Math.max(dotDiameter, Math.ceil(labelH + descH));
+    });
+    const lastRowH = rowHeights[rowHeights.length - 1];
+
+    const titleBlockH = title
+      ? wrapLines(title, titleFontSize, safe.width, fonts.display, 800) * titleFontSize * 1.2 +
+        Math.round(height * 0.032)
+      : 0;
+
+    // A step row is `position: absolute; top: stepSpacing * i`, so its box grows
+    // DOWNWARD from that y — `alignItems: 'center'` only centres the dot against
+    // the label inside the row, it does not centre the row on the dot. I assumed
+    // otherwise and reserved lastRowH/2, which put content 36px deeper into the
+    // reserved band than reserving nothing would have.
+    //
+    // So the last row's FULL height must come out of the span, plus a few px for
+    // the difference between the assumed 1.25 line box and what the font actually
+    // renders (measured 8px on a two-line Cyrillic label).
+    const slack = Math.round(height * 0.008);
+    const span = Math.max(0, safe.height - titleBlockH - lastRowH - slack);
+    const stepSpacing = count > 1 ? span / (count - 1) : span / 2;
 
     return (
       <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.bg, overflow: 'hidden' }}>
@@ -475,8 +553,15 @@ export const ProgressPath: React.FC<BaseSceneProps> = (props) => {
                     left: 0,
                     right: 0,
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: Math.round(safe.width * 0.045),
+                    // TOP-aligned, not centre-aligned. With `center`, the dot is
+                    // centred in a row whose height depends on how many lines its
+                    // label wrapped to — so a 2-line description pushed its own
+                    // dot further down and the dot-to-dot gaps came out uneven
+                    // (measured 237 / 261 / 285 px on one 4-step path) even though
+                    // stepSpacing was constant. Top-aligning pins every dot to
+                    // stepSpacing * i + dotR regardless of text height.
+                    alignItems: 'flex-start',
+                    gap: gapX,
                     opacity: stepEntry,
                   }}
                 >
@@ -521,8 +606,19 @@ export const ProgressPath: React.FC<BaseSceneProps> = (props) => {
                     )}
                   </div>
 
-                  {/* Label + description */}
-                  <div style={{ flex: 1 }}>
+                  {/* Label + description.
+                      The row is top-aligned so dots stay evenly spaced, so the
+                      first label line is nudged to sit centred against the dot
+                      rather than at the dot's very top. */}
+                  <div
+                    style={{
+                      flex: 1,
+                      paddingTop: Math.max(
+                        0,
+                        Math.round((dotDiameter - labelFontSize * 1.2) / 2)
+                      ),
+                    }}
+                  >
                     <div
                       style={{
                         fontFamily: fonts.display,
@@ -818,15 +914,87 @@ export const DefinitionCard: React.FC<BaseSceneProps> = (props) => {
   const srcDelay = exDelay + Math.round(fps * 0.3);
   const srcOpacity = clamp01(animate(frame - srcDelay, 0, 1));
 
-  // Sizes
-  const termFontSize = Math.round(
-    Math.min(height * 0.065, (safe.width * 0.88 / Math.max(t.length, 1)) * 1.5 + 8)
-  );
-  const defFontSize = Math.round(height * 0.026);
-  const exFontSize = Math.round(height * 0.021);
-  const srcFontSize = Math.round(height * 0.018);
+  // Sizes.
+  //
+  // The text column is what remains after the accent bar and its gap — sizing
+  // against the full safe width overflows by exactly that much.
   const barWidth = Math.round(width * 0.012);
   const barGap = Math.round(width * 0.04);
+  const textW = safe.width - barWidth - barGap;
+
+  // TERM: MEASURED, not a character-count ladder.
+  //
+  // This was `min(height*0.065, (safe.width*0.88 / t.length) * 1.5 + 8)`, the
+  // exact ladder theme/layout.ts exists to replace. For "Квантизация" it picked
+  // 118px, and 11 Cyrillic glyphs at weight 900 need ~1090px — so the term ran
+  // to x=1079 and lost its last letter off the frame edge, rendering
+  // "Квантизаци". Cyrillic is wider per character than the Latin the ladder was
+  // tuned on, which is precisely the case a proxy cannot see.
+  //
+  // Two lines are allowed: a long compound term ("Дистилляция знаний") would
+  // otherwise shrink to nothing to stay on one.
+  const termFit = fitWrapped({
+    text: t,
+    maxWidth: textW,
+    maxHeight: Math.round(safe.height * 0.22),
+    fontFamily: fonts.display,
+    fontWeight: 900,
+    maxLines: 2,
+    lineHeight: 1.1,
+    maxFontSize: Math.round(height * 0.065),
+    minFontSize: Math.round(height * 0.03),
+  });
+  const termFontSize = termFit.fontSize;
+
+  // Underline spans the term's REAL width, capped at the column. The old
+  // `t.length * fontSize * 0.55` guess drifted with the script and stopped
+  // halfway under the word.
+  const termLineW = Math.min(
+    textW,
+    Math.ceil(
+      Math.max(
+        ...(termFit.lines.length ? termFit.lines : [t]).map(
+          (line) =>
+            measure({
+              text: line,
+              fontFamily: fonts.display,
+              fontSize: termFontSize,
+              fontWeight: 900,
+              letterSpacing: '-0.02em',
+            }).width
+        )
+      )
+    )
+  );
+
+  const defFontSize = Math.round(height * 0.026);
+
+  // EXAMPLE: sized so its widest line fits the box.
+  //
+  // `whiteSpace: 'pre'` is required — the default example is real multi-line
+  // code and collapsing its newlines would scramble it — but 'pre' also
+  // suppresses wrapping, so `wordBreak: 'break-all'` next to it was dead code.
+  // A one-line prose example ("Llama-4-Scout-109B в Q4 влезает в одну RTX 4090")
+  // therefore pushed straight through the box border and off the canvas, cut
+  // after "RT". Measuring the longest line keeps 'pre' and still fits.
+  const exPad = Math.round(height * 0.018);
+  const exInnerW = textW - exPad * 2;
+  const exLines = ex ? ex.split('\n') : [];
+  const exBase = Math.round(height * 0.021);
+  const exWidest = exLines.length
+    ? Math.max(
+        ...exLines.map(
+          (line) =>
+            measure({ text: line || ' ', fontFamily: fonts.mono, fontSize: exBase }).width
+        )
+      )
+    : 1;
+  const exFontSize = Math.max(
+    Math.round(height * 0.012),
+    Math.min(exBase, Math.floor((exBase * exInnerW) / Math.max(1, exWidest)))
+  );
+
+  const srcFontSize = Math.round(height * 0.018);
 
   return (
     <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.bg, overflow: 'hidden' }}>
@@ -889,10 +1057,10 @@ export const DefinitionCard: React.FC<BaseSceneProps> = (props) => {
             >
               {t}
             </div>
-            {/* Underline accent */}
+            {/* Underline accent — spans the term's measured width. */}
             <div
               style={{
-                width: Math.min(safe.width * 0.55, t.length * termFontSize * 0.55),
+                width: termLineW,
                 height: Math.round(height * 0.005),
                 backgroundColor: accent,
                 borderRadius: 4,
@@ -941,7 +1109,7 @@ export const DefinitionCard: React.FC<BaseSceneProps> = (props) => {
                 backgroundColor: `${theme.surface}cc`,
                 border: `1.5px solid ${accent}44`,
                 borderRadius: Math.round(height * 0.012),
-                padding: Math.round(height * 0.018),
+                padding: exPad,
               }}
             >
               <div
