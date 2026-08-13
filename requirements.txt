@@ -6,3 +6,22 @@ faster-whisper
 click
 jinja2
 pillow
+
+# LangGraph drives the pipeline itself (msf/graph/video_graph.py).
+langgraph
+
+# Audio: numpy/scipy synthesise the SFX and music beds, soundfile reads and
+# writes reference wavs, and voice_prep measures them.
+numpy
+scipy
+soundfile
+
+# Control panel (msf/panel/server.py). Verified working versions on this machine:
+# fastapi 0.133.1, uvicorn 0.41.0, pydantic 2.13.4 on python 3.11.15.
+# pydantic 2.x is REQUIRED — the request models use Field(...) v2 semantics.
+fastapi
+uvicorn
+pydantic>=2
+
+# Tests. This repo uses unittest classes but they are run with pytest.
+pytest

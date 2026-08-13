@@ -249,8 +249,20 @@ async function viewEffects(root) {
       el('span', { class: 'tag' }, String(d.transitions.length))),
     el('p', { class: 'sum' },
       'Это НЕ эффекты: в списке scene.effects они игнорируются с предупреждением в консоли. ' +
-      'Указывать их надо в transition.'),
-    el('div', { class: 'tags' }, d.transitions.map((t) => el('span', { class: 'tag' }, t))));
+      'Указывать их надо в transition.type — именно эти имена принимает Zod-схема.'),
+    el('div', { class: 'tags' }, d.transitions.map((t) => el('span', { class: 'tag' }, t))),
+    // The dead TRANSITIONS export in src/registry/effects_scene.ts. Shown, not
+    // hidden: the panel used to serve THIS list as if it were valid, and every
+    // name in it fails validation. Visible + labelled beats silently dropped.
+    (d.legacy_unused_transitions || []).length
+      ? el('div', { style: 'margin-top:14px' },
+          el('p', { class: 'sum' },
+            'Мёртвый экспорт TRANSITIONS (registry/effects_scene.ts) — эти имена ' +
+            'схема отклоняет, в React-дереве они не импортируются нигде:'),
+          el('div', { class: 'tags' },
+            d.legacy_unused_transitions.map((t) =>
+              el('span', { class: 'tag', style: 'opacity:.45;text-decoration:line-through' }, t))))
+      : null);
 
   root.replaceChildren(
     el('div', { class: 'toolbar' },

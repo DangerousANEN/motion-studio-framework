@@ -1235,6 +1235,14 @@ export const Leaderboard: React.FC<BaseSceneProps> = (props) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          // CENTRED, not top-aligned. rowH is capped at height*0.115 so a short
+          // board does not stretch to fill: 3 rows plus title measure 849px of
+          // the 1260px safe box, and flex-start parked all 411px of slack under
+          // the last row — a third of the frame reading as dead space while the
+          // board hugged the top inset. Centring cannot push content out of the
+          // safe area because rowH is derived from rowsAvail, so the stack never
+          // exceeds safe.height.
+          justifyContent: 'center',
           gap: titleGap,
         }}
       >

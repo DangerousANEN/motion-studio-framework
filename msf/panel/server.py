@@ -117,9 +117,22 @@ def api_effects() -> Dict[str, Any]:
 
     A transition name in a scene's `effects` list is skipped with a console
     warning — EffectStack only resolves the three effect registries.
+
+    `transitions` USED TO SERVE registry.transition_names(), which is the
+    `TRANSITIONS` export in src/registry/effects_scene.ts — and every one of those
+    12 names ('CrossFade', 'WipeLinear', ...) is REJECTED by the Zod enum for
+    `scene.transition.type`. The export is dead: nothing in the React tree imports
+    it, the real implementation lives in src/lib/transitions.ts, and its enum uses
+    entirely different names ('fade', 'wipe', 'pushCut', ...). So the panel was
+    listing 12 names that fail validation while hiding the 18 that work. It now
+    serves the Zod-accepted list; the dead export is exposed separately as
+    `legacy_unused_transitions` so the discrepancy stays visible instead of
+    silently reappearing.
     """
     from msf import registry
 
+    accepted = registry.scene_transition_types()
+    legacy = registry.transition_names()
     return {
         "effects": [
             {
@@ -132,7 +145,8 @@ def api_effects() -> Dict[str, Any]:
             for e in sorted(registry.load_effects().values(), key=lambda x: x.name)
         ],
         "by_family": registry.effects_by_family(),
-        "transitions": registry.transition_names(),
+        "transitions": accepted,
+        "legacy_unused_transitions": sorted(set(legacy) - set(accepted)),
     }
 
 
@@ -242,7 +256,7 @@ def api_status() -> Dict[str, Any]:
     checks.append({
         "name": "effect registry",
         "ok": len(effects) > 50,
-        "detail": f"{len(effects)} effects, {len(registry.transition_names())} transitions",
+        "detail": f"{len(effects)} effects, {len(registry.scene_transition_types())} transitions",
     })
 
     try:
@@ -300,93 +314,197 @@ def api_status() -> Dict[str, Any]:
 #
 # Every preview renders through the SAME code path the pipeline uses — the panel
 # must not have its own renderer, or "it looked fine in the panel" stops meaning
-# anything. Scene stills go through remotion/scripts/stress.mjs (the existing
-# harness), audio goes through msf.audio.sfx/music, voice through
-# synthesize_voice_clone.
+# anything. Scene stills and clips go through msf.panel.render_client (a resident
+# node process holding the real Remotion bundle), audio through msf.audio.sfx/
+# music, voice through synthesize_voice_clone.
+#
+# WHY NOT stress.mjs ANY MORE
+# ---------------------------
+# It shelled out `node scripts/stress.mjs` per preview, which re-bundles the whole
+# composition every time: 19.7s cold, ~14s warm, measured. The resident server
+# bundles once and answers a still in ~7s / a clip in ~4s, and it reports the real
+# `durationInFrames` from calculateMetadata, which stress.mjs could not — so a
+# frame percentage now resolves against the composition's true length instead of
+# the pre-transition guess.
 
 
 class ScenePreviewRequest(BaseModel):
     preset: str
     props: Dict[str, Any] = Field(default_factory=dict)
     frame_pct: float = Field(0.9, ge=0.0, le=1.0)
-    duration_frames: int = Field(180, ge=30, le=1800)
+    # None means "size the scene to its own text" via demo_props.suggested_duration.
+    # A fixed 180 was inventing readability warnings on seven presets whose demo
+    # copy cannot be read in 3s, burying the real ones.
+    duration_frames: Optional[int] = Field(None, ge=30, le=1800)
     style: str = "pop"
+    # Fill unspecified props from the demo set so a bare {"preset": X} renders
+    # something representative instead of an empty card.
+    demo_props: bool = True
+    # 0.5 halves render time and is plenty for layout review; 1.0 for pixel checks.
+    scale: float = Field(1.0, gt=0.0, le=1.0)
 
 
-@app.post("/api/preview/scene")
-def api_preview_scene(req: ScenePreviewRequest) -> Dict[str, Any]:
-    """Render one still of a preset and return a URL to the PNG.
-
-    Validates through msf.spec.validate_spec FIRST. Without that, a preset given
-    the wrong row shape renders the red whole-video ERROR card and the panel would
-    happily display it as a preview of a working scene.
-    """
+def _preview_scene_and_spec(req: ScenePreviewRequest) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Build + validate the one-scene spec shared by the still and clip routes."""
     from msf import registry
+    from msf.panel import demo_props as dp
     from msf.spec import validate_spec
 
     if req.preset not in registry.load_registry():
         raise HTTPException(404, f"unknown preset {req.preset!r}")
 
-    scene: Dict[str, Any] = {
-        "id": "preview",
-        "durationInFrames": req.duration_frames,
-        "preset": req.preset,
-        **req.props,
-    }
+    if req.demo_props:
+        scene = dp.scene_for(
+            req.preset, duration_in_frames=req.duration_frames, overrides=req.props
+        )
+    else:
+        scene = {"id": "preview", "preset": req.preset, **req.props}
+        scene["durationInFrames"] = (
+            req.duration_frames
+            if req.duration_frames is not None
+            else dp.suggested_duration(scene)
+        )
+
     spec = {
         "width": 1080, "height": 1920, "fps": 60,
-        "durationInFrames": req.duration_frames,
+        "durationInFrames": scene["durationInFrames"],
         "style": req.style, "scenes": [scene],
     }
-    warnings: List[str] = []
     try:
         validate_spec(spec)
     except ValueError as exc:
-        # A real validation failure is the useful answer, not a red card.
+        # A real validation failure is the useful answer, not a red ERROR card
+        # rendered as if it were a working preview.
         raise HTTPException(422, str(exc)) from exc
+    return scene, spec
+
+
+@app.post("/api/preview/scene")
+def api_preview_scene(req: ScenePreviewRequest) -> Dict[str, Any]:
+    """Render one still of a preset and return a URL to the PNG."""
+    from msf.panel.render_client import RenderServerError, get_client
+
+    scene, spec = _preview_scene_and_spec(req)
 
     token = uuid.uuid4().hex[:12]
     out_dir = CACHE / "scenes"
     out_dir.mkdir(parents=True, exist_ok=True)
-    cases = REMOTION / f".panel_{token}.json"
-    # stress.mjs takes an absolute FRAME (`c.frame`), not a percentage, and its
-    # outDir is resolved relative to the remotion root. Passing `frame_pct`
-    # through would be silently ignored and every preview would render the
-    # script's own 90% default.
-    frame = max(0, min(req.duration_frames - 1, round(req.duration_frames * req.frame_pct)))
-    cases.write_text(
-        json.dumps(
-            [{"name": token, "frame": frame, "style": req.style, "scene": scene}],
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-    rel_out = "../output/_panel_cache/scenes"
-    node = shutil.which("node")
-    if not node:
-        cases.unlink(missing_ok=True)
-        raise HTTPException(503, "node not found — cannot render scene previews")
+    png = out_dir / f"{token}.png"
+
+    started = time.time()
     try:
-        proc = subprocess.run(
-            [node, "scripts/stress.mjs", str(cases.name), rel_out],
-            cwd=REMOTION, capture_output=True, text=True, timeout=420,
-        )
-        png = out_dir / f"{token}.png"
-        if proc.returncode != 0 or not png.is_file():
-            raise HTTPException(
-                500,
-                "render failed: " + ((proc.stdout or "") + (proc.stderr or ""))[-600:],
-            )
-    finally:
-        cases.unlink(missing_ok=True)
+        res = get_client().still(spec, png, frame_pct=req.frame_pct, scale=req.scale)
+    except RenderServerError as exc:
+        raise HTTPException(503, f"render server: {exc}") from exc
+    if not png.is_file():
+        raise HTTPException(500, "render server reported success but wrote no file")
 
     return {
         "url": f"/preview/scenes/{token}.png",
         "preset": req.preset,
-        "frame": frame,
+        "frame": res.get("frame"),
         "frame_pct": req.frame_pct,
-        "warnings": warnings,
+        "duration_frames": res.get("durationInFrames"),
+        "scale": req.scale,
+        "bytes": res.get("bytes"),
+        "render_ms": res.get("ms"),
+        "wall_sec": round(time.time() - started, 2),
+        "warnings": [],
     }
+
+
+class SceneClipRequest(ScenePreviewRequest):
+    """A short MP4 instead of a still — the only way to review MOTION.
+
+    Stills cannot show whether a reveal settles before the scene ends, which is
+    the defect class the pacing contract exists to prevent.
+    """
+
+    from_frame: int = Field(0, ge=0)
+    to_frame: Optional[int] = Field(None, ge=1)
+    scale: float = Field(0.5, gt=0.0, le=1.0)
+    crf: int = Field(26, ge=1, le=51)
+
+
+@app.post("/api/preview/clip")
+def api_preview_clip(req: SceneClipRequest) -> Dict[str, Any]:
+    """Render a frame range of a preset to MP4 and return a URL."""
+    from msf.panel.render_client import RenderServerError, get_client
+
+    scene, spec = _preview_scene_and_spec(req)
+    if req.to_frame is not None and req.to_frame <= req.from_frame:
+        raise HTTPException(400, "to_frame must be greater than from_frame")
+
+    token = uuid.uuid4().hex[:12]
+    out_dir = CACHE / "clips"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    mp4 = out_dir / f"{token}.mp4"
+
+    started = time.time()
+    try:
+        res = get_client().clip(
+            spec, mp4, frm=req.from_frame, to=req.to_frame,
+            scale=req.scale, crf=req.crf,
+        )
+    except RenderServerError as exc:
+        raise HTTPException(503, f"render server: {exc}") from exc
+    if not mp4.is_file():
+        raise HTTPException(500, "render server reported success but wrote no file")
+
+    return {
+        "url": f"/preview/clips/{token}.mp4",
+        "preset": req.preset,
+        "from": res.get("from"),
+        "to": res.get("to"),
+        "duration_frames": res.get("durationInFrames"),
+        "scale": req.scale,
+        "bytes": res.get("bytes"),
+        "render_ms": res.get("ms"),
+        "wall_sec": round(time.time() - started, 2),
+    }
+
+
+@app.get("/api/demo/props/{preset}")
+def api_demo_props(preset: str) -> Dict[str, Any]:
+    """The demo props the preview would use, so the UI can prefill its editor.
+
+    Served from msf.panel.demo_props — the same source the preview renders from,
+    so what you see in the form is what gets rendered.
+    """
+    from msf import registry
+    from msf.panel import demo_props as dp
+
+    if preset not in registry.load_registry():
+        raise HTTPException(404, f"unknown preset {preset!r}")
+    scene = dp.scene_for(preset)
+    return {
+        "preset": preset,
+        "props": dp.props_for(preset),
+        "scene": scene,
+        "suggested_duration_frames": scene["durationInFrames"],
+        "generic": preset not in dp.DEMO_PROPS,
+    }
+
+
+@app.get("/api/render-server")
+def api_render_server() -> Dict[str, Any]:
+    """Whether the resident renderer is up, and how long it has been."""
+    from msf.panel.render_client import get_client
+
+    return get_client().status
+
+
+@app.post("/api/render-server/restart")
+def api_render_server_restart() -> Dict[str, Any]:
+    """Drop the render process so the next preview re-bundles.
+
+    Needed because the bundle is held in memory: editing a .tsx preset has no
+    effect on previews until the server restarts.
+    """
+    from msf.panel import render_client
+
+    render_client.shutdown()
+    return {"ok": True, "detail": "render server stopped; next preview will re-bundle"}
 
 
 class VoicePreviewRequest(BaseModel):
@@ -501,13 +619,16 @@ def serve_preview(kind: str, filename: str) -> FileResponse:
     INSIDE the cache: `kind`/`filename` come from the network, and a naive join
     would let `../../..` read any file the process can reach.
     """
-    if kind not in ("scenes", "voice", "sfx", "music"):
+    if kind not in ("scenes", "clips", "voice", "sfx", "music"):
         raise HTTPException(404, "unknown preview kind")
     candidate = (CACHE / kind / filename).resolve()
     root = (CACHE / kind).resolve()
     if root not in candidate.parents or not candidate.is_file():
         raise HTTPException(404, "not found")
-    return FileResponse(candidate)
+    # Explicit for .mp4: without a media type the browser downloads the clip
+    # instead of playing it inline, which defeats the point of a motion preview.
+    media = "video/mp4" if candidate.suffix == ".mp4" else None
+    return FileResponse(candidate, media_type=media)
 
 
 # ---------------------------------------------------------------- LDR / graph
@@ -801,6 +922,138 @@ def api_add_voice(req: VoiceAddRequest) -> Dict[str, Any]:
         "mode": info.get("mode"),
         "icl": bool(info.get("has_ref_text")),
     }
+
+
+class VoiceSourceRequest(BaseModel):
+    """A path to an audio file on this machine.
+
+    Path, not upload: the panel is a localhost operator tool and the references it
+    manages are already on disk. Accepting uploads would add a write path with no
+    caller.
+    """
+
+    path: str = Field(..., min_length=1)
+
+
+@app.post("/api/voices/measure")
+def api_voice_measure(req: VoiceSourceRequest) -> Dict[str, Any]:
+    """Measure a candidate reference and report findings — no modification.
+
+    Runs before anything is registered so a bad reference is caught here rather
+    than in a finished render. Every finding is derived from a measured number
+    (SNR, clipping, silence, sample rate), not from a guess about the file.
+    """
+    from msf.audio import voice_prep
+
+    src = Path(req.path).expanduser()
+    if not src.is_file():
+        raise HTTPException(404, f"no such audio file: {src}")
+    try:
+        stats = voice_prep.measure(src)
+    except Exception as exc:
+        raise HTTPException(422, f"cannot measure {src.name}: {exc}") from exc
+
+    findings = voice_prep.review(stats)
+    return {
+        "path": str(src),
+        "stats": stats.to_dict(),
+        "findings": findings,
+        # "usable" means no error-level finding. Warnings are reported and allowed:
+        # a reference can be imperfect and still work, and refusing everything short
+        # of a studio booth would just push the operator to bypass the check.
+        "usable": not any(f["level"] == "error" for f in findings),
+        "recommend_denoise": stats.snr_db < 40,
+        "recommend_trim": max(stats.silence_lead_sec, stats.silence_tail_sec) > 0.5,
+    }
+
+
+class VoicePrepareRequest(VoiceSourceRequest):
+    denoise: bool = False
+    trim_silence: bool = True
+    normalize: bool = True
+    # Hard cap 24: past nr=20 the measured sibilant energy drops below the clean
+    # source (s/sh get eaten) while SNR keeps "improving", so a higher number would
+    # look better on paper and sound worse.
+    denoise_strength: int = Field(14, ge=1, le=24)
+    # Where to write. None = alongside the source as <stem>_prepped24k.wav.
+    out_path: Optional[str] = None
+
+
+@app.post("/api/voices/prepare")
+def api_voice_prepare(req: VoicePrepareRequest) -> Dict[str, Any]:
+    """Clean a reference to 24 kHz mono and report before/after numbers.
+
+    Chain is highpass -> afftdn -> trim -> normalize, with the denoiser's noise
+    floor MEASURED from the clip rather than hardcoded (a fixed nf made the
+    strength control a no-op). Returns both measurements so the operator can see
+    what changed instead of trusting the word "prepared".
+    """
+    from msf.audio import voice_prep
+
+    src = Path(req.path).expanduser()
+    if not src.is_file():
+        raise HTTPException(404, f"no such audio file: {src}")
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(503, "ffmpeg not found — cannot process audio")
+
+    if req.out_path:
+        dst = Path(req.out_path).expanduser()
+    else:
+        dst = src.with_name(f"{src.stem}_prepped{voice_prep.TARGET_SR // 1000}k.wav")
+    if dst.resolve() == src.resolve():
+        raise HTTPException(422, "out_path must differ from the source file")
+
+    try:
+        res = voice_prep.prepare(
+            src, dst,
+            denoise=req.denoise,
+            trim_silence=req.trim_silence,
+            normalize=req.normalize,
+            denoise_strength=req.denoise_strength,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        # Includes the guard that refuses to return a clip the silence threshold
+        # ate — that must not be reported as a success.
+        raise HTTPException(500, str(exc)) from exc
+
+    return {
+        "out_path": res.out_path,
+        "applied": res.applied,
+        "before": res.before,
+        "after": res.after,
+        "findings": res.findings,
+        "snr_gain_db": round(res.after["snr_db"] - res.before["snr_db"], 1),
+        "next_step": "POST /api/voices/transcribe, proofread, then POST /api/voices",
+    }
+
+
+class VoiceTranscribeRequest(VoiceSourceRequest):
+    language: str = "ru"
+
+
+@app.post("/api/voices/transcribe")
+def api_voice_transcribe(req: VoiceTranscribeRequest) -> Dict[str, Any]:
+    """Transcribe a reference with Whisper so ref_text can be filled in.
+
+    The transcript is returned for EDITING, never auto-saved: measured word
+    agreement against a human transcript was 97.7%, which is excellent and still
+    not exact, and ICL aligns the audio to whatever text it is handed. A wrong
+    ref_text degrades cloning silently.
+    """
+    from msf.audio import voice_prep
+
+    src = Path(req.path).expanduser()
+    if not src.is_file():
+        raise HTTPException(404, f"no such audio file: {src}")
+    try:
+        res = voice_prep.transcribe(src, language=req.language)
+    except ImportError as exc:
+        raise HTTPException(503, f"faster-whisper unavailable: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(500, f"transcription failed: {exc}") from exc
+    return {"path": str(src), **res}
 
 
 @app.delete("/api/voices/{key}")

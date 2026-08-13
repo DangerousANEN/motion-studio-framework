@@ -81,8 +81,82 @@ def test_scene_rotation_list_is_not_the_old_five() -> None:
 def test_effects_match_the_registry_and_exclude_transitions() -> None:
     d = client.get("/api/effects").json()
     assert {e["name"] for e in d["effects"]} == set(registry.load_effects())
-    assert d["transitions"] == registry.transition_names()
     assert not (set(d["transitions"]) & {e["name"] for e in d["effects"]})
+
+
+def test_transitions_served_are_the_ones_zod_accepts() -> None:
+    """The panel must list names that VALIDATE, not the dead registry export.
+
+    It used to serve registry.transition_names() — the `TRANSITIONS` export from
+    src/registry/effects_scene.ts. Nothing in the React tree imports that object;
+    scene transitions are implemented in src/lib/transitions.ts against a totally
+    different enum. Result: all 12 advertised names were rejected by the schema and
+    all 18 working ones were invisible. This test pins the fix.
+    """
+    d = client.get("/api/effects").json()
+    accepted = registry.scene_transition_types()
+    assert d["transitions"] == accepted
+    assert "fade" in d["transitions"] and "pushCut" in d["transitions"]
+    # The old list must not sneak back in.
+    assert "CrossFade" not in d["transitions"]
+    assert set(d["legacy_unused_transitions"]) == set(registry.transition_names()) - set(accepted)
+
+
+def test_every_advertised_transition_passes_the_validator() -> None:
+    """Round-trip each served name through validate_spec — no name may error.
+
+    The transition goes on scene[1], not scene[0]: validate_spec rejects a
+    transition on the first scene because there is no outgoing scene to come from.
+    """
+    from msf.panel import demo_props
+    from msf.spec import validate_spec
+
+    served = client.get("/api/effects").json()["transitions"]
+    bad = []
+    for name in served:
+        first = demo_props.scene_for("TitleCard")
+        second = demo_props.scene_for("TitleCard")
+        second["transition"] = {"type": name, "durationInFrames": 15}
+        spec = {
+            "title": "t", "theme": "pop", "fps": 60,
+            "width": 1080, "height": 1920, "scenes": [first, second],
+        }
+        try:
+            validate_spec(spec)
+        except Exception as exc:
+            bad.append((name, str(exc)))
+    assert not bad, f"served transitions rejected by validate_spec: {bad}"
+
+
+def test_the_dead_transition_names_really_do_fail_validation() -> None:
+    """Proof the swap was necessary, not cosmetic.
+
+    Every name in `legacy_unused_transitions` must be REJECTED. If one of them ever
+    starts validating, the two registries have been reconciled and the split view
+    in /api/effects should be revisited.
+    """
+    from msf.panel import demo_props
+    from msf.spec import validate_spec
+
+    legacy = client.get("/api/effects").json()["legacy_unused_transitions"]
+    assert legacy, "expected the dead export to be reported"
+    accepted_anyway = []
+    for name in legacy:
+        first = demo_props.scene_for("TitleCard")
+        second = demo_props.scene_for("TitleCard")
+        second["transition"] = {"type": name, "durationInFrames": 15}
+        spec = {
+            "title": "t", "theme": "pop", "fps": 60,
+            "width": 1080, "height": 1920, "scenes": [first, second],
+        }
+        try:
+            validate_spec(spec)
+            accepted_anyway.append(name)
+        except Exception:
+            pass
+    assert not accepted_anyway, (
+        f"these are advertised as dead but validate fine: {accepted_anyway}"
+    )
 
 
 def test_no_effect_has_an_unknown_family() -> None:

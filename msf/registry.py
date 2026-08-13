@@ -351,8 +351,46 @@ def load_effects() -> Dict[str, EffectInfo]:
 
 
 @lru_cache(maxsize=1)
+def scene_transition_types() -> List[str]:
+    """The transition names a spec may actually put in `scene.transition.type`.
+
+    THERE ARE TWO UNRELATED "TRANSITION" SETS IN THIS REPO AND THEY DO NOT OVERLAP
+    -----------------------------------------------------------------------------
+    1. `TRANSITIONS` in registry/effects_scene.ts — 12 PascalCase React
+       components (CrossFade, LiquidWarp, ...). Nothing imports them except
+       src/audit/EffectProbeComps.tsx. They are a parallel implementation that
+       the render path never reaches. `transition_names()` below returns these.
+    2. `TRANSITION_NAMES` in lib/transitions.ts, mirrored by
+       `TransitionTypeSchema` in VideoSpec.schema.ts — 18 camelCase names
+       ('fade', 'slide', 'dreamyZoom', ...). getPresentation() switches on these,
+       and Zod rejects anything else. Style kits store THESE.
+
+    A picker offering set 1 would produce specs Zod refuses. This function
+    returns set 2, read from the Zod enum so it cannot drift from what validates.
+    """
+    path = _REGISTRY_DIR.parent / "VideoSpec.schema.ts"
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    m = re.search(
+        r"TransitionTypeSchema\s*=\s*z\.enum\(\s*\[(.*?)\]\s*\)", text, re.S
+    )
+    if not m:
+        return []
+    return sorted(re.findall(r"'([^']+)'", m.group(1)))
+
+
+@lru_cache(maxsize=1)
 def transition_names() -> List[str]:
-    """Scene-to-scene transitions. NOT usable in a scene's `effects` list."""
+    """The 12 PascalCase components in registry/effects_scene.ts.
+
+    See scene_transition_types() for why these are NOT what goes into a spec.
+    Kept because the effects catalogue must exclude them: putting one of these
+    names in a scene's `effects` list is silently ignored by EffectStack.
+    """
     path = _REGISTRY_DIR / "effects_scene.ts"
     if not path.is_file():
         return []
@@ -376,16 +414,147 @@ def effects_by_family() -> Dict[str, List[str]]:
     return out
 
 
+# ------------------------------------------------------------------ style kits
+
+
+@dataclass(frozen=True)
+class StyleKitInfo:
+    """One entry of STYLE_KITS in remotion/src/theme/styleKits.ts."""
+
+    name: str
+    description: str
+    theme: str
+    fonts: str
+    backdrop: str
+    surface: str
+    transition: str
+    effects: Dict[str, float]
+
+
+@lru_cache(maxsize=1)
+def load_style_kits() -> Dict[str, StyleKitInfo]:
+    """Parse the style kits.
+
+    WHY THE PANEL NEEDS THESE PARSED RATHER THAN LISTED
+    ---------------------------------------------------
+    `style` in VideoSpec is z.string() with NO enum, and getStyleKit() falls back
+    to the default for anything it does not recognise:
+
+        STYLE_KITS[name ?? DEFAULT_STYLE_KIT] ?? STYLE_KITS[DEFAULT_STYLE_KIT]
+
+    So a typo in a style name is not an error — the video silently renders in
+    `pop`. That is the same class of bug as the voice fallback: a wrong-looking
+    result with no diagnostic. Parsing the real keys lets the panel offer a picker
+    instead of a free-text field, and lets a test assert the set.
+
+    NOTE the theme/style distinction, which is NOT cosmetic: root `theme` IS a
+    strict Zod enum of five palettes (pop/noir/glass/blueprint/sunset), while
+    `style` is a kit that POINTS AT a palette and may name any of the 15 in
+    brand.ts. Verified by rendering: theme:"broadcast" produces a red RENDER ERROR
+    card, style:"news" (whose kit uses the broadcast palette) renders correctly.
+    """
+    path = _REGISTRY_DIR.parent / "theme" / "styleKits.ts"
+    if not path.is_file():
+        return {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    kits: Dict[str, StyleKitInfo] = {}
+    body = None
+    for const_name, section in _sections(text):
+        if const_name == "STYLE_KITS":
+            body = section
+            break
+    if body is None:
+        return {}
+
+    # Entries are lowercase here (`pop:`, `mono_warm:`), unlike the PascalCase
+    # preset and effect entries, so the entry pattern differs from _sections'.
+    entry_re = re.compile(r"^  ([a-z][A-Za-z0-9_]*):\s*\{", re.M)
+    marks = [(m.group(1), m.end()) for m in entry_re.finditer(body)]
+    for i, (name, start) in enumerate(marks):
+        end = marks[i + 1][1] if i + 1 < len(marks) else len(body)
+        block = body[start:end]
+
+        def field(key: str, default: str = "") -> str:
+            m = re.search(rf"{key}:\s*'([^']*)'", block)
+            return m.group(1) if m else default
+
+        fx: Dict[str, float] = {}
+        fx_block = re.search(r"effects:\s*\{([^}]*)\}", block)
+        if fx_block:
+            for k, v in re.findall(r"(\w+):\s*([0-9.]+)", fx_block.group(1)):
+                fx[k] = float(v)
+        else:
+            # `effects:` can be a CONST REFERENCE, not a literal: the `clean` kit
+            # uses `effects: NO_FX`. Matching only inline objects returned {} for
+            # it, which the panel would have shown as "no effect profile" — while
+            # the renderer applies a real all-zero profile. Resolve the alias.
+            alias = re.search(r"effects:\s*([A-Z][A-Z0-9_]*)\s*,", block)
+            if alias:
+                decl = re.search(
+                    rf"const {alias.group(1)}\s*:[^=]*=\s*\{{([^}}]*)\}}", text
+                )
+                if decl:
+                    for k, v in re.findall(r"(\w+):\s*([0-9.]+)", decl.group(1)):
+                        fx[k] = float(v)
+        desc = re.search(r"description:\s*(['\"])(.*?)\1", block, re.S)
+
+        kits[name] = StyleKitInfo(
+            name=name,
+            description=re.sub(r"\s+", " ", desc.group(2)).strip() if desc else "",
+            theme=field("theme"),
+            fonts=field("fonts"),
+            backdrop=field("backdrop"),
+            surface=field("surface"),
+            transition=field("transition"),
+            effects=fx,
+        )
+    return kits
+
+
+def style_kit_names() -> List[str]:
+    return sorted(load_style_kits())
+
+
+@lru_cache(maxsize=1)
+def theme_names() -> List[str]:
+    """Palette keys accepted by the root `theme` field.
+
+    Read from the Zod enum in VideoSpec.schema.ts, NOT from THEMES in brand.ts.
+    brand.ts defines 15 palettes; the schema only admits 5 at the spec root, and
+    the other 10 are reachable solely through a style kit. Reporting brand.ts here
+    would let the panel offer a value that red-cards the render.
+    """
+    path = _REGISTRY_DIR.parent / "VideoSpec.schema.ts"
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    m = re.search(r"ThemeSchema\s*=\s*z\.enum\(\[(.*?)\]\)", text, re.S)
+    if not m:
+        return []
+    return re.findall(r"'([^']+)'", m.group(1))
+
+
 __all__ = [
     "PresetInfo",
     "EffectInfo",
+    "StyleKitInfo",
     "load_registry",
     "load_effects",
+    "load_style_kits",
     "preset_names",
     "rotation_safe_presets",
     "data_driven_presets",
     "by_category",
     "effects_by_family",
     "transition_names",
+    "style_kit_names",
+    "theme_names",
     "get",
 ]
