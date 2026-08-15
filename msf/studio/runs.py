@@ -68,9 +68,22 @@ class StudioRunService:
         temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         temporary.replace(path)
 
+    def _sync_index(self, snapshot: RunSnapshot, request: RunRequest | None = None) -> None:
+        """Mirror a safe run summary into SQLite; run files remain canonical."""
+        from .run_index import RunIndex
+
+        current = request
+        if current is None:
+            request_path = self._request_path(snapshot.run_id)
+            if not request_path.is_file():
+                return
+            current = RunRequest.model_validate_json(request_path.read_text(encoding="utf-8"))
+        RunIndex(self.root).upsert(snapshot, current)
+
     def _store_snapshot(self, snapshot: RunSnapshot) -> None:
         path = self._snapshot_path(snapshot.run_id)
         self._write_json(path, snapshot.model_dump(mode="json"))
+        self._sync_index(snapshot)
 
     def get_snapshot(self, run_id: str) -> RunSnapshot:
         path = self._snapshot_path(run_id)
@@ -122,6 +135,7 @@ class StudioRunService:
         payload["operator_overrides"] = merged_overrides
         updated_request = RunRequest.model_validate(payload)
         self._write_json(self._request_path(run_id), updated_request.model_dump(mode="json"))
+        self._sync_index(snapshot, updated_request)
         EventStore(self._run_dir(run_id), run_id).append(
             "run.draft_updated",
             message="Operator updated draft inputs before approval",
@@ -239,6 +253,26 @@ class StudioRunService:
             payload=artifact.model_dump(mode="json"),
         )
         return artifact
+
+    def list_runs(self, limit: int = 80, status: str | None = None) -> list[dict[str, object]]:
+        """Return a persistent searchable archive, backfilling legacy run folders once."""
+        from .run_index import RunIndex
+
+        index = RunIndex(self.root)
+        for run_dir in self.root.glob("run_*"):
+            if not run_dir.is_dir():
+                continue
+            snapshot_path, request_path = run_dir / "snapshot.json", run_dir / "request.json"
+            if not snapshot_path.is_file() or not request_path.is_file():
+                continue
+            try:
+                snapshot = RunSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
+                request = RunRequest.model_validate_json(request_path.read_text(encoding="utf-8"))
+                index.upsert(snapshot, request)
+            except (ValueError, OSError):
+                # A half-written interrupted legacy run should not hide all valid history.
+                continue
+        return index.list(limit=limit, status=status)
 
     def events(self, run_id: str, after_sequence: int = 0, limit: int = 500):
         self.get_snapshot(run_id)

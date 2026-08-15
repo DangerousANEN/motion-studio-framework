@@ -2,194 +2,192 @@
   'use strict';
 
   const $ = (selector) => document.querySelector(selector);
-  const state = { catalog: [], styles: [], graph: [], runId: '', snapshot: null, request: null, events: [], traces: [], selectedNode: null, selectedScene: null, polling: false, pollTimer: null, lastSequence: 0, thumbnailQueue: [], queuedThumbnails: new Set(), thumbnailBusy: false, thumbnailObserver: null };
-  const catalogCards = $('#catalogCards');
-  const presetSelect = $('#preset');
-  const styleFamily = $('#styleFamily');
-  const runIdInput = $('#runIdInput');
-  const nodeInstruction = $('#nodeInstruction');
+  const state = {
+    page: 'overview', settings: null, styles: [], voices: [], audio: null, catalog: [], graph: [],
+    selectedRun: null, selectedRequest: null, events: [], selectedNode: null, selectedScene: null,
+    thumbnailQueue: [], queuedThumbnails: new Set(), thumbnailBusy: false, thumbnailObserver: null,
+    pollTimer: null, lastSequence: 0, runHistory: [], voicePreparedPath: null,
+  };
 
-  async function request(url, options = {}) {
+  async function api(url, options = {}) {
     const headers = { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
     const response = await fetch(url, { ...options, headers });
     const payload = await response.json().catch(() => ({ detail: response.statusText }));
-    if (!response.ok) throw new Error(typeof payload.detail === 'object' ? JSON.stringify(payload.detail) : (payload.detail || payload.message || response.statusText));
+    if (!response.ok) throw new Error(typeof payload.detail === 'object' ? JSON.stringify(payload.detail) : (payload.detail || response.statusText));
     return payload;
   }
+  const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  const time = (value) => value ? new Date(value).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const runActive = () => ['queued', 'running', 'retrying'].includes(state.selectedRun?.status);
+  const activePage = () => (location.hash || '#overview').slice(1);
 
-  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
-  const time = (value) => value ? new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-  const isActive = () => ['queued', 'running', 'retrying'].includes(state.snapshot?.status);
-
-  function setRunResult(text, kind = 'empty') { const el = $('#runResult'); el.textContent = text; el.className = `run-result ${kind}`; }
-  function setStatusBadge(status) { const el = $('#runStatusBadge'); el.textContent = (status || 'NO RUN').toUpperCase(); el.className = `chip ${status === 'running' ? 'safe' : 'muted'}`; }
-
-  function styleConfig() {
-    const palette = {};
-    [['#styleNeon', 'neon'], ['#styleBg', 'bg'], ['#styleSurface', 'surface']].forEach(([id, key]) => { const input = $(id); if (input?.dataset.override === 'true') palette[key] = input.value; });
-    const effects = {}; const bloom = $('#styleBloom'); if (bloom?.dataset.override === 'true') effects.bloom = Number(bloom.value);
-    const output = {}; if (Object.keys(palette).length) output.palette = palette; if (Object.keys(effects).length) output.effects = effects; return output;
+  function setMessage(id, text, kind = '') { const el = $(id); el.textContent = text; el.className = `notice ${kind}`; }
+  function setPage(page) {
+    state.page = ['overview', 'runs', 'scenes', 'voices', 'settings'].includes(page) ? page : 'overview';
+    document.querySelectorAll('[data-page]').forEach((el) => { el.hidden = el.dataset.page !== state.page; });
+    document.querySelectorAll('[data-page-link]').forEach((el) => el.classList.toggle('active', el.dataset.pageLink === state.page));
+    const meta = { overview: ['MSF STUDIO', 'Новый запуск'], runs: ['RUN HISTORY', 'Прогоны'], scenes: ['SCENE LIBRARY', 'Сцены'], voices: ['VOICE LAB', 'Голоса'], settings: ['SETTINGS', 'Настройки'] }[state.page];
+    $('#pageEyebrow').textContent = meta[0]; $('#pageTitle').textContent = meta[1];
+    if (state.page === 'runs') loadRuns();
+    if (state.page === 'scenes' && !state.catalog.length) loadCatalog();
+    if (state.page === 'voices') { loadVoices(); loadAudio(); }
   }
 
-  function selectedStyle() { return state.styles.find((style) => style.id === styleFamily.value) || state.styles[0] || null; }
-  function refreshStyleControls() {
-    const family = selectedStyle(); if (!family) return;
-    $('#styleSummary').textContent = family.label; $('#styleDescription').textContent = family.summary;
-    const palette = styleConfig().palette || family.defaults?.palette || {};
-    $('#styleSwatch').style.background = `linear-gradient(135deg, ${palette.neon || '#65f5c1'}, ${palette.bg || '#aa8cff'})`;
-    $('#styleBloomValue').textContent = Number($('#styleBloom').value).toFixed(2);
+  function applySettingsToComposer() {
+    if (!state.settings) return;
+    const settings = state.settings;
+    if (settings.default_style && [...$('#styleFamily').options].some((option) => option.value === settings.default_style)) $('#styleFamily').value = settings.default_style;
+    if (settings.default_voice && [...$('#runVoice').options].some((option) => option.value === settings.default_voice)) $('#runVoice').value = settings.default_voice;
+    $('#agentLevel').value = String(settings.default_agent_level || 3);
+    $('#researchMode').checked = Boolean(settings.default_research);
+    $('#musicToggle').checked = Boolean(settings.default_music);
   }
-  function applyStyleFamily() {
-    const family = selectedStyle(); const palette = family?.defaults?.palette || {};
-    [['#styleNeon', palette.neon], ['#styleBg', palette.bg], ['#styleSurface', palette.surface]].forEach(([id, color]) => { if (color) $(id).value = color; $(id).dataset.override = 'false'; });
-    if (typeof family?.defaults?.effects?.bloom === 'number') $('#styleBloom').value = family.defaults.effects.bloom;
-    $('#styleBloom').dataset.override = 'false'; refreshStyleControls();
+
+  async function loadSettings() {
+    const data = await api('/api/studio/settings'); state.settings = data.settings; state.runtime = data.runtime;
+    $('#defaultVoice').replaceChildren(); state.voices.forEach((voice) => {
+      const opt = document.createElement('option'); opt.value = voice.key; opt.textContent = `${voice.key}${voice.is_default ? ' · system default' : ''}`; $('#defaultVoice').appendChild(opt);
+    });
+    $('#defaultStyle').replaceChildren(); state.styles.forEach((style) => { const opt = document.createElement('option'); opt.value = style.id; opt.textContent = style.label; $('#defaultStyle').appendChild(opt); });
+    $('#defaultVoice').value = data.settings.default_voice || data.available_voice_keys[0] || '';
+    $('#defaultStyle').value = data.settings.default_style || state.styles[0]?.id || '';
+    $('#defaultAgentLevel').value = String(data.settings.default_agent_level || 3);
+    $('#defaultResearch').checked = Boolean(data.settings.default_research); $('#defaultMusic').checked = Boolean(data.settings.default_music);
+    $('#runtimeFacts').innerHTML = Object.entries(data.runtime).map(([key, value]) => `<dt>${esc({ render: 'Кадр', audio: 'Мастеринг', storage: 'Хранилище' }[key] || key)}</dt><dd>${esc(typeof value === 'object' ? Object.values(value).join(' · ') : value)}</dd>`).join('');
+    setMessage('#settingsMessage', 'Загружены текущие значения по умолчанию для новых черновиков.');
+    applySettingsToComposer();
+  }
+  async function saveSettings(event) {
+    event.preventDefault();
+    try {
+      const result = await api('/api/studio/settings', { method: 'PATCH', body: JSON.stringify({ default_voice: $('#defaultVoice').value || null, default_style: $('#defaultStyle').value || null, default_agent_level: Number($('#defaultAgentLevel').value), default_research: $('#defaultResearch').checked, default_music: $('#defaultMusic').checked, default_sfx: $('#defaultMusic').checked }) });
+      state.settings = result.settings; applySettingsToComposer(); setMessage('#settingsMessage', 'Настройки сохранены для будущих черновиков.', 'success');
+    } catch (error) { setMessage('#settingsMessage', `Не удалось сохранить: ${error.message}`, 'error'); }
   }
 
   async function loadStyles() {
-    const data = await request('/api/studio/styles'); state.styles = data.families || []; styleFamily.replaceChildren();
-    state.styles.forEach((family) => { const option = document.createElement('option'); option.value = family.id; option.textContent = family.label; styleFamily.appendChild(option); });
-    if (state.styles.some((style) => style.id === 'llm_hubs_neon')) styleFamily.value = 'llm_hubs_neon'; applyStyleFamily();
+    const data = await api('/api/studio/styles'); state.styles = data.families || [];
+    $('#styleFamily').replaceChildren(); state.styles.forEach((style) => { const opt = document.createElement('option'); opt.value = style.id; opt.textContent = style.label; $('#styleFamily').appendChild(opt); });
   }
-
-  function renderCatalog() {
-    catalogCards.replaceChildren();
-    if (!state.catalog.length) { catalogCards.innerHTML = '<p class="empty-state">Ничего не найдено. Измените поисковую фразу или tier.</p>'; return; }
-    const template = $('#catalogCardTemplate');
-    state.catalog.forEach((scene) => {
-      const fragment = template.content.cloneNode(true); const card = fragment.querySelector('.scene-card'); card.dataset.preset = scene.name;
-      fragment.querySelector('.scene-category').textContent = scene.category || 'general'; fragment.querySelector('strong').textContent = scene.name; fragment.querySelector('p').textContent = scene.summary || '—';
-      const tags = fragment.querySelector('.scene-tags'); (scene.intent_tags || []).slice(0, 3).forEach((tag) => { const item = document.createElement('span'); item.textContent = tag; tags.appendChild(item); });
-      fragment.querySelector('small').textContent = scene.data_driven ? `Данные: ${(scene.required_data_hints || []).join(', ') || 'обязательны'}` : `Audio: ${(scene.recommended_audio_roles || []).slice(0, 2).join(', ') || 'auto'}`;
-      card.addEventListener('click', () => openSceneDrawer(scene)); catalogCards.appendChild(fragment);
-    });
-    observeCatalogThumbnails();
-  }
-  function setThumbnail(preset, url, cached) {
-    document.querySelectorAll(`.scene-card[data-preset="${CSS.escape(preset)}"] .scene-thumb`).forEach((thumb) => {
-      thumb.innerHTML = `<img loading="lazy" alt="${escapeHtml(preset)} preview" src="${escapeHtml(url)}"/><span class="thumb-state">${cached ? 'Cached' : 'Rendered'}</span>`;
-      thumb.classList.add('ready');
-    });
-  }
-  async function fetchThumbnail(preset) {
-    try { const cached = await request(`/api/preview/thumbnail/${encodeURIComponent(preset)}`); setThumbnail(preset, cached.url, true); return; }
-    catch (error) { if (!String(error.message).includes('thumbnail not cached')) throw error; }
-    queueThumbnail(preset);
-  }
-  function queueThumbnail(preset) {
-    if (state.queuedThumbnails.has(preset)) return; state.queuedThumbnails.add(preset); state.thumbnailQueue.push(preset);
-    document.querySelectorAll(`.scene-card[data-preset="${CSS.escape(preset)}"] .thumb-state`).forEach((label) => { label.textContent = 'Queued'; }); runThumbnailQueue();
-  }
-  async function runThumbnailQueue() {
-    if (state.thumbnailBusy || !state.thumbnailQueue.length) return; state.thumbnailBusy = true; const preset = state.thumbnailQueue.shift();
-    try { const result = await request('/api/preview/thumbnail', { method: 'POST', body: JSON.stringify({ preset, demo_props: true }) }); setThumbnail(preset, result.url, result.cached); }
-    catch (_) { document.querySelectorAll(`.scene-card[data-preset="${CSS.escape(preset)}"] .thumb-state`).forEach((label) => { label.textContent = 'Unavailable'; }); }
-    finally { state.thumbnailBusy = false; if (state.thumbnailQueue.length) setTimeout(runThumbnailQueue, 50); }
-  }
-  function observeCatalogThumbnails() {
-    state.thumbnailObserver?.disconnect();
-    state.thumbnailObserver = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { state.thumbnailObserver.unobserve(entry.target); fetchThumbnail(entry.target.dataset.preset).catch(() => {}); } }), { root: catalogCards, rootMargin: '180px 0px' });
-    catalogCards.querySelectorAll('.scene-card').forEach((card) => state.thumbnailObserver.observe(card));
-  }
-  async function loadCatalog() {
-    $('#catalogStatus').textContent = 'Обновляем live catalog…';
+  async function loadVoices() {
     try {
-      const params = new URLSearchParams({ query: $('#catalogQuery').value.trim(), tier: $('#catalogTier').value, limit: '80' });
-      const data = await request(`/api/studio/catalog?${params}`); state.catalog = data.items || []; renderCatalog(); $('#catalogTotal').textContent = `${data.total} сцен`;
-      $('#catalogStatus').textContent = `Live catalog · ${data.total} scenes`;
-      const chosen = presetSelect.value; presetSelect.replaceChildren(); state.catalog.forEach((scene) => { const option = document.createElement('option'); option.value = scene.name; option.textContent = scene.name; presetSelect.appendChild(option); });
-      if ([...presetSelect.options].some((option) => option.value === chosen)) presetSelect.value = chosen;
-    } catch (error) { catalogCards.innerHTML = `<p class="empty-state">Catalog unavailable: ${escapeHtml(error.message)}</p>`; $('#catalogStatus').textContent = 'Catalog недоступен'; }
+      const data = await api('/api/voices'); state.voices = data.items || [];
+      $('#runVoice').replaceChildren(); state.voices.filter((voice) => voice.usable).forEach((voice) => { const opt = document.createElement('option'); opt.value = voice.key; opt.textContent = `${voice.key} · ${voice.mode || 'reference'}`; $('#runVoice').appendChild(opt); });
+      if (!$('#runVoice').options.length) { const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'Нет готовых голосов'; $('#runVoice').appendChild(opt); }
+      renderVoiceCatalog();
+      if (state.settings) loadSettings();
+    } catch (error) { $('#voiceCatalog').textContent = `Каталог голосов недоступен: ${error.message}`; }
+  }
+  function renderVoiceCatalog() {
+    const root = $('#voiceCatalog');
+    if (!state.voices.length) { root.textContent = 'В каталоге пока нет голосов.'; return; }
+    root.innerHTML = state.voices.map((voice) => { const status = !voice.exists ? 'Файл не найден' : !voice.icl ? 'Нужен текст' : 'Готов'; const tone = voice.usable ? 'completed' : 'failed'; return `<article class="voice-row"><header><b>${esc(voice.key)}</b><span class="status-badge ${tone}">${status}</span></header><p>${esc(voice.mode || '—')} · ${voice.duration_sec || '—'} c · ${esc(voice.lang || '—')}${voice.icl ? ' · текст проверен' : ''}</p><p>${esc(voice.notes || '')}</p><div class="voice-actions"><button class="button button-secondary" data-voice-preview="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Прослушать</button><button class="button button-secondary" data-voice-use="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Выбрать для запуска</button></div></article>`; }).join('');
+    root.querySelectorAll('[data-voice-preview]').forEach((button) => button.addEventListener('click', () => previewVoice(button.dataset.voicePreview)));
+    root.querySelectorAll('[data-voice-use]').forEach((button) => button.addEventListener('click', () => { $('#runVoice').value = button.dataset.voiceUse; location.hash = '#overview'; }));
+  }
+  async function previewVoice(voice) {
+    try { const result = await api('/api/preview/voice', { method: 'POST', body: JSON.stringify({ voice }) }); const audio = new Audio(result.url); await audio.play(); }
+    catch (error) { setMessage('#voiceMessage', `Не удалось создать sample: ${error.message}`, 'error'); }
   }
 
-  async function loadGraph() { const data = await request('/api/studio/control-room/graph'); state.graph = data.nodes || []; if (!state.selectedNode && state.graph[0]) state.selectedNode = state.graph[0].id; renderGraph(); renderNodeInspector(); }
-  function nodeState(nodeId) {
-    if (state.snapshot?.current_node === nodeId) return 'active';
-    const relevant = state.events.filter((event) => event.node === nodeId); const last = relevant[relevant.length - 1];
-    if (!last) return ''; if (last.type === 'node.failed') return 'failed'; if (last.type === 'node.completed') return 'done'; return '';
+  async function measureVoice() {
+    const path = $('#voicePath').value.trim(); if (!path) { setMessage('#voiceMessage', 'Укажите путь к записи.', 'error'); return; }
+    try {
+      $('#voiceMeasurements').textContent = 'Измеряем запись…'; const data = await api('/api/voices/measure', { method: 'POST', body: JSON.stringify({ path }) });
+      $('#voiceCleanControls').disabled = false; state.voicePreparedPath = null;
+      const stats = data.stats || {}; const findings = (data.findings || []).map((item) => `<div class="finding ${esc(item.level)}">${esc(item.text)}</div>`).join('');
+      $('#voiceMeasurements').innerHTML = `<dl><dt>Длительность</dt><dd>${esc(stats.duration_sec)} c</dd><dt>SNR</dt><dd>${esc(stats.snr_db)} dB</dd><dt>Частота</dt><dd>${esc(stats.sample_rate)} Гц</dd><dt>Клиппинг</dt><dd>${esc(stats.clipped_samples)}</dd></dl>${findings || '<div class="finding info">Явных проблем не найдено.</div>'}`;
+      $('#denoiseVoice').checked = Boolean(data.recommend_denoise); $('#trimVoice').checked = Boolean(data.recommend_trim); $('#voiceStep').textContent = '2 · подготовка';
+    } catch (error) { $('#voiceMeasurements').textContent = `Проверка не выполнена: ${error.message}`; }
   }
+  async function prepareVoice() {
+    const path = $('#voicePath').value.trim(); if (!path) return;
+    try {
+      $('#voicePrepResult').hidden = false; $('#voicePrepResult').textContent = 'Создаём подготовленную копию…';
+      const data = await api('/api/voices/prepare', { method: 'POST', body: JSON.stringify({ path, denoise: $('#denoiseVoice').checked, trim_silence: $('#trimVoice').checked, normalize: $('#normalizeVoice').checked, denoise_strength: Number($('#denoiseStrength').value) }) });
+      state.voicePreparedPath = data.out_path; $('#voicePrepResult').innerHTML = `<b>Готово:</b> ${esc(data.out_path)}<br/>SNR: ${esc(data.before.snr_db)} → ${esc(data.after.snr_db)} dB (${esc(data.snr_gain_db >= 0 ? '+' : '')}${esc(data.snr_gain_db)} dB)<br/><small>${esc((data.applied || []).join(' · '))}</small>`; $('#voiceStep').textContent = '3 · расшифровка';
+    } catch (error) { $('#voicePrepResult').textContent = `Очистка не выполнена: ${error.message}`; }
+  }
+  async function transcribeVoice() {
+    const path = state.voicePreparedPath || $('#voicePath').value.trim(); if (!path) { setMessage('#voiceMessage', 'Сначала укажите и проверьте запись.', 'error'); return; }
+    try { $('#transcriptMeta').textContent = 'Распознаём речь…'; const data = await api('/api/voices/transcribe', { method: 'POST', body: JSON.stringify({ path, language: $('#voiceLanguage').value }) }); $('#voiceTranscript').value = data.text || ''; $('#transcriptMeta').textContent = `Модель ${data.model} · ${data.device} · уверенность ${data.mean_logprob}; обязательно вычитайте текст.`; $('#voiceStep').textContent = '4 · вычитка и сохранение'; }
+    catch (error) { $('#transcriptMeta').textContent = `Не удалось распознать: ${error.message}`; }
+  }
+  async function registerVoice() {
+    const path = state.voicePreparedPath || $('#voicePath').value.trim(); const key = $('#voiceKey').value.trim(); const ref_text = $('#voiceTranscript').value.trim();
+    if (!path || !key || !ref_text) { setMessage('#voiceMessage', 'Нужны путь, ключ и вычитанный текст референса.', 'error'); return; }
+    try { const result = await api('/api/voices', { method: 'POST', body: JSON.stringify({ key, ref_audio: path, ref_text, lang: $('#voiceLanguage').value, notes: $('#voiceNotes').value.trim() }) }); setMessage('#voiceMessage', `Голос ${result.key} добавлен в каталог.`, 'success'); $('#voiceKey').value = ''; $('#voiceNotes').value = ''; await loadVoices(); }
+    catch (error) { setMessage('#voiceMessage', `Не удалось добавить голос: ${error.message}`, 'error'); }
+  }
+  async function loadAudio() {
+    try { const data = await api('/api/audio'); state.audio = data; renderAudio(); } catch (error) { $('#audioLibrary').textContent = `Библиотека звука недоступна: ${error.message}`; }
+  }
+  function renderAudio() {
+    const section = (title, items, kind) => `<div class="audio-section"><h3>${title}</h3>${items.slice(0, 12).map((item) => `<div class="audio-row"><div><b>${esc(item.name)}</b><small>${esc(item.character || item.summary || item.family || '')}</small></div><button class="button button-secondary" data-audio-kind="${kind}" data-audio-name="${esc(item.name)}">▶</button></div>`).join('')}</div>`;
+    $('#audioLibrary').innerHTML = section('Музыка', state.audio.music || [], 'music') + section('SFX', state.audio.sfx || [], 'sfx');
+    $('#audioLibrary').querySelectorAll('[data-audio-name]').forEach((button) => button.addEventListener('click', async () => { try { const endpoint = button.dataset.audioKind === 'music' ? `/api/preview/music/${encodeURIComponent(button.dataset.audioName)}` : `/api/preview/sfx/${encodeURIComponent(button.dataset.audioName)}`; const data = await api(endpoint); const audio = new Audio(data.url); await audio.play(); } catch (_) {} }));
+  }
+
+  async function loadGraph() { const data = await api('/api/studio/control-room/graph'); state.graph = data.nodes || []; if (!state.selectedNode && state.graph[0]) state.selectedNode = state.graph[0].id; renderGraph(); }
+  function nodeState(id) { if (state.selectedRun?.current_node === id) return 'active'; const relevant = state.events.filter((event) => event.node === id); const last = relevant[relevant.length - 1]; if (!last) return ''; return last.type === 'node.failed' ? 'failed' : last.type === 'node.completed' ? 'done' : ''; }
   function renderGraph() {
-    const root = $('#pipelineGraph'); root.replaceChildren();
-    state.graph.forEach((node, index) => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = `graph-node ${nodeState(node.id)} ${state.selectedNode === node.id ? 'selected' : ''}`; button.dataset.node = node.id;
-      button.innerHTML = `<span class="node-index">${String(index + 1).padStart(2, '0')} · ${escapeHtml(node.label)}</span><b>${escapeHtml(node.title)}</b><small>${escapeHtml(node.description)}</small>`;
-      button.addEventListener('click', () => { state.selectedNode = node.id; renderGraph(); renderNodeInspector(); }); root.appendChild(button);
-      if (index < state.graph.length - 1) { const edge = document.createElement('i'); edge.className = 'graph-edge'; root.appendChild(edge); }
-    });
-    const active = state.snapshot?.current_node; const node = state.graph.find((item) => item.id === active);
-    const activity = $('#currentActivity'); const lastStart = [...state.events].reverse().find((event) => event.type === 'node.started' && event.node === active);
-    activity.innerHTML = `<span class="activity-dot"></span><div><small>${active ? `CURRENT NODE · ${escapeHtml(active)}` : 'WAITING FOR RUN'}</small><strong>${escapeHtml(lastStart?.payload?.activity || node?.title || 'Выберите или создайте draft')}</strong></div>`;
+    const root = $('#pipelineGraph'); root.replaceChildren(); state.graph.forEach((node, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = `pipeline-node ${nodeState(node.id)} ${state.selectedNode === node.id ? 'selected' : ''}`; button.innerHTML = `<small>${String(index + 1).padStart(2, '0')} · ${esc(node.label)}</small><b>${esc(node.title)}</b><span>${esc(node.description)}</span>`; button.addEventListener('click', () => { state.selectedNode = node.id; renderGraph(); renderNode(); }); root.appendChild(button); }); renderNode();
+    const current = state.graph.find((node) => node.id === state.selectedRun?.current_node); const started = [...state.events].reverse().find((event) => event.type === 'node.started' && event.node === state.selectedRun?.current_node); $('#pipelineActivity').textContent = current ? (started?.payload?.activity || current.title) : 'Выберите или создайте прогон';
   }
-  function renderNodeInspector() {
-    const node = state.graph.find((item) => item.id === state.selectedNode); if (!node) return;
-    $('#inspectorTitle').textContent = node.title; $('#inspectorDescription').textContent = node.description; const status = nodeState(node.id) || 'queued'; $('#inspectorStatus').textContent = status.toUpperCase(); $('#inspectorStatus').className = `chip ${status === 'active' || status === 'done' ? 'safe' : 'muted'}`;
-    const latest = [...state.events].reverse().find((event) => event.node === node.id); const meta = [['Node ID', node.id], ['State', status], ['Direction', node.editable_instruction ? 'Редактируемое · до approval' : 'Системный этап · read-only'], ['Latest event', latest?.type || '—']];
-    $('#inspectorMeta').innerHTML = meta.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
-    $('#inspectorEvent').textContent = latest ? `${time(latest.timestamp)} · ${latest.message || latest.type}` : 'Событий для этого node пока нет.';
-    const editable = Boolean(node.editable_instruction) && state.snapshot?.status === 'draft'; nodeInstruction.disabled = !editable; $('#saveNodeInstruction').disabled = !editable; $('#instructionPolicy').textContent = editable ? 'Короткое направление, max 480 символов.' : (node.editable_instruction ? 'После approval direction блокируется.' : 'Этот node детерминированный или read-only.');
-    nodeInstruction.value = state.request?.operator_overrides?.[node.id] || ''; $('#instructionCount').textContent = `${nodeInstruction.value.length} / 480`;
+  function renderNode() {
+    const node = state.graph.find((item) => item.id === state.selectedNode); if (!node) return; const latest = [...state.events].reverse().find((event) => event.node === node.id); const editable = Boolean(node.editable_instruction) && state.selectedRun?.status === 'draft';
+    $('#nodeKicker').textContent = `NODE · ${node.label}`; $('#nodeTitle').textContent = node.title; $('#nodeDescription').textContent = node.description; $('#nodeEvent').textContent = latest ? `${time(latest.timestamp)} · ${latest.message || latest.type}` : 'Событий для этого этапа пока нет.';
+    $('#nodeDirection').hidden = !node.editable_instruction; if (node.editable_instruction) { $('#nodeInstruction').disabled = !editable; $('#saveNodeInstruction').disabled = !editable; $('#nodeInstruction').value = state.selectedRequest?.operator_overrides?.[node.id] || ''; $('#instructionCount').textContent = `${$('#nodeInstruction').value.length} / 480`; }
   }
-
-  function renderActiveRun() {
-    const snapshot = state.snapshot; const requestData = state.request; setStatusBadge(snapshot?.status);
-    const wrap = $('#activeRunSummary'); if (!snapshot || !requestData) { wrap.className = 'active-run-summary empty-state'; wrap.textContent = 'Создайте draft или вставьте Run ID ниже.'; ['#saveDraft','#approveRun','#cancelRun'].forEach((id) => $(id).disabled = true); return; }
-    wrap.className = 'active-run-summary'; wrap.innerHTML = `<div class="summary-topic">${escapeHtml(requestData.topic)}</div><div class="summary-meta">${escapeHtml(snapshot.run_id)} · ${escapeHtml(snapshot.current_node || 'not started')}</div><div class="summary-meta">preset ${escapeHtml(requestData.preset)} · style ${escapeHtml(requestData.style || 'default')}</div>`;
-    $('#saveDraft').disabled = snapshot.status !== 'draft'; $('#approveRun').disabled = snapshot.status !== 'draft'; $('#cancelRun').disabled = !['draft','validated','queued','running','retrying'].includes(snapshot.status);
-  }
-  function renderTimeline() {
-    const list = $('#timeline'); const entries = [...state.events].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-    if (!entries.length) { list.innerHTML = '<li class="empty-state">События появятся после запуска worker.</li>'; } else list.innerHTML = entries.map((event) => `<li class="${event.level === 'error' ? 'error' : ''}"><span class="event-time">${time(event.timestamp)}</span><div><div class="event-type">${escapeHtml(event.type)}${event.node ? ` · ${escapeHtml(event.node)}` : ''}</div><div class="event-message">${escapeHtml(event.message || '—')}</div></div></li>`).join('');
-    const artifacts = state.snapshot?.artifacts || []; const area = $('#artifactList');
-    area.innerHTML = artifacts.length ? artifacts.map((artifact) => `<div class="artifact"><span class="artifact-icon">${artifact.kind === 'video' ? 'MP4' : 'FILE'}</span><div><strong>${escapeHtml(artifact.name)}</strong><small>${escapeHtml(artifact.mime_type)} · ${artifact.size_bytes || 0} bytes</small></div></div>`).join('') : '<p class="empty-state">Пока нет артефактов.</p>';
-  }
-
-  async function loadRun(runId = runIdInput.value.trim(), reset = true) {
-    if (!runId) return; state.runId = runId; runIdInput.value = runId;
-    try {
-      const control = await request(`/api/studio/runs/${encodeURIComponent(runId)}/control`); state.snapshot = control.snapshot; state.request = control.request;
-      const timeline = await request(`/api/studio/runs/${encodeURIComponent(runId)}/timeline?after_sequence=0&limit=500`); state.events = timeline.events || []; state.traces = timeline.traces || []; state.lastSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), 0);
-      renderActiveRun(); renderGraph(); renderNodeInspector(); renderTimeline(); if (isActive()) enablePolling(true);
-    } catch (error) { setRunResult(`Не удалось открыть run: ${error.message}`, 'error'); }
-  }
-  async function pollRun() {
-    if (!state.runId) return;
-    try {
-      const [control, timeline] = await Promise.all([request(`/api/studio/runs/${encodeURIComponent(state.runId)}/control`), request(`/api/studio/runs/${encodeURIComponent(state.runId)}/timeline?after_sequence=${state.lastSequence}&limit=200`)]);
-      state.snapshot = control.snapshot; state.request = control.request; const additions = timeline.events || []; if (additions.length) { state.events.push(...additions); state.lastSequence = Math.max(state.lastSequence, ...additions.map((event) => event.sequence || 0)); }
-      renderActiveRun(); renderGraph(); renderNodeInspector(); renderTimeline(); if (!isActive()) enablePolling(false);
-    } catch (_) { $('#refreshState').textContent = 'Переподключение к local API…'; }
-  }
-  function enablePolling(value) { state.polling = value; clearInterval(state.pollTimer); state.pollTimer = value ? setInterval(pollRun, 1500) : null; $('#togglePolling').textContent = `Live: ${value ? 'on' : 'off'}`; $('#refreshState').textContent = value ? 'Обновление каждые 1.5 сек.' : 'Live polling выключен'; }
-
   async function prepareRun(event) {
-    event.preventDefault(); setRunResult('Создаём управляемый draft…');
-    try {
-      const data = await request('/api/studio/runs/prepare', { method: 'POST', body: JSON.stringify({ topic: $('#topic').value.trim(), preset: presetSelect.value, style: styleFamily.value || null, style_config: styleConfig(), research: $('#researchMode').value === 'on', music: $('#musicToggle').checked, sfx: $('#musicToggle').checked, agent_level: Number($('#agentLevel').value) }) });
-      setRunResult(`Draft ${data.run.run_id} создан. Renderer ещё не запущен.`, 'success'); await loadRun(data.run.run_id);
-    } catch (error) { setRunResult(`Draft не создан: ${error.message}`, 'error'); }
+    event.preventDefault();
+    try { const data = await api('/api/studio/runs/prepare', { method: 'POST', body: JSON.stringify({ topic: $('#topic').value.trim(), preset: $('#preset').value, style: $('#styleFamily').value || null, voice: $('#runVoice').value || null, research: $('#researchMode').checked, music: $('#musicToggle').checked, sfx: $('#musicToggle').checked, agent_level: Number($('#agentLevel').value) }) }); setMessage('#runMessage', `Черновик ${data.run.run_id} создан. Проверьте этапы и затем запустите.`, 'success'); await loadRun(data.run.run_id); }
+    catch (error) { setMessage('#runMessage', `Черновик не создан: ${error.message}`, 'error'); }
   }
-  function currentDraftPatch() { return { topic: $('#topic').value.trim(), preset: presetSelect.value, style: styleFamily.value || null, style_config: styleConfig(), research: $('#researchMode').value === 'on', music: $('#musicToggle').checked, sfx: $('#musicToggle').checked, agent_level: Number($('#agentLevel').value) }; }
-  async function patchDraft(onlyInstruction = false) {
-    if (!state.runId || state.snapshot?.status !== 'draft') return;
-    const overrides = { ...(state.request?.operator_overrides || {}) }; const node = state.selectedNode;
-    if (node && state.graph.find((item) => item.id === node)?.editable_instruction) overrides[node] = nodeInstruction.value.trim();
-    try { const data = await request(`/api/studio/runs/${encodeURIComponent(state.runId)}/draft`, { method: 'PATCH', body: JSON.stringify({ request_patch: onlyInstruction ? {} : currentDraftPatch(), operator_overrides: overrides }) }); state.snapshot = data.snapshot; state.request = data.request; setRunResult('Draft и разрешённые operator directions сохранены.', 'success'); renderActiveRun(); renderNodeInspector(); }
-    catch (error) { setRunResult(`Не удалось сохранить правки: ${error.message}`, 'error'); }
+  function draftPatch() { return { topic: $('#topic').value.trim(), preset: $('#preset').value, style: $('#styleFamily').value || null, voice: $('#runVoice').value || null, research: $('#researchMode').checked, music: $('#musicToggle').checked, sfx: $('#musicToggle').checked, agent_level: Number($('#agentLevel').value) }; }
+  async function loadRun(runId) {
+    try { const control = await api(`/api/studio/runs/${encodeURIComponent(runId)}/control`); const timeline = await api(`/api/studio/runs/${encodeURIComponent(runId)}/timeline?after_sequence=0&limit=500`); state.selectedRun = control.snapshot; state.selectedRequest = control.request; state.events = timeline.events || []; state.lastSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), 0); renderCurrentRun(); renderGraph(); renderTimeline(); if (runActive()) enablePolling(true); }
+    catch (error) { setMessage('#runMessage', `Не удалось открыть прогон: ${error.message}`, 'error'); }
   }
-  async function approveRun() { if (!state.runId) return; try { await request(`/api/studio/runs/${encodeURIComponent(state.runId)}/approve-and-start`, { method: 'POST', body: JSON.stringify({ approved: true }) }); setRunResult('Worker запущен. Graph будет подсвечивать текущий node.', 'success'); await loadRun(state.runId); enablePolling(true); } catch (error) { setRunResult(`Запуск отклонён: ${error.message}`, 'error'); } }
-  async function cancelRun() { if (!state.runId || !confirm('Остановить текущий local run?')) return; try { await request(`/api/studio/runs/${encodeURIComponent(state.runId)}/cancel`, { method: 'POST' }); setRunResult('Run отменён. Создайте новую draft-редакцию для изменений.', 'success'); await loadRun(state.runId); } catch (error) { setRunResult(`Не удалось отменить run: ${error.message}`, 'error'); } }
-
-  function openSceneDrawer(scene) { state.selectedScene = scene; $('#drawerTitle').textContent = scene.name; $('#drawerSummary').textContent = scene.summary || '—'; $('#drawerBadges').innerHTML = [...(scene.intent_tags || []), scene.data_driven ? 'data-driven' : 'text-safe'].map((item) => `<span>${escapeHtml(item)}</span>`).join(''); const details = [['Категория', scene.category], ['Tier', scene.capability_tier], ['Поля', (scene.fields || []).join(', ') || '—'], ['Нужные данные', (scene.required_data_hints || []).join(', ') || 'не требуются'], ['Audio роли', (scene.recommended_audio_roles || []).join(', ') || 'auto']]; $('#drawerDetails').innerHTML = details.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value || '—')}</dd>`).join(''); $('#drawerPreview').innerHTML = '<div class="preview-placeholder"><span>MSF</span><p>Render still или motion preview по запросу.</p></div>'; $('#sceneDrawer').classList.add('open'); $('#sceneDrawer').setAttribute('aria-hidden', 'false'); }
-  function closeDrawer() { $('#sceneDrawer').classList.remove('open'); $('#sceneDrawer').setAttribute('aria-hidden', 'true'); }
-  async function renderScenePreview(kind) {
-    if (!state.selectedScene) return; const endpoint = kind === 'clip' ? '/api/preview/clip' : '/api/preview/scene'; const stage = $('#drawerPreview'); stage.innerHTML = '<div class="preview-placeholder"><span>…</span><p>Готовим preview через canonical renderer…</p></div>';
-    try { const data = await request(endpoint, { method: 'POST', body: JSON.stringify({ preset: state.selectedScene.name, demo_props: true, scale: kind === 'clip' ? 0.35 : 0.5, frame_pct: 0.78 }) }); stage.innerHTML = kind === 'clip' ? `<video controls autoplay muted loop src="${escapeHtml(data.url)}"></video>` : `<img alt="Preview ${escapeHtml(state.selectedScene.name)}" src="${escapeHtml(data.url)}"/>`; }
-    catch (error) { stage.innerHTML = `<div class="preview-placeholder"><span>!</span><p>${escapeHtml(error.message)}</p></div>`; }
+  function renderCurrentRun() {
+    const run = state.selectedRun; const request = state.selectedRequest; const badge = $('#runStatus'); if (!run || !request) { $('#currentRun').textContent = 'Выберите прогон в истории или создайте новый черновик.'; badge.textContent = 'Нет выбора'; badge.className = 'status-badge muted'; return; }
+    badge.textContent = run.status; badge.className = `status-badge ${run.status}`; $('#currentRun').innerHTML = `<b>${esc(request.topic)}</b><p class="helper">${esc(run.run_id)} · ${esc(request.preset)} · ${esc(request.style || 'default')} · ${esc(request.voice || 'default voice')}</p>`;
+    const draft = run.status === 'draft'; $('#saveDraft').disabled = !draft; $('#approveRun').disabled = !draft; $('#cancelRun').disabled = !['draft', 'validated', 'queued', 'running', 'retrying'].includes(run.status); $('#openCurrentRun').disabled = false;
+    if (draft) { $('#topic').value = request.topic; $('#preset').value = request.preset; $('#styleFamily').value = request.style || $('#styleFamily').value; if (request.voice) $('#runVoice').value = request.voice; $('#researchMode').checked = request.research; $('#musicToggle').checked = request.music; $('#agentLevel').value = request.agent_level; }
   }
+  async function saveDraft(onlyDirection = false) {
+    if (!state.selectedRun || state.selectedRun.status !== 'draft') return;
+    const override = {}; const node = state.graph.find((item) => item.id === state.selectedNode); if (onlyDirection && node?.editable_instruction) override[node.id] = $('#nodeInstruction').value.trim();
+    try { const data = await api(`/api/studio/runs/${encodeURIComponent(state.selectedRun.run_id)}/draft`, { method: 'PATCH', body: JSON.stringify({ request_patch: onlyDirection ? {} : draftPatch(), operator_overrides: override }) }); state.selectedRun = data.snapshot; state.selectedRequest = data.request; renderCurrentRun(); renderGraph(); setMessage('#runMessage', onlyDirection ? 'Направление сохранено в черновике.' : 'Черновик сохранён.', 'success'); }
+    catch (error) { setMessage('#runMessage', `Не удалось сохранить: ${error.message}`, 'error'); }
+  }
+  async function approveRun() { if (!state.selectedRun) return; try { const data = await api(`/api/studio/runs/${encodeURIComponent(state.selectedRun.run_id)}/approve-and-start`, { method: 'POST', body: JSON.stringify({ approved: true }) }); state.selectedRun = data.run; renderCurrentRun(); renderGraph(); enablePolling(true); setMessage('#runMessage', 'Worker запущен. События появятся в разделе «Прогоны».', 'success'); } catch (error) { setMessage('#runMessage', `Не удалось запустить: ${error.message}`, 'error'); } }
+  async function cancelRun() { if (!state.selectedRun) return; try { const data = await api(`/api/studio/runs/${encodeURIComponent(state.selectedRun.run_id)}/cancel`, { method: 'POST' }); state.selectedRun = data.run; renderCurrentRun(); renderGraph(); enablePolling(false); } catch (error) { setMessage('#runMessage', `Не удалось отменить: ${error.message}`, 'error'); } }
+  function renderTimeline() { const list = $('#timeline'); $('#timelineState').textContent = state.selectedRun ? `${state.selectedRun.run_id} · ${state.selectedRun.status}` : 'Нет выбранного прогона'; if (!state.events.length) { list.innerHTML = '<li class="empty-state">Событий пока нет.</li>'; } else list.innerHTML = state.events.map((event) => `<li><time>${esc(time(event.timestamp))}</time><div><strong>${esc(event.type)}${event.node ? ` · ${esc(event.node)}` : ''}</strong><p>${esc(event.message || '—')}</p></div></li>`).join(''); const artifacts = state.selectedRun?.artifacts || []; $('#artifactList').innerHTML = artifacts.length ? artifacts.map((item) => `<div class="artifact"><div><b>${esc(item.name)}</b><small>${esc(item.kind)} · ${esc(item.mime_type)}</small></div><span>${esc(item.size_bytes || 0)} B</span></div>`).join('') : 'Артефакты появятся после работы pipeline.'; }
+  async function pollRun() { if (!state.selectedRun || !runActive()) return; try { const [control, timeline] = await Promise.all([api(`/api/studio/runs/${encodeURIComponent(state.selectedRun.run_id)}/control`), api(`/api/studio/runs/${encodeURIComponent(state.selectedRun.run_id)}/timeline?after_sequence=${state.lastSequence}&limit=200`)]); state.selectedRun = control.snapshot; state.selectedRequest = control.request; const additions = timeline.events || []; state.events.push(...additions); if (additions.length) state.lastSequence = Math.max(state.lastSequence, ...additions.map((event) => event.sequence || 0)); renderCurrentRun(); renderGraph(); renderTimeline(); if (!runActive()) { enablePolling(false); loadRuns(); } } catch (_) {} }
+  function enablePolling(on) { clearInterval(state.pollTimer); state.pollTimer = on ? setInterval(pollRun, 1500) : null; }
 
-  $('#runForm').addEventListener('submit', prepareRun); $('#loadRun').addEventListener('click', () => loadRun()); $('#refreshControl').addEventListener('click', () => { loadCatalog(); if (state.runId) loadRun(state.runId); }); $('#refreshCatalog').addEventListener('click', loadCatalog); $('#saveDraft').addEventListener('click', () => patchDraft(false)); $('#saveNodeInstruction').addEventListener('click', () => patchDraft(true)); $('#approveRun').addEventListener('click', approveRun); $('#cancelRun').addEventListener('click', cancelRun); $('#togglePolling').addEventListener('click', () => enablePolling(!state.polling));
-  $('#openStyleControls').addEventListener('click', () => { const controls = $('#styleControls'); controls.hidden = !controls.hidden; }); styleFamily.addEventListener('change', applyStyleFamily); ['#styleNeon','#styleBg','#styleSurface'].forEach((id) => $(id).addEventListener('input', () => { $(id).dataset.override = 'true'; refreshStyleControls(); })); $('#styleBloom').addEventListener('input', () => { $('#styleBloom').dataset.override = 'true'; refreshStyleControls(); }); nodeInstruction.addEventListener('input', () => $('#instructionCount').textContent = `${nodeInstruction.value.length} / 480`);
-  let debounce = 0; $('#catalogQuery').addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(loadCatalog, 220); }); $('#catalogTier').addEventListener('change', loadCatalog); document.querySelectorAll('[data-close-drawer]').forEach((button) => button.addEventListener('click', closeDrawer)); $('#renderStill').addEventListener('click', () => renderScenePreview('still')); $('#renderClip').addEventListener('click', () => renderScenePreview('clip')); $('#useScene').addEventListener('click', () => { if (!state.selectedScene) return; presetSelect.value = state.selectedScene.name; closeDrawer(); setRunResult(`Выбрана стартовая сцена ${state.selectedScene.name}. Сохраните draft, чтобы применить выбор.`, 'success'); document.querySelector('#control').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  async function loadRuns() { try { const status = $('#runStatusFilter').value; const data = await api(`/api/studio/runs?limit=80${status ? `&status=${encodeURIComponent(status)}` : ''}`); state.runHistory = data.items || []; renderRuns(); } catch (error) { $('#runTable').textContent = `Не удалось загрузить историю: ${error.message}`; } }
+  function renderRuns() { const root = $('#runTable'); if (!state.runHistory.length) { root.textContent = 'Прогонов по этому фильтру пока нет.'; return; } root.innerHTML = `<table><thead><tr><th>Тема</th><th>Статус</th><th>Создан</th><th>Стиль / голос</th><th>Артефакты</th></tr></thead><tbody>${state.runHistory.map((run) => `<tr data-run-id="${esc(run.run_id)}"><td><div class="run-topic">${esc(run.topic || '—')}</div><div class="run-meta">${esc(run.run_id)} · ${esc(run.preset || '—')}</div></td><td><span class="status-badge ${esc(run.status)}">${esc(run.status)}</span></td><td>${esc(time(run.created_at))}</td><td>${esc(run.style || 'default')}<div class="run-meta">${esc(run.voice || 'default voice')}</div></td><td>${esc(run.artifacts_count || 0)}</td></tr>`).join('')}</tbody></table>`; root.querySelectorAll('[data-run-id]').forEach((row) => row.addEventListener('click', () => { location.hash = '#runs'; loadRun(row.dataset.runId); })); }
 
-  Promise.all([loadCatalog(), loadStyles(), loadGraph()]).catch((error) => { $('#catalogStatus').textContent = `Local API недоступен: ${error.message}`; });
+  function renderCatalog() { const root = $('#catalogCards'); root.replaceChildren(); if (!state.catalog.length) { root.innerHTML = '<p class="empty-state">По этому запросу сцен не найдено.</p>'; return; } state.catalog.forEach((scene) => { const card = document.createElement('button'); card.type = 'button'; card.className = `scene-card ${state.selectedScene?.name === scene.name ? 'selected' : ''}`; card.dataset.preset = scene.name; card.innerHTML = `<div class="scene-image"><span>Превью</span></div><div class="scene-body"><small>${esc(scene.category || 'general')}</small><strong>${esc(scene.name)}</strong><p>${esc(scene.summary || '')}</p></div>`; card.addEventListener('click', () => selectScene(scene)); root.appendChild(card); }); observeThumbnails(); }
+  async function loadCatalog() { try { const params = new URLSearchParams({ query: $('#catalogQuery').value.trim(), tier: $('#catalogTier').value, limit: '80' }); const data = await api(`/api/studio/catalog?${params}`); state.catalog = data.items || []; $('#preset').replaceChildren(); state.catalog.forEach((scene) => { const option = document.createElement('option'); option.value = scene.name; option.textContent = scene.name; $('#preset').appendChild(option); }); applySettingsToComposer(); renderCatalog(); } catch (error) { $('#catalogCards').textContent = `Каталог недоступен: ${error.message}`; } }
+  function setThumbnail(preset, url, cached) { document.querySelectorAll(`.scene-card[data-preset="${CSS.escape(preset)}"] .scene-image`).forEach((root) => { root.innerHTML = `<img alt="${esc(preset)} preview" src="${esc(url)}"/><span class="cache-pill">${cached ? 'Cached' : 'Rendered'}</span>`; }); }
+  async function fetchThumbnail(preset) { try { const cached = await api(`/api/preview/thumbnail/${encodeURIComponent(preset)}`); setThumbnail(preset, cached.url, true); } catch (error) { if (String(error.message).includes('thumbnail not cached')) queueThumbnail(preset); } }
+  function queueThumbnail(preset) { if (state.queuedThumbnails.has(preset)) return; state.queuedThumbnails.add(preset); state.thumbnailQueue.push(preset); runThumbnailQueue(); }
+  async function runThumbnailQueue() { if (state.thumbnailBusy || !state.thumbnailQueue.length) return; state.thumbnailBusy = true; const preset = state.thumbnailQueue.shift(); try { const result = await api('/api/preview/thumbnail', { method: 'POST', body: JSON.stringify({ preset, demo_props: true }) }); setThumbnail(preset, result.url, result.cached); } catch (_) {} finally { state.thumbnailBusy = false; if (state.thumbnailQueue.length) setTimeout(runThumbnailQueue, 80); } }
+  function observeThumbnails() { state.thumbnailObserver?.disconnect(); state.thumbnailObserver = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { state.thumbnailObserver.unobserve(entry.target); fetchThumbnail(entry.target.dataset.preset); } }), { root: null, rootMargin: '180px 0px' }); document.querySelectorAll('.scene-card').forEach((card) => state.thumbnailObserver.observe(card)); }
+  async function selectScene(scene) { state.selectedScene = scene; renderCatalog(); $('#sceneTitle').textContent = scene.name; $('#sceneInfo').innerHTML = `<p>${esc(scene.summary || '')}</p><dl class="scene-details"><dt>Категория</dt><dd>${esc(scene.category || '—')}</dd><dt>Tier</dt><dd>${esc(scene.tier || 'preset')}</dd><dt>Нужные данные</dt><dd>${esc((scene.required_data_hints || []).join(', ') || 'Нет')}</dd><dt>Audio roles</dt><dd>${esc((scene.recommended_audio_roles || []).join(', ') || 'Auto')}</dd></dl>`; $('#scenePreview').className = 'preview-empty'; $('#scenePreview').textContent = 'Загружаем cached preview…'; $('#renderStill').disabled = false; $('#renderClip').disabled = false; $('#useScene').disabled = false; try { const cached = await api(`/api/preview/thumbnail/${encodeURIComponent(scene.name)}`); $('#scenePreview').className = 'preview-media'; $('#scenePreview').innerHTML = `<img alt="${esc(scene.name)} preview" src="${esc(cached.url)}"/>`; } catch (_) { $('#scenePreview').textContent = 'Для этой сцены ещё нет превью. Нажмите «Обновить превью».'; } }
+  async function renderSelectedStill() { if (!state.selectedScene) return; $('#scenePreview').textContent = 'Рендерим preview…'; try { const data = await api('/api/preview/scene', { method: 'POST', body: JSON.stringify({ preset: state.selectedScene.name, demo_props: true, scale: .5 }) }); $('#scenePreview').className = 'preview-media'; $('#scenePreview').innerHTML = `<img alt="${esc(data.preset)} preview" src="${esc(data.url)}"/>`; } catch (error) { $('#scenePreview').textContent = `Preview не создан: ${error.message}`; } }
+  async function renderSelectedClip() { if (!state.selectedScene) return; $('#scenePreview').textContent = 'Рендерим короткий motion preview…'; try { const data = await api('/api/preview/clip', { method: 'POST', body: JSON.stringify({ preset: state.selectedScene.name, demo_props: true, scale: .35, to_frame: 80 }) }); $('#scenePreview').className = 'preview-media'; $('#scenePreview').innerHTML = `<video controls autoplay muted src="${esc(data.url)}"></video>`; } catch (error) { $('#scenePreview').textContent = `Motion preview не создан: ${error.message}`; } }
+
+  async function refreshAll() { try { await Promise.all([loadGraph(), loadStyles(), loadVoices(), loadSettings(), loadCatalog()]); $('#systemStatus').textContent = 'Система доступна'; } catch (error) { $('#systemStatus').textContent = `Проверьте локальный сервис`; } }
+  function bind() {
+    window.addEventListener('hashchange', () => setPage(activePage()));
+    $('#runForm').addEventListener('submit', prepareRun); $('#saveDraft').addEventListener('click', () => saveDraft(false)); $('#saveNodeInstruction').addEventListener('click', () => saveDraft(true)); $('#approveRun').addEventListener('click', approveRun); $('#cancelRun').addEventListener('click', cancelRun); $('#openCurrentRun').addEventListener('click', () => { location.hash = '#runs'; }); $('#nodeInstruction').addEventListener('input', () => { $('#instructionCount').textContent = `${$('#nodeInstruction').value.length} / 480`; });
+    $('#refreshCatalog').addEventListener('click', loadCatalog); $('#renderStill').addEventListener('click', renderSelectedStill); $('#renderClip').addEventListener('click', renderSelectedClip); $('#useScene').addEventListener('click', () => { if (!state.selectedScene) return; $('#preset').value = state.selectedScene.name; location.hash = '#overview'; setMessage('#runMessage', `Сцена ${state.selectedScene.name} выбрана для следующего черновика.`, 'success'); });
+    $('#refreshRuns').addEventListener('click', loadRuns); $('#runStatusFilter').addEventListener('change', loadRuns); $('#settingsForm').addEventListener('submit', saveSettings); $('#refreshVoices').addEventListener('click', loadVoices); $('#measureVoice').addEventListener('click', measureVoice); $('#prepareVoice').addEventListener('click', prepareVoice); $('#transcribeVoice').addEventListener('click', transcribeVoice); $('#registerVoice').addEventListener('click', registerVoice); $('#denoiseStrength').addEventListener('input', () => { $('#denoiseStrengthValue').textContent = $('#denoiseStrength').value; }); $('#refreshAll').addEventListener('click', refreshAll);
+  }
+  async function init() { bind(); try { await Promise.all([loadGraph(), loadStyles(), loadVoices(), loadCatalog()]); await loadSettings(); $('#systemStatus').textContent = 'Система доступна'; } catch (error) { $('#systemStatus').textContent = 'Не удалось загрузить данные'; } setPage(activePage()); }
+  document.addEventListener('DOMContentLoaded', init);
 })();

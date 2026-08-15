@@ -151,51 +151,52 @@ def api_effects() -> Dict[str, Any]:
     }
 
 
-@app.get("/api/voices")
-def api_voices() -> Dict[str, Any]:
-    """The voice registry, with the cloning mode each entry will ACTUALLY get.
+def _local_voice_catalog() -> tuple[str, list[Dict[str, Any]]]:
+    """Read the portable voice registry without importing the optional TTS runtime.
 
-    `mode` is the field that matters. A reference without a transcript silently
-    degrades to x-vector (timbre copied, prosody flat), which is the difference
-    between a natural read and the robotic one. describe_reference() reports it
-    rather than leaving it to be discovered by ear.
+    Catalogue management and transcript review should work on a machine before a
+    GPU/TTS environment is configured. Actual synthesis remains a separate runtime
+    check in the preview endpoint.
     """
-    from msf.skills_bridge.qwen3_tts import DEFAULT_VOICE, describe_reference, load_voices
-
-    voices = []
-    for key, entry in sorted(load_voices().items()):
-        if key.startswith("_"):
-            continue
-        try:
-            info = describe_reference(key)
-        except Exception as exc:  # a broken entry must be visible, not fatal
-            voices.append({"key": key, "error": str(exc), "usable": False})
-            continue
-        voices.append({
-            "key": key,
-            "ref_audio": info.get("ref_audio"),
-            "exists": info.get("exists"),
-            "duration_sec": info.get("duration_sec"),
-            "sample_rate": info.get("sample_rate"),
-            "has_ref_text": info.get("has_ref_text"),
-            "mode": info.get("mode"),
-            "icl": bool(info.get("has_ref_text")),
-            "lang": entry.get("lang"),
-            "notes": entry.get("notes"),
-            "ref_text": entry.get("ref_text"),
-            "is_default": key == DEFAULT_VOICE,
-            "usable": bool(info.get("exists")),
-        })
+    import soundfile as sf
 
     from msf.config import MSFConfig
 
+    default_voice = MSFConfig().tts.speaker
+    voices_path = REPO / "assets" / "voices" / "voices.json"
+    entries = json.loads(voices_path.read_text(encoding="utf-8")) if voices_path.is_file() else {}
+    items: list[Dict[str, Any]] = []
+    for key, entry in sorted(entries.items()):
+        if key.startswith("_") or not isinstance(entry, dict):
+            continue
+        ref_audio = REPO / str(entry.get("ref_audio", ""))
+        exists = ref_audio.is_file()
+        duration, sample_rate = None, None
+        if exists:
+            try:
+                meta = sf.info(str(ref_audio))
+                duration, sample_rate = round(meta.duration, 2), meta.samplerate
+            except Exception:
+                exists = False
+        has_text = bool(str(entry.get("ref_text") or "").strip())
+        items.append({
+            "key": key, "ref_audio": str(entry.get("ref_audio") or ""), "exists": exists,
+            "duration_sec": duration, "sample_rate": sample_rate, "has_ref_text": has_text,
+            "mode": "icl" if has_text else "x_vector_only", "icl": has_text,
+            "lang": entry.get("lang"), "notes": entry.get("notes"), "ref_text": entry.get("ref_text"),
+            "is_default": key == default_voice, "usable": exists and has_text,
+        })
+    return default_voice, items
+
+
+@app.get("/api/voices")
+def api_voices() -> Dict[str, Any]:
+    """Voice catalogue available even before optional synthesis dependencies are installed."""
+    from msf.config import MSFConfig
+
+    default_voice, voices = _local_voice_catalog()
     cfg = MSFConfig()
-    return {
-        "default": DEFAULT_VOICE,
-        "configured": cfg.tts.speaker,
-        "configured_is_valid": any(v["key"] == cfg.tts.speaker for v in voices),
-        "items": voices,
-    }
+    return {"default": default_voice, "configured": cfg.tts.speaker, "configured_is_valid": any(v["key"] == cfg.tts.speaker for v in voices), "items": voices}
 
 
 @app.get("/api/audio")
@@ -921,8 +922,6 @@ def api_add_voice(req: VoiceAddRequest) -> Dict[str, Any]:
 
     import soundfile as sf
 
-    from msf.skills_bridge import qwen3_tts
-
     if not _re.fullmatch(r"[A-Za-z0-9_-]+", req.key):
         raise HTTPException(422, "key must be [A-Za-z0-9_-]+")
     if req.key.startswith("_"):
@@ -967,18 +966,18 @@ def api_add_voice(req: VoiceAddRequest) -> Dict[str, Any]:
     voices_path.write_text(
         json.dumps(registry_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    # load_voices() memoises in a module global; a stale cache would make the new
-    # voice invisible until restart.
-    qwen3_tts._VOICES_CACHE = None
-
-    info = qwen3_tts.describe_reference(req.key)
+    # If a synthesis runtime is loaded in this process, refresh its lazy registry;
+    # voice management itself must remain available when that optional runtime is off.
+    loaded_tts = sys.modules.get("msf.skills_bridge.qwen3_tts")
+    if loaded_tts is not None:
+        loaded_tts._VOICES_CACHE = None
     return {
         "key": req.key,
         "ref_audio": registry_data[req.key]["ref_audio"],
         "duration_sec": round(meta.duration, 2),
         "sample_rate": meta.samplerate,
-        "mode": info.get("mode"),
-        "icl": bool(info.get("has_ref_text")),
+        "mode": "icl",
+        "icl": True,
     }
 
 
@@ -1117,21 +1116,19 @@ def api_voice_transcribe(req: VoiceTranscribeRequest) -> Dict[str, Any]:
 @app.delete("/api/voices/{key}")
 def api_delete_voice(key: str) -> Dict[str, Any]:
     """Remove a voice from the registry. The wav file is left on disk."""
-    from msf.skills_bridge import qwen3_tts
+    from msf.config import MSFConfig
 
-    if key == qwen3_tts.DEFAULT_VOICE:
-        raise HTTPException(
-            409,
-            f"{key!r} is DEFAULT_VOICE — deleting it would make resolve_voice(None) "
-            "fall through to a reference with no transcript, disabling ICL.",
-        )
+    if key == MSFConfig().tts.speaker:
+        raise HTTPException(409, f"{key!r} is the configured default voice and cannot be removed here.")
     voices_path = REPO / "assets" / "voices" / "voices.json"
     data = json.loads(voices_path.read_text(encoding="utf-8")) if voices_path.is_file() else {}
     if key not in data:
         raise HTTPException(404, f"unknown voice {key!r}")
     data.pop(key)
     voices_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    qwen3_tts._VOICES_CACHE = None
+    loaded_tts = sys.modules.get("msf.skills_bridge.qwen3_tts")
+    if loaded_tts is not None:
+        loaded_tts._VOICES_CACHE = None
     return {"removed": key}
 
 
@@ -1283,12 +1280,58 @@ class StudioApprovalPayload(BaseModel):
     approved: bool = False
 
 
+class StudioSettingsPatchPayload(BaseModel):
+    """Safe defaults for drafts; these never override an approved run."""
+
+    default_voice: Optional[str] = Field(default=None, max_length=120)
+    default_style: Optional[str] = Field(default=None, max_length=120)
+    default_agent_level: Optional[int] = Field(default=None, ge=1, le=5)
+    default_research: Optional[bool] = None
+    default_music: Optional[bool] = None
+    default_sfx: Optional[bool] = None
+
+
 def _studio_tier(value: str):
     from msf.studio.contracts import CapabilityTier
     try:
         return CapabilityTier(value)
     except ValueError as exc:
         raise HTTPException(422, f"unknown Studio capability tier: {value!r}") from exc
+
+
+@app.get("/api/studio/settings")
+def api_studio_settings() -> Dict[str, Any]:
+    """Operator defaults and safe runtime facts for the Studio Settings screen."""
+    from msf.config import MSFConfig
+    from msf.studio.operator_settings import load
+
+    settings = load()
+    if settings["default_voice"] is None:
+        settings["default_voice"] = MSFConfig().tts.speaker
+    return {
+        "settings": settings,
+        "available_voice_keys": [item["key"] for item in _local_voice_catalog()[1]],
+        "runtime": {
+            "render": {"width": MSFConfig().render.width, "height": MSFConfig().render.height, "fps": MSFConfig().render.fps},
+            "audio": {"target_lufs": MSFConfig().audio.target_lufs, "sample_rate": MSFConfig().audio.sample_rate},
+            "storage": "local disk + SQLite run index",
+        },
+    }
+
+
+@app.patch("/api/studio/settings")
+def api_patch_studio_settings(payload: StudioSettingsPatchPayload) -> Dict[str, Any]:
+    """Update only non-secret defaults that are applied to future run drafts."""
+    from msf.studio.operator_settings import save
+
+    patch = payload.model_dump(exclude_unset=True)
+    if "default_voice" in patch and patch["default_voice"] is not None:
+        if patch["default_voice"] not in {item["key"] for item in _local_voice_catalog()[1]}:
+            raise HTTPException(422, "default_voice must be an existing voice key")
+    try:
+        return {"settings": save(patch)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/studio/catalog")
@@ -1424,6 +1467,18 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
 def api_studio_control_room_graph() -> Dict[str, Any]:
     """Return the exact canonical worker graph used by the local Control Room."""
     return {"nodes": _CONTROL_ROOM_NODES, "edges": _CONTROL_ROOM_EDGES, "transport": "cursor_polling", "policy": "operational telemetry only"}
+
+
+@app.get("/api/studio/runs")
+def api_studio_runs(limit: int = 80, status: Optional[str] = None) -> Dict[str, Any]:
+    """Return the persistent local run archive, optionally filtered by lifecycle status."""
+    from msf.studio.contracts import RunStatus
+    from msf.studio.runs import StudioRunService
+
+    if status and status not in {item.value for item in RunStatus}:
+        raise HTTPException(422, f"unknown Studio run status: {status!r}")
+    items = StudioRunService().list_runs(limit=limit, status=status)
+    return {"items": items, "total": len(items), "storage": "sqlite index + per-run files"}
 
 
 @app.get("/api/studio/runs/{run_id}/control")

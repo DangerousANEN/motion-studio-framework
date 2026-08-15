@@ -3,90 +3,104 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MSF Studio — Control Room</title>
+  <title>MSF Studio</title>
   <link rel="stylesheet" href="/static/studio.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" aria-label="Control Room navigation">
-      <a class="brand" href="/studio" aria-label="MSF Studio Control Room"><span class="brand-mark"><i></i><i></i><i></i></span><span><strong>MSF</strong><em>CONTROL ROOM</em></span></a>
-      <nav>
-        <a class="nav-link active" href="#control"><span>01</span> Control</a>
-        <a class="nav-link" href="#pipeline"><span>02</span> Pipeline</a>
-        <a class="nav-link" href="#scene-library"><span>03</span> Scenes</a>
-        <a class="nav-link" href="#events"><span>04</span> Events</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Навигация Studio">
+      <a class="brand" href="#overview"><span class="brand-square">M</span><span><b>MSF Studio</b><small>Production workspace</small></span></a>
+      <nav class="nav" aria-label="Разделы">
+        <a href="#overview" data-page-link="overview"><span>Обзор</span><small>Новый запуск</small></a>
+        <a href="#runs" data-page-link="runs"><span>Прогоны</span><small>История и события</small></a>
+        <a href="#scenes" data-page-link="scenes"><span>Сцены</span><small>Каталог и превью</small></a>
+        <a href="#voices" data-page-link="voices"><span>Голоса</span><small>Voice Lab</small></a>
+        <a href="#settings" data-page-link="settings"><span>Настройки</span><small>Значения по умолчанию</small></a>
       </nav>
-      <div class="sidebar-note"><span class="pulse"></span><p><strong>Local-first operator console</strong><br/>Нет удалённой публикации. Нет скрытых рассуждений.</p></div>
-      <a class="legacy-link" href="/">Legacy panel <span>↗</span></a>
+      <div class="local-note"><span class="status-dot"></span><div><b>Локальная студия</b><small>Данные и рендер остаются на этом компьютере.</small></div></div>
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div><p class="eyebrow">MSF / STUDIO CONTROL ROOM</p><h1>Видеопайплайн,<br/><span>который видно целиком.</span></h1></div>
-        <div class="top-actions"><div class="live-chip"><span></span><b id="catalogStatus">Подключаем каталог…</b></div><button id="refreshControl" class="icon-btn" title="Обновить live данные">↻</button></div>
+      <header class="app-header">
+        <div><p id="pageEyebrow" class="eyebrow">MSF STUDIO</p><h1 id="pageTitle">Новый запуск</h1></div>
+        <div class="header-actions"><span id="systemStatus" class="system-status">Проверяем систему…</span><button id="refreshAll" class="button button-secondary" type="button">Обновить</button></div>
       </header>
 
-      <section class="policy-banner"><div class="policy-key">TRANSPARENT BY DESIGN</div><p>Здесь видны только <strong>наблюдаемые операции:</strong> состояния run, текущий node, события, источники и артефакты. Prompts, цепочка рассуждений, credentials и private paths не выводятся.</p></section>
+      <section id="overview" class="page" data-page="overview">
+        <div class="workspace-grid">
+          <article class="card composer-card">
+            <div class="card-heading"><div><p class="eyebrow">NEW RUN</p><h2>Создать черновик</h2></div><span class="label">Без запуска рендера</span></div>
+            <form id="runForm" class="form-stack">
+              <label>Тема ролика<input id="topic" required minlength="3" maxlength="400" value="Разбор способа использовать LLM экономнее" /></label>
+              <div class="form-grid two"><label>Стартовая сцена<select id="preset"></select></label><label>Голос<select id="runVoice"></select></label></div>
+              <div class="form-grid two"><label>Визуальный стиль<select id="styleFamily"></select></label><label>Свобода агента<select id="agentLevel"><option value="1">1 · строго по presets</option><option value="2">2 · ограниченный выбор</option><option value="3" selected>3 · обычный режим</option><option value="4">4 · curated</option><option value="5">5 · sandbox</option></select></label></div>
+              <div class="toggle-grid"><label class="check"><input id="researchMode" type="checkbox" checked/><span>Проверить источники перед сценарием</span></label><label class="check"><input id="musicToggle" type="checkbox" checked/><span>Добавить музыку и SFX</span></label></div>
+              <div class="form-actions"><button class="button button-primary" type="submit">Создать черновик</button><span>После проверки нажмите «Запустить».</span></div>
+            </form>
+            <p id="runMessage" class="notice">Черновик можно изменить: это безопасная стадия до запуска worker.</p>
+          </article>
 
-      <section id="control" class="command-deck">
-        <article class="panel run-composer">
-          <div class="panel-heading"><div><p class="eyebrow">NEW DIRECTED RUN</p><h2>Brief</h2></div><span class="chip safe">DRAFT ONLY</span></div>
-          <form id="runForm" class="run-form">
-            <label>Тема<input id="topic" name="topic" minlength="3" maxlength="400" required value="Разбор способа использовать LLM экономнее" /></label>
-            <div class="form-row"><label>Стартовая сцена<select id="preset" name="preset"></select></label><label>Свобода агента<select id="agentLevel"><option value="1">1 · строго</option><option value="2">2 · preset</option><option value="3" selected>3 · standard</option><option value="4">4 · curated</option><option value="5">5 · sandbox</option></select></label></div>
-            <div class="form-row"><label>Style family<select id="styleFamily"></select></label><label>Фокус исследования<select id="researchMode"><option value="on" selected>Evidence-first</option><option value="off">Без research</option></select></label></div>
-            <div class="style-strip"><span id="styleSwatch"></span><div><strong id="styleSummary">Загружаем styles…</strong><small id="styleDescription">Выберите единую visual family для всего ролика.</small></div><button id="openStyleControls" type="button" class="text-btn">Тонкая настройка</button></div>
-            <div id="styleControls" class="style-controls" hidden><div class="form-row"><label>Неон<input id="styleNeon" type="color" value="#00F0A8" /></label><label>Фон<input id="styleBg" type="color" value="#030807" /></label><label>Surface<input id="styleSurface" type="color" value="#091512" /></label></div><label>Glow <input id="styleBloom" type="range" min="0" max="1" step="0.05" value="0.5" /><output id="styleBloomValue">0.50</output></label></div>
-            <div class="toggle-row"><label class="toggle"><input id="musicToggle" type="checkbox" checked/><span></span> Music + SFX</label><span class="voice-note">Voice synthesis входит в canonical pipeline</span></div>
-            <button class="primary-btn" type="submit">Создать управляемый draft <span>→</span></button>
-          </form>
-          <div id="runResult" class="run-result empty">Создайте draft: renderer не запустится до отдельного approve.</div>
-        </article>
+          <article class="card current-run-card">
+            <div class="card-heading"><div><p class="eyebrow">CURRENT RUN</p><h2>Текущий прогон</h2></div><span id="runStatus" class="status-badge muted">Нет выбора</span></div>
+            <div id="currentRun" class="empty-state">Выберите прогон в истории или создайте новый черновик.</div>
+            <div class="current-actions"><button id="openCurrentRun" class="button button-secondary" type="button" disabled>Открыть детали</button><button id="saveDraft" class="button button-secondary" type="button" disabled>Сохранить изменения</button><button id="approveRun" class="button button-primary" type="button" disabled>Запустить</button><button id="cancelRun" class="button button-danger" type="button" disabled>Отменить</button></div>
+            <p class="helper">Редактирование доступно только у черновика. После запуска его параметры фиксируются для воспроизводимого результата.</p>
+          </article>
+        </div>
 
-        <article class="panel active-run-card">
-          <div class="panel-heading"><div><p class="eyebrow">ACTIVE RUN</p><h2>Operator controls</h2></div><span id="runStatusBadge" class="chip muted">NO RUN</span></div>
-          <div id="activeRunSummary" class="active-run-summary empty-state">Создайте draft или вставьте Run ID ниже.</div>
-          <div class="run-id-row"><input id="runIdInput" placeholder="run_…" autocomplete="off"/><button id="loadRun" class="ghost-btn" type="button">Открыть</button></div>
-          <div class="run-actions"><button id="saveDraft" class="secondary-btn" type="button" disabled>Сохранить правки</button><button id="approveRun" class="primary-btn compact" type="button" disabled>Approve & start</button><button id="cancelRun" class="danger-btn" type="button" disabled>Cancel</button></div>
-          <p class="operator-note">Правки доступны только в <strong>draft</strong>. После старта отмените run и создайте новую редакцию.</p>
+        <article class="card pipeline-card">
+          <div class="card-heading"><div><p class="eyebrow">PIPELINE</p><h2>Ход работы</h2></div><div id="pipelineActivity" class="activity">Выберите или создайте прогон</div></div>
+          <div id="pipelineGraph" class="pipeline-graph" aria-live="polite"></div>
+          <div id="nodeInspector" class="node-inspector">
+            <div><p id="nodeKicker" class="eyebrow">NODE</p><h3 id="nodeTitle">Выберите этап</h3><p id="nodeDescription">На графе появится фактическое состояние worker и последнее событие.</p></div>
+            <div id="nodeDirection" class="direction-panel" hidden><label>Редакторское направление<textarea id="nodeInstruction" maxlength="480" placeholder="Например: сначала найди первичные источники, а затем объясни тему простым русским языком."></textarea></label><div class="direction-actions"><span id="instructionCount">0 / 480</span><button id="saveNodeInstruction" class="button button-secondary" type="button">Сохранить направление</button></div></div>
+            <div id="nodeEvent" class="event-brief">Событий пока нет.</div>
+          </div>
         </article>
       </section>
 
-      <section id="pipeline" class="control-grid">
-        <article class="panel graph-panel">
-          <div class="panel-heading"><div><p class="eyebrow">LIVE PIPELINE</p><h2>Canonical graph</h2></div><div class="graph-legend"><span><i class="legend queued"></i>ожидает</span><span><i class="legend active"></i>в работе</span><span><i class="legend done"></i>готово</span></div></div>
-          <div class="graph-shell"><div id="pipelineGraph" class="pipeline-graph" aria-live="polite"></div></div>
-          <div id="currentActivity" class="current-activity"><span class="activity-dot"></span><div><small>WAITING FOR RUN</small><strong>Выберите или создайте draft</strong></div></div>
-        </article>
-
-        <aside id="nodeInspector" class="panel inspector-panel">
-          <div class="panel-heading"><div><p class="eyebrow">NODE INSPECTOR</p><h2 id="inspectorTitle">Выберите node</h2></div><span id="inspectorStatus" class="chip muted">—</span></div>
-          <p id="inspectorDescription" class="inspector-description">На графе отображается реальная последовательность canonical worker.</p>
-          <dl id="inspectorMeta" class="inspector-meta"></dl>
-          <div class="instruction-box"><div class="instruction-heading"><span>OPERATOR DIRECTION</span><small id="instructionPolicy">Доступно только для agent-assisted nodes.</small></div><textarea id="nodeInstruction" maxlength="480" placeholder="Выберите Research или Script node, чтобы задать короткое редакторское направление." disabled></textarea><div class="instruction-footer"><span id="instructionCount">0 / 480</span><button id="saveNodeInstruction" class="text-btn" type="button" disabled>Сохранить direction</button></div></div>
-          <div id="inspectorEvent" class="inspector-event">Последнее событие появится здесь.</div>
-        </aside>
+      <section id="runs" class="page" data-page="runs" hidden>
+        <div class="section-toolbar"><div><p class="eyebrow">RUN HISTORY</p><h2>Все прогоны</h2><p class="section-copy">История, статусы, темы и артефакты сохраняются локально в индексе Studio.</p></div><div class="toolbar-actions"><select id="runStatusFilter"><option value="">Все статусы</option><option value="draft">Черновики</option><option value="running">В работе</option><option value="completed">Готово</option><option value="failed">Ошибка</option><option value="cancelled">Отменено</option></select><button id="refreshRuns" class="button button-secondary" type="button">Обновить список</button></div></div>
+        <div class="card table-card"><div id="runTable" class="run-table empty-state">Загружаем историю запусков…</div></div>
+        <div class="run-detail-grid">
+          <article class="card"><div class="card-heading"><div><p class="eyebrow">TIMELINE</p><h2>События</h2></div><span id="timelineState" class="label">Нет выбранного прогона</span></div><ol id="timeline" class="timeline"><li class="empty-state">Выберите прогон в таблице выше.</li></ol></article>
+          <article class="card"><div class="card-heading"><div><p class="eyebrow">ARTIFACTS</p><h2>Выходные файлы</h2></div></div><div id="artifactList" class="artifact-list empty-state">Артефакты появятся после работы pipeline.</div></article>
+        </div>
       </section>
 
-      <section id="scene-library" class="panel scene-library-panel">
-        <div class="panel-heading"><div><p class="eyebrow">PRESET LIBRARY</p><h2>Сцены, которые можно проверить</h2></div><div class="library-meta"><span id="catalogTotal" class="muted">—</span><button id="refreshCatalog" class="ghost-btn" type="button">Обновить</button></div></div>
-        <div class="catalog-controls"><input id="catalogQuery" type="search" placeholder="Поиск: evidence, telegram, 3d, tutorial…"/><select id="catalogTier"><option value="preset">preset</option><option value="curated">curated</option><option value="sandbox">sandbox</option></select><span class="preview-label"><i></i>Preview on demand · cached</span></div>
-        <div id="catalogCards" class="catalog-cards control-cards" aria-live="polite"></div>
+      <section id="scenes" class="page" data-page="scenes" hidden>
+        <div class="section-toolbar"><div><p class="eyebrow">SCENE LIBRARY</p><h2>Сцены</h2><p class="section-copy">Каталог берётся из того же registry, который использует renderer.</p></div><div class="toolbar-actions"><input id="catalogQuery" type="search" placeholder="Поиск по сценам"/><select id="catalogTier"><option value="preset">Preset</option><option value="curated">Curated</option><option value="sandbox">Sandbox</option></select><button id="refreshCatalog" class="button button-secondary" type="button">Найти</button></div></div>
+        <div class="catalog-layout"><div id="catalogCards" class="scene-grid"></div><aside id="scenePanel" class="card scene-panel"><p class="eyebrow">SCENE INSPECTOR</p><h2 id="sceneTitle">Выберите сцену</h2><div id="scenePreview" class="preview-empty">Превью появится здесь</div><div id="sceneInfo" class="empty-state">Нажмите на карточку, чтобы увидеть назначение сцены, обязательные данные и реальное превью.</div><div class="panel-actions"><button id="renderStill" class="button button-secondary" type="button" disabled>Обновить превью</button><button id="renderClip" class="button button-secondary" type="button" disabled>Проверить движение</button><button id="useScene" class="button button-primary" type="button" disabled>Использовать в черновике</button></div></aside></div>
       </section>
 
-      <section id="events" class="events-section">
-        <div class="section-heading"><div><p class="eyebrow">RUN OBSERVABILITY</p><h2>События и артефакты</h2></div><div class="auto-refresh"><span id="refreshState">Live polling выключен</span><button id="togglePolling" class="ghost-btn" type="button">Live: off</button></div></div>
-        <div class="events-grid"><article class="panel event-panel"><p class="eyebrow">EVENT STREAM</p><ol id="timeline" class="timeline"><li class="empty-state">События появятся после запуска worker.</li></ol></article><article class="panel artifact-panel"><p class="eyebrow">ARTIFACTS</p><div id="artifactList" class="artifact-list"><p class="empty-state">Пока нет артефактов.</p></div></article></div>
+      <section id="voices" class="page" data-page="voices" hidden>
+        <div class="section-toolbar"><div><p class="eyebrow">VOICE LAB</p><h2>Голоса и подготовка записи</h2><p class="section-copy">Сначала измерение, затем при необходимости очистка, расшифровка с обязательной вычиткой и только потом добавление в каталог.</p></div><button id="refreshVoices" class="button button-secondary" type="button">Обновить каталог</button></div>
+        <div class="voice-grid">
+          <article class="card voice-catalog-card"><div class="card-heading"><div><p class="eyebrow">CATALOG</p><h2>Доступные голоса</h2></div></div><div id="voiceCatalog" class="voice-list empty-state">Загружаем голоса…</div></article>
+          <article class="card voice-workflow-card"><div class="card-heading"><div><p class="eyebrow">ADD VOICE</p><h2>Подготовить референс</h2></div><span id="voiceStep" class="label">1 · файл</span></div>
+            <div class="form-stack">
+              <label>Путь к записи на этом компьютере<input id="voicePath" placeholder="/home/user/Downloads/voice.wav" /></label>
+              <div class="form-actions"><button id="measureVoice" class="button button-secondary" type="button">Проверить качество</button><span>Ничего не изменяет.</span></div>
+              <div id="voiceMeasurements" class="measurement empty-state">Введите путь к записи и запустите проверку.</div>
+              <fieldset id="voiceCleanControls" class="clean-controls" disabled><legend>Очистка референса</legend><label class="check"><input id="denoiseVoice" type="checkbox"/><span>Шумоподавление по измеренному шумовому полу</span></label><label class="check"><input id="trimVoice" type="checkbox" checked/><span>Обрезать тишину в начале и конце</span></label><label class="check"><input id="normalizeVoice" type="checkbox" checked/><span>Выровнять уровень</span></label><label>Сила шумоподавления <input id="denoiseStrength" type="range" min="1" max="24" value="14"/><output id="denoiseStrengthValue">14</output></label><button id="prepareVoice" class="button button-secondary" type="button">Подготовить копию</button></fieldset>
+              <div id="voicePrepResult" class="measurement" hidden></div>
+              <div class="transcript-block"><div class="form-actions"><b>Текст референса</b><button id="transcribeVoice" class="button button-secondary" type="button">Автораспознать</button></div><textarea id="voiceTranscript" rows="6" placeholder="Распознанный текст появится здесь. Обязательно проверьте его перед сохранением."></textarea><small id="transcriptMeta">Текст не сохраняется автоматически.</small></div>
+              <div class="form-grid two"><label>Ключ голоса<input id="voiceKey" placeholder="my_voice" pattern="[A-Za-z0-9_-]+"/></label><label>Язык<select id="voiceLanguage"><option value="ru">Русский</option><option value="en">English</option></select></label></div>
+              <label>Заметка<input id="voiceNotes" placeholder="Например: чистая дикторская запись, спокойная подача"/></label>
+              <button id="registerVoice" class="button button-primary" type="button">Добавить в каталог голосов</button>
+              <p id="voiceMessage" class="notice">Каталог примет голос только с вычитанным текстом: это нужно для естественной интонации при клонировании.</p>
+            </div>
+          </article>
+        </div>
+        <article class="card audio-card"><div class="card-heading"><div><p class="eyebrow">SOUND LIBRARY</p><h2>Музыка и звуковые эффекты</h2></div></div><div id="audioLibrary" class="audio-library empty-state">Загружаем библиотеку звука…</div></article>
+      </section>
+
+      <section id="settings" class="page" data-page="settings" hidden>
+        <div class="section-toolbar"><div><p class="eyebrow">SETTINGS</p><h2>Значения по умолчанию</h2><p class="section-copy">Эти настройки применяются только к новым черновикам. Они не переписывают уже запущенные ролики.</p></div></div>
+        <div class="settings-grid"><article class="card"><form id="settingsForm" class="form-stack"><label>Голос по умолчанию<select id="defaultVoice"></select></label><label>Стиль по умолчанию<select id="defaultStyle"></select></label><label>Свобода агента по умолчанию<select id="defaultAgentLevel"><option value="1">1 · строго по presets</option><option value="2">2 · ограниченный выбор</option><option value="3">3 · обычный режим</option><option value="4">4 · curated</option><option value="5">5 · sandbox</option></select></label><div class="toggle-grid"><label class="check"><input id="defaultResearch" type="checkbox"/><span>Research перед сценарием</span></label><label class="check"><input id="defaultMusic" type="checkbox"/><span>Музыка и SFX</span></label></div><button class="button button-primary" type="submit">Сохранить настройки</button><p id="settingsMessage" class="notice">Настройки ещё не загружены.</p></form></article><aside class="card"><p class="eyebrow">RUNTIME</p><h2>Среда Studio</h2><dl id="runtimeFacts" class="fact-list"></dl><p class="helper">В dashboard не хранятся ключи и секреты. Они никогда не выводятся на этом экране.</p></aside></div>
       </section>
     </main>
   </div>
-
-  <aside id="sceneDrawer" class="scene-drawer" aria-hidden="true">
-    <div class="drawer-backdrop" data-close-drawer></div>
-    <section class="drawer-sheet"><header class="drawer-header"><div><p class="eyebrow">SCENE INSPECTOR</p><h2 id="drawerTitle">Scene</h2></div><button class="icon-btn" type="button" data-close-drawer aria-label="Закрыть">×</button></header><div id="drawerPreview" class="preview-stage"><div class="preview-placeholder"><span>MSF</span><p>Выберите preview</p></div></div><div class="preview-actions"><button id="renderStill" class="secondary-btn" type="button">Render still</button><button id="renderClip" class="ghost-btn" type="button">Play motion preview</button></div><div class="drawer-body"><p id="drawerSummary" class="drawer-summary"></p><div id="drawerBadges" class="drawer-badges"></div><dl id="drawerDetails" class="drawer-details"></dl><div class="drawer-divider"></div><p class="eyebrow">DRAFT ACTION</p><button id="useScene" class="primary-btn" type="button">Использовать как стартовую сцену</button><p class="operator-note">Props и required data hints берутся из live manifest. Не подставляйте данные наугад.</p></div></section>
-  </aside>
-
-  <template id="catalogCardTemplate"><button class="scene-card" type="button"><div class="scene-thumb"><span class="scene-thumb-mark">MSF</span><span class="thumb-state">Preview</span></div><div class="scene-card-content"><span class="scene-category"></span><strong></strong><p></p><div class="scene-tags"></div><small></small></div></button></template>
   <script src="/static/studio.js" defer></script>
 </body>
 </html>
