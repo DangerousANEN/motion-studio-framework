@@ -603,7 +603,11 @@ def api_preview_voice(req: VoicePreviewRequest) -> Dict[str, Any]:
     This is the check that was missing: the pipeline ran for weeks on a fallback
     female voice because nothing ever played a sample.
     """
-    from msf.skills_bridge.qwen3_tts import describe_reference, synthesize_voice_clone
+    from msf.skills_bridge.qwen3_tts import (
+        describe_reference,
+        synthesize_voice_clone,
+        voice_prompt_cache_stats,
+    )
 
     try:
         info = describe_reference(req.voice)
@@ -631,6 +635,7 @@ def api_preview_voice(req: VoicePreviewRequest) -> Dict[str, Any]:
         "icl": bool(info.get("has_ref_text")),
         "duration_sec": round(duration, 2),
         "synth_sec": round(time.time() - started, 1),
+        "prompt_cache": voice_prompt_cache_stats() if info.get("has_ref_text") else None,
     }
 
 

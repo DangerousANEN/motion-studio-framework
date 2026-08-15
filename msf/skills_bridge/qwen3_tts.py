@@ -19,10 +19,12 @@ you guessing why the output sounds flat.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import tempfile
+import threading
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -55,6 +57,14 @@ DEFAULT_REF_AUDIO = str(_REPO_ROOT / "assets" / "voices" / "refs" / "syenduk_8s_
 
 _MODEL_SINGLETON: Optional[Any] = None
 _VOICES_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+# Qwen can reuse the encoded reference prompt across many lines. Caching is keyed
+# by the exact audio path, stat signature and verbatim text so modified references
+# cannot silently borrow an obsolete speaker embedding.
+_VOICE_PROMPT_CACHE: Dict[str, Any] = {}
+_VOICE_PROMPT_CACHE_HITS = 0
+_VOICE_PROMPT_CACHE_MISSES = 0
+_VOICE_PROMPT_LOCK = threading.RLock()
+_SYNTH_LOCK = threading.RLock()
 
 # Tail fade. Qwen3 sometimes ends a clip while the waveform still carries real
 # energy, which reads as a clipped word. A short fade removes the click without
@@ -98,6 +108,49 @@ def get_qwen3_clone_model(model_id: Optional[str] = None) -> Any:
         )
     _MODEL_SINGLETON = model
     return _MODEL_SINGLETON
+
+
+def _voice_prompt_key(ref_audio: str, ref_text: str) -> str:
+    path = Path(ref_audio).resolve()
+    stat = path.stat()
+    material = f"{path}|{stat.st_mtime_ns}|{stat.st_size}|{ref_text}".encode("utf-8")
+    return hashlib.sha256(material).hexdigest()
+
+
+def _cached_voice_clone_prompt(model: Any, ref_audio: str, ref_text: str) -> Any:
+    """Build one Qwen ICL reference prompt per exact audio/transcript pair."""
+    global _VOICE_PROMPT_CACHE_HITS, _VOICE_PROMPT_CACHE_MISSES
+    key = _voice_prompt_key(ref_audio, ref_text)
+    with _VOICE_PROMPT_LOCK:
+        if key in _VOICE_PROMPT_CACHE:
+            _VOICE_PROMPT_CACHE_HITS += 1
+            return _VOICE_PROMPT_CACHE[key]
+        _VOICE_PROMPT_CACHE_MISSES += 1
+        _VOICE_PROMPT_CACHE[key] = model.create_voice_clone_prompt(
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+            x_vector_only_mode=False,
+        )
+        return _VOICE_PROMPT_CACHE[key]
+
+
+def voice_prompt_cache_stats() -> Dict[str, int]:
+    """Small safe observability snapshot; no prompt content or source transcript."""
+    with _VOICE_PROMPT_LOCK:
+        return {
+            "entries": len(_VOICE_PROMPT_CACHE),
+            "hits": _VOICE_PROMPT_CACHE_HITS,
+            "misses": _VOICE_PROMPT_CACHE_MISSES,
+        }
+
+
+def clear_voice_prompt_cache() -> None:
+    """Clear encoded references after an operator replaces or removes voice assets."""
+    global _VOICE_PROMPT_CACHE_HITS, _VOICE_PROMPT_CACHE_MISSES
+    with _VOICE_PROMPT_LOCK:
+        _VOICE_PROMPT_CACHE.clear()
+        _VOICE_PROMPT_CACHE_HITS = 0
+        _VOICE_PROMPT_CACHE_MISSES = 0
 
 
 # ---------------------------------------------------------------- voice registry
@@ -272,11 +325,14 @@ def synthesize_voice_clone(
     kwargs: Dict[str, Any] = {
         "text": normalized,
         "language": language,
-        "ref_audio": ref_audio,
-        "x_vector_only_mode": not use_icl,
     }
     if use_icl:
-        kwargs["ref_text"] = ref_text
+        # Official Qwen API supports a reusable `voice_clone_prompt`; this avoids
+        # re-encoding the same source WAV for every scene narration line.
+        kwargs["voice_clone_prompt"] = _cached_voice_clone_prompt(model, ref_audio, str(ref_text))
+    else:
+        kwargs["ref_audio"] = ref_audio
+        kwargs["x_vector_only_mode"] = True
 
     # Hard cap on generation. Qwen3 emits ~12.5 audio tokens per second; Russian
     # narration runs ~13 chars/sec. Budget generously (3x) so normal lines are
@@ -286,7 +342,11 @@ def synthesize_voice_clone(
         max_new_tokens = int(min(4096, max(256, est_seconds * 12.5 * 3)))
     kwargs["max_new_tokens"] = max_new_tokens
 
-    wavs, sr = model.generate_voice_clone(**kwargs)
+    # Model objects are process-wide and Torch generation is not safe to execute
+    # concurrently through the same CPU model. Serialize calls instead of trading
+    # a small queue for corrupt audio or an out-of-memory crash.
+    with _SYNTH_LOCK:
+        wavs, sr = model.generate_voice_clone(**kwargs)
     wav = np.asarray(wavs[0], dtype=np.float32)
 
     if polish:
@@ -325,6 +385,8 @@ __all__ = [
     "resolve_voice",
     "describe_reference",
     "tail_energy_ratio",
+    "clear_voice_prompt_cache",
+    "voice_prompt_cache_stats",
     "CUDA_MODEL_ID",
     "CPU_MODEL_ID",
     "DEFAULT_MODEL_ID",

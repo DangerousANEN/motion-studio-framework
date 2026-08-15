@@ -102,7 +102,8 @@
       const result = await api('/api/preview/voice', { method: 'POST', body: JSON.stringify({ voice }) });
       const audio = new Audio(result.url);
       await audio.play();
-      setMessage('#voiceMessage', `Проверочная фраза создана за ${result.synth_sec} с (${result.mode}).`, 'success');
+      const cacheNote = result.prompt_cache ? (result.prompt_cache.hits > 0 ? ' Профиль голоса переиспользован.' : ' Профиль голоса подготовлен для следующих сцен.') : '';
+      setMessage('#voiceMessage', `Проверочная фраза создана за ${result.synth_sec} с (${result.mode}).${cacheNote}`, 'success');
     } catch (error) { setMessage('#voiceMessage', `Не удалось синтезировать проверочную фразу: ${error.message}`, 'error'); }
     finally { button.disabled = false; button.textContent = original; }
   }
