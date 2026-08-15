@@ -133,6 +133,10 @@ def create_mcp_server() -> FastMCP:
         cta_asset: str = "готовый чек-лист и ссылки на источники",
         style_family: Optional[str] = None,
         release_topic: bool = False,
+        content_archetype: str = "auto",
+        community_proof_mode: str = "off",
+        community_platforms: Optional[list[str]] = None,
+        max_community_leads: int = 3,
         provider: str = "duckduckgo",
         max_queries: int = 4,
         max_sources: int = 8,
@@ -144,8 +148,9 @@ def create_mcp_server() -> FastMCP:
     ) -> dict[str, Any]:
         """Create validated research, a Russian evidence-backed script and an editable unique-scene storyboard.
 
-        The tool only prepares a draft. It does not start a render and returns an
-        error instead of narrating facts when public evidence cannot pass policy.
+        The tool only prepares a draft. `community_proof_mode=discover` returns public
+        YouTube/X/Reddit leads as `needs_review`; it never copies third-party media or
+        converts an unreviewed social post into a factual narration.
         """
         from .contracts import ResearchToScriptRequest
         from .research_to_script import ResearchToScriptError, ResearchToScriptWorkflow
@@ -153,7 +158,10 @@ def create_mcp_server() -> FastMCP:
             request = ResearchToScriptRequest.model_validate({
                 "topic": topic, "audience": audience, "cta_handle": cta_handle,
                 "cta_asset": cta_asset, "style_family": style_family,
-                "release_topic": release_topic, "provider": provider,
+                "release_topic": release_topic, "content_archetype": content_archetype,
+                "community_proof_mode": community_proof_mode,
+                "community_platforms": community_platforms or ["youtube", "x", "reddit"],
+                "max_community_leads": max_community_leads, "provider": provider,
                 "max_queries": max_queries, "max_sources": max_sources,
                 "project_id": project_id, "comparison_mode": comparison_mode,
                 "comparison_models": comparison_models or [], "visual_evidence_mode": visual_evidence_mode,

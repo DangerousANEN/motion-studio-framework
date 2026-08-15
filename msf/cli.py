@@ -74,6 +74,10 @@ STAGES = [
 @click.option("--style-family", default=None, help="One existing MSF renderer style family for the entire storyboard.")
 @click.option("--research-provider", type=click.Choice(["duckduckgo", "searxng"]), default="duckduckgo", show_default=True)
 @click.option("--release-topic", is_flag=True, default=False, help="Apply strict release freshness and primary-source requirements.")
+@click.option("--content-archetype", type=click.Choice(["auto", "release", "comparison", "how_to", "case_study", "cost_saving", "incident", "myth_fact", "explainer", "trend"]), default="auto", show_default=True, help="Editorial research angle; auto routes from topic wording.")
+@click.option("--community-proof-mode", type=click.Choice(["off", "discover"]), default="off", show_default=True, help="Discover public YouTube/X/Reddit comparison leads for editorial review; never copies media.")
+@click.option("--community-platform", "community_platforms", type=click.Choice(["youtube", "x", "reddit"]), multiple=True, help="Community platform to search; defaults to all supported platforms when discovery is enabled.")
+@click.option("--max-community-leads", type=click.IntRange(0, 5), default=3, show_default=True, help="Maximum review-only community leads to return.")
 @click.option("--comparison-mode", type=click.Choice(["none", "observed", "proposed"]), default="none", show_default=True, help="Request a cited side-by-side comparison or a proposed test plan.")
 @click.option("--compare-model", "comparison_models", multiple=True, help="Model label to include in a side-by-side proof; pass twice for two models.")
 @click.option("--visual-evidence-mode", type=click.Choice(["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]), default=None, help="Preferred visual proof format.")
@@ -90,6 +94,10 @@ def cli(
     style_family: Optional[str],
     research_provider: str,
     release_topic: bool,
+    content_archetype: str,
+    community_proof_mode: str,
+    community_platforms: tuple[str, ...],
+    max_community_leads: int,
     comparison_mode: str,
     comparison_models: tuple[str, ...],
     visual_evidence_mode: Optional[str],
@@ -111,6 +119,10 @@ def cli(
                 style_family=style_family,
                 provider=research_provider,
                 release_topic=release_topic,
+                content_archetype=content_archetype,
+                community_proof_mode=community_proof_mode,
+                community_platforms=list(community_platforms) or ["youtube", "x", "reddit"],
+                max_community_leads=max_community_leads,
                 comparison_mode=comparison_mode,
                 comparison_models=list(comparison_models),
                 visual_evidence_mode=visual_evidence_mode,

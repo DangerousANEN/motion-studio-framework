@@ -1169,6 +1169,10 @@ class StudioResearchToScriptPayload(BaseModel):
     cta_asset: str = Field("готовый чек-лист и ссылки на источники", min_length=3, max_length=240)
     style_family: Optional[str] = Field(None, max_length=80)
     release_topic: bool = False
+    content_archetype: str = "auto"
+    community_proof_mode: str = "off"
+    community_platforms: list[str] = Field(default_factory=lambda: ["youtube", "x", "reddit"], max_length=3)
+    max_community_leads: int = Field(3, ge=0, le=5)
     provider: str = "duckduckgo"
     max_queries: int = Field(4, ge=1, le=4)
     max_sources: int = Field(8, ge=2, le=12)
@@ -1238,8 +1242,8 @@ def api_studio_research_to_script(payload: StudioResearchToScriptPayload) -> Dic
     """Research a topic, validate linked evidence and return a Russian editable storyboard.
 
     This endpoint is deliberately separate from render preparation: the caller
-    receives the evidence and script first, then can edit/validate/approve a
-    render through the existing controlled lifecycle.
+    receives the evidence, topic plan, review-only community leads and script first,
+    then can edit/validate/approve a render through the existing controlled lifecycle.
     """
     from pydantic import ValidationError
     from msf.studio.contracts import ResearchToScriptRequest

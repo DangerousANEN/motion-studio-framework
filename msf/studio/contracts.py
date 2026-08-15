@@ -288,6 +288,29 @@ class CatalogSearchResult(StudioModel):
     items: List[SceneManifest]
 
 
+class TopicPlan(StudioModel):
+    """Deterministic editorial angle selected before source collection."""
+
+    archetype: Literal["release", "comparison", "how_to", "case_study", "cost_saving", "incident", "myth_fact", "explainer", "trend"]
+    source_focus: List[str] = Field(min_length=2, max_length=4)
+    preferred_scene_roles: List[str] = Field(min_length=2, max_length=5)
+    reason: str = Field(min_length=8, max_length=240)
+
+
+class CommunityProofLead(StudioModel):
+    """Public community comparison candidate awaiting human editorial verification."""
+
+    lead_id: str = Field(default_factory=lambda: new_id("community"))
+    platform: Literal["youtube", "x", "reddit"]
+    url: str
+    title: str = Field(min_length=3, max_length=240)
+    summary: str = Field(min_length=12, max_length=500)
+    task_summary: Optional[str] = Field(default=None, max_length=240)
+    evidence_completeness: List[Literal["task_visible", "both_outputs_visible", "conditions_visible", "criterion_visible"]] = Field(default_factory=list, max_length=4)
+    editorial_status: Literal["needs_review", "approved", "rejected"] = "needs_review"
+    allowed_use: Literal["attributed_recreation_only"] = "attributed_recreation_only"
+
+
 class ResearchToScriptRequest(StudioModel):
     """Bounded request for the evidence-first short-video planning workflow."""
 
@@ -297,6 +320,10 @@ class ResearchToScriptRequest(StudioModel):
     cta_asset: str = Field(default="готовый чек-лист и ссылки на источники", min_length=3, max_length=240)
     style_family: Optional[str] = Field(default=None, max_length=80)
     release_topic: bool = False
+    content_archetype: Literal["auto", "release", "comparison", "how_to", "case_study", "cost_saving", "incident", "myth_fact", "explainer", "trend"] = "auto"
+    community_proof_mode: Literal["off", "discover"] = "off"
+    community_platforms: List[Literal["youtube", "x", "reddit"]] = Field(default_factory=lambda: ["youtube", "x", "reddit"], max_length=3)
+    max_community_leads: int = Field(default=3, ge=0, le=5)
     provider: Literal["duckduckgo", "searxng"] = "duckduckgo"
     max_queries: int = Field(default=4, ge=1, le=4)
     max_sources: int = Field(default=8, ge=2, le=12)
@@ -330,6 +357,7 @@ class ResearchMilestone(StudioModel):
     """Safe high-level workflow event; never stores hidden model reasoning."""
 
     phase: Literal[
+        "topic_routed",
         "query_plan_created",
         "sources_collected",
         "pages_extracted",
@@ -337,6 +365,7 @@ class ResearchMilestone(StudioModel):
         "script_composed",
         "storyboard_validated",
         "comparison_proof_validated",
+        "community_proof_discovered",
     ]
     message: str = Field(min_length=1, max_length=400)
     counts: Dict[str, int] = Field(default_factory=dict)
@@ -350,5 +379,7 @@ class ResearchToScriptResult(StudioModel):
     script: ScriptPlan
     storyboard: StoryboardDraft
     comparison_proofs: List[ComparisonProof] = Field(default_factory=list)
+    topic_plan: Optional[TopicPlan] = None
+    community_leads: List[CommunityProofLead] = Field(default_factory=list)
     milestones: List[ResearchMilestone] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

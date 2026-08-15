@@ -77,7 +77,7 @@ description: Создавать, проверять, отлаживать и р�
 
 ## Research video
 
-Прочитать `workflows/research-video.md`. Когда дан только topic, сначала вызвать native `research_topic_to_storyboard`: он возвращает один связанный `ResearchPack`, русскоязычный `ScriptPlan` и `StoryboardDraft` с уникальными preset scenes и единым style kit. Передать Telegram handle и конкретный CTA asset; для релизов включить strict `release_topic`. Для model-versus-model ролика передать `comparison_mode`, `comparison_models` и `visual_evidence_mode`. Отмечать observed победителя разрешено только при одной задаче, одинаковых условиях, linked claims и source/result asset URL; `proposed` proof показывает лишь план теста и обязан иметь `inconclusive` outcome. Хранить claims, source URL, retrieval date и confidence отдельно от сценарного текста. Factual scene должен ссылаться на evidence ID. При недостаточном evidence, отсутствии первичного источника для provider topic или нарушении русского jargon gate workflow должен остановиться; не маскировать summary как источник и не продолжать к render.
+Прочитать `workflows/research-video.md`. Когда дан только topic, сначала вызвать native `research_topic_to_storyboard`: он выбирает `content_archetype` (`release`, `comparison`, `how_to`, `case_study`, `cost_saving`, `incident`, `myth_fact`, `explainer` или `trend`) и возвращает связанный `ResearchPack`, русскоязычный `ScriptPlan` и `StoryboardDraft` с уникальными preset scenes и единым style kit. Передать Telegram handle и конкретный CTA asset; `release_topic` включать только для новостей о выходе/обновлении. Для model-versus-model ролика передать `comparison_mode`, `comparison_models` и `visual_evidence_mode`. При необходимости включить `community_proof_mode=discover`: YouTube/X/Reddit links вернутся только как `needs_review` leads для атрибутированной MSF-реконструкции; не копировать чужое медиа и не превращать social post в fact. Отмечать observed победителя разрешено только при одной задаче, одинаковых условиях, linked claims и source/result asset URL; `proposed` proof показывает лишь план теста и обязан иметь `inconclusive` outcome. Хранить claims, source URL, retrieval date и confidence отдельно от сценарного текста. Factual scene должен ссылаться на evidence ID. При недостаточном evidence, отсутствии первичного источника для provider topic или нарушении русского jargon gate workflow должен остановиться; не маскировать summary как источник и не продолжать к render.
 
 ## Debug run
 
@@ -101,7 +101,7 @@ description: Создавать, проверять, отлаживать и р�
 | Выбрать scenes/effects/audio | `references/catalog-contract.md` |
 | Проверить доступ и approval | `references/tiers-and-approvals.md` |
 | Создать storyboard | `references/storyboard-policy.md` |
-| Исследовать тему и получить сценарий | `workflows/research-video.md`, `../../docs/MSF_RESEARCH_TO_SCRIPT_PIPELINE.md`, `../../docs/MSF_COMPARISON_PROOF_POLICY.md` |
+| Исследовать тему и получить сценарий | `workflows/research-video.md`, `../../docs/MSF_RESEARCH_TO_SCRIPT_PIPELINE.md`, `../../docs/MSF_COMPARISON_PROOF_POLICY.md`, `../../docs/MSF_TOPIC_ROUTING_AND_COMMUNITY_PROOF_POLICY.md` |
 | Вставить media или screen guide | `workflows/media-guide.md` |
 | Выбрать новые styles/scenes | `../../docs/MSF_STUDIO_STYLE_SCENE_EXPANSION.md` |
 | Создать asset/release | `references/release-gates.md` |

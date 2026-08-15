@@ -32,6 +32,7 @@ from .contracts import (
     AudioPolicy,
     CapabilityTier,
     ComparisonProof,
+    CommunityProofLead,
     EvidenceClaim,
     EvidenceSource,
     ResearchMilestone,
@@ -42,6 +43,7 @@ from .contracts import (
     ScriptPlan,
     StoryboardDraft,
     StoryboardScene,
+    TopicPlan,
 )
 from .research import ResearchQualityError, is_primaryish, validate_research_pack
 from .script_planner import ScriptQualityError, StoryAngle, plan_from_angle
@@ -556,25 +558,62 @@ def _official_seed_hits_for_topic(topic: str) -> list[SearchHit]:
     return []
 
 
-def _queries_for(topic: str, max_queries: int) -> list[str]:
-    official_domain = _official_domain_for_topic(topic)
-    if official_domain:
-        # Keep one primary-source route and one independent route even under a
-        # small query budget; two official mirrors do not constitute corroboration.
-        candidates = [
-            f"site:{official_domain} {topic}",
-            f"{topic} независимая проверка сравнение",
-            f"{topic} официальный анонс документация",
-            f"{topic} цена доступность официальный тариф",
-        ]
+_ARCHETYPE_SPECS: dict[str, tuple[list[str], list[str]]] = {
+    "release": (["official change", "independent context", "who benefits"], ["hook", "evidence", "proof", "takeaway", "cta"]),
+    "comparison": (["same-task method", "independent benchmark", "limits"], ["hook", "evidence", "proof", "takeaway", "cta"]),
+    "how_to": (["official instructions", "practical steps", "common limits"], ["hook", "explanation", "instruction", "takeaway", "cta"]),
+    "case_study": (["case context", "measured result", "repeatability"], ["hook", "explanation", "proof", "takeaway", "cta"]),
+    "cost_saving": (["official pricing", "usage conditions", "total cost"], ["hook", "evidence", "proof", "takeaway", "cta"]),
+    "incident": (["primary report", "independent reporting", "safe action"], ["hook", "evidence", "proof", "takeaway", "cta"]),
+    "myth_fact": (["claim origin", "primary evidence", "practical correction"], ["hook", "explanation", "proof", "takeaway", "cta"]),
+    "explainer": (["definition", "mechanism", "practical consequence"], ["hook", "explanation", "evidence", "takeaway", "cta"]),
+    "trend": (["multiple current sources", "counterexamples", "viewer impact"], ["hook", "evidence", "proof", "takeaway", "cta"]),
+}
+
+
+def _route_topic(request: ResearchToScriptRequest) -> TopicPlan:
+    lowered = request.topic.lower()
+    explicit = request.content_archetype
+    if explicit != "auto":
+        archetype = explicit
+    elif request.comparison_mode != "none" or any(marker in lowered for marker in (" против ", " vs ", "сравнен", "что выбрать")):
+        archetype = "comparison"
+    elif request.release_topic or any(marker in lowered for marker in ("релиз", "вышел", "выход", "анонс", "обновлен")):
+        archetype = "release"
+    elif any(marker in lowered for marker in ("миф", "правда ли", "заблужд")):
+        archetype = "myth_fact"
+    elif any(marker in lowered for marker in ("ошиб", "сбой", "слом", "провал", "вред", "утечк", "инцидент")):
+        archetype = "incident"
+    elif any(marker in lowered for marker in ("дешев", "бесплат", "цена", "стоимост", "эконом")):
+        archetype = "cost_saving"
+    elif any(marker in lowered for marker in ("как ", "инструк", "настро", "сделать", "гайд")):
+        archetype = "how_to"
+    elif any(marker in lowered for marker in ("кейс", "история", "пример", "применен")):
+        archetype = "case_study"
+    elif any(marker in lowered for marker in ("тренд", "почему все", "рынок", "меняется")):
+        archetype = "trend"
     else:
-        candidates = [
-            f"{topic} официальный анонс документация",
-            f"{topic} возможности ограничения официальный источник",
-            f"{topic} цена доступность официальный тариф",
-            f"{topic} независимая проверка сравнение",
-        ]
-    return candidates[:max_queries]
+        archetype = "explainer"
+    focus, roles = _ARCHETYPE_SPECS[archetype]
+    return TopicPlan(archetype=archetype, source_focus=focus, preferred_scene_roles=roles, reason=f"Тема направлена в archetype {archetype} по явному выбору или смысловым маркерам.")
+
+
+def _queries_for(topic: str, max_queries: int, topic_plan: TopicPlan | None = None) -> list[str]:
+    plan = topic_plan or TopicPlan(archetype="explainer", source_focus=_ARCHETYPE_SPECS["explainer"][0], preferred_scene_roles=_ARCHETYPE_SPECS["explainer"][1], reason="Fallback explainer route.")
+    official_domain = _official_domain_for_topic(topic)
+    primary = f"site:{official_domain} {topic}" if official_domain else f"{topic} официальный источник"
+    archetype_queries: dict[str, list[str]] = {
+        "release": [primary, f"{topic} независимый разбор", f"{topic} что изменилось ограничения", f"{topic} кому полезно"],
+        "comparison": [primary, f"{topic} одинаковая задача benchmark методика", f"{topic} независимое сравнение ограничения", f"{topic} side by side test"],
+        "how_to": [primary, f"{topic} практическая инструкция шаги", f"{topic} типичные ошибки ограничения", f"{topic} кейс применения результат"],
+        "case_study": [primary, f"{topic} кейс измеримый результат", f"{topic} условия и ограничения кейса", f"{topic} независимый разбор"],
+        "cost_saving": [primary, f"{topic} официальный тариф условия", f"{topic} реальная стоимость использование", f"{topic} бесплатный доступ ограничения"],
+        "incident": [primary, f"{topic} первичный отчёт причина", f"{topic} независимое расследование", f"{topic} как снизить риск"],
+        "myth_fact": [primary, f"{topic} проверка фактов источник", f"{topic} распространённое заблуждение", f"{topic} практическое объяснение"],
+        "explainer": [primary, f"{topic} как работает простое объяснение", f"{topic} практическое применение ограничения", f"{topic} независимый пример"],
+        "trend": [primary, f"{topic} свежий независимый анализ", f"{topic} контрпример ограничения", f"{topic} влияние на пользователей"],
+    }
+    return archetype_queries[plan.archetype][:max_queries]
 
 
 def _topic_terms(topic: str) -> set[str]:
@@ -723,13 +762,56 @@ def _storyboard_from_script(
     return draft
 
 
+_COMMUNITY_HOSTS: dict[str, tuple[str, ...]] = {
+    "youtube": ("youtube.com", "youtu.be"),
+    "x": ("x.com", "twitter.com"),
+    "reddit": ("reddit.com",),
+}
+
+
+def _community_platform(url: str) -> str | None:
+    host = (urlsplit(url).hostname or "").lower().removeprefix("www.")
+    for platform, hosts in _COMMUNITY_HOSTS.items():
+        if any(host == item or host.endswith(f".{item}") for item in hosts):
+            return platform
+    return None
+
+
+def _community_lead_from_hit(hit: SearchHit) -> CommunityProofLead | None:
+    platform = _community_platform(hit.url)
+    if platform is None:
+        return None
+    text = " ".join((hit.title, hit.snippet)).strip()
+    lowered = text.lower()
+    completeness: list[str] = []
+    if any(marker in lowered for marker in ("prompt", "запрос", "задач", "test")):
+        completeness.append("task_visible")
+    if any(marker in lowered for marker in ("vs", "против", "сравнен", "side by side")):
+        completeness.append("both_outputs_visible")
+    if any(marker in lowered for marker in ("одинаков", "same", "настрой", "услов")):
+        completeness.append("conditions_visible")
+    if any(marker in lowered for marker in ("score", "оцен", "benchmark", "тест", "результат")):
+        completeness.append("criterion_visible")
+    summary = (hit.snippet or f"Публичный community-пост: {hit.title}").strip()
+    return CommunityProofLead(
+        platform=platform,
+        url=_normalise_url(hit.url),
+        title=hit.title.strip()[:240] or platform,
+        summary=summary[:500],
+        task_summary=hit.snippet[:240] or None,
+        evidence_completeness=completeness,
+    )
+
+
 class ResearchToScriptState(TypedDict, total=False):
     request: ResearchToScriptRequest
+    topic_plan: TopicPlan
     queries: list[str]
     hits: list[SearchHit]
     sources: list[EvidenceSource]
     research: ResearchPack
     comparison_proofs: list[ComparisonProof]
+    community_leads: list[CommunityProofLead]
     script: ScriptPlan
     storyboard: StoryboardDraft
     milestones: list[ResearchMilestone]
@@ -764,10 +846,16 @@ class ResearchToScriptWorkflow:
             return SearxngSearchProvider(timeout_seconds=self.extractor.timeout_seconds)
         return DuckDuckGoSearchProvider()
 
+    def _route_topic(self, state: ResearchToScriptState) -> ResearchToScriptState:
+        plan = _route_topic(state["request"])
+        return {"topic_plan": plan, "milestones": [self._event("topic_routed", "Выбран сценарный угол и research focus для темы.", archetype=1)]}
+
     def _plan_queries(self, state: ResearchToScriptState) -> ResearchToScriptState:
         request = state["request"]
-        queries = _queries_for(request.topic, request.max_queries)
-        return {"queries": queries, "milestones": [self._event("query_plan_created", "Сформирован план проверки темы по разным типам источников.", queries=len(queries))]}
+        queries = _queries_for(request.topic, request.max_queries, state["topic_plan"])
+        events = list(state.get("milestones", []))
+        events.append(self._event("query_plan_created", "Сформирован план проверки темы по выбранному сценарному углу.", queries=len(queries)))
+        return {"queries": queries, "milestones": events}
 
     def _collect_sources(self, state: ResearchToScriptState) -> ResearchToScriptState:
         request = state["request"]
@@ -785,6 +873,33 @@ class ResearchToScriptWorkflow:
         events.append(self._event("sources_collected", "Собраны и очищены кандидаты источников.", candidates=len(hits)))
         return {"hits": hits, "milestones": events}
 
+    def _discover_community_leads(self, state: ResearchToScriptState) -> ResearchToScriptState:
+        request = state["request"]
+        if request.community_proof_mode == "off" or request.max_community_leads == 0:
+            return {"community_leads": []}
+        provider = self._provider_for(request)
+        gathered: list[SearchHit] = []
+        for platform in request.community_platforms:
+            hosts = _COMMUNITY_HOSTS[platform]
+            query = f"site:{hosts[0]} {request.topic} same prompt comparison test"
+            try:
+                gathered.extend(provider.search(query, limit=3))
+            except ResearchToScriptError:
+                continue
+        leads: list[CommunityProofLead] = []
+        seen: set[str] = set()
+        for hit in _deduplicate_hits(gathered):
+            lead = _community_lead_from_hit(hit)
+            if lead is None or lead.platform not in request.community_platforms or lead.url in seen:
+                continue
+            seen.add(lead.url)
+            leads.append(lead)
+            if len(leads) >= request.max_community_leads:
+                break
+        events = list(state.get("milestones", []))
+        events.append(self._event("community_proof_discovered", "Найдены community comparison leads для ручной редакторской проверки.", leads=len(leads)))
+        return {"community_leads": leads, "milestones": events}
+
     def _fetch_evidence(self, state: ResearchToScriptState) -> ResearchToScriptState:
         request = state["request"]
         sources: list[EvidenceSource] = []
@@ -794,6 +909,11 @@ class ResearchToScriptWorkflow:
                 break
             source = self.extractor.extract(hit)
             if source is None or source.url in seen_urls:
+                continue
+            # Social pages are collected only as review-only community leads. They
+            # cannot become a factual source simply because a search engine returned
+            # a transcript, snippet or repost of a creator's demo.
+            if source.source_type == "community":
                 continue
             seen_urls.add(source.url)
             sources.append(source)
@@ -835,6 +955,8 @@ class ResearchToScriptWorkflow:
             if not verified_links:
                 continue
             linked_sources = [source_by_url[url] for url in verified_links]
+            if linked_sources and all(source.source_type == "community" for source in linked_sources):
+                continue
             needs_primary = any(token in item.statement.lower() for token in ("цена", "стоимость", "бесплат", "free", "price", "availability", "доступ"))
             if needs_primary and not any(is_primaryish(source) for source in linked_sources):
                 # Do not promote an unsupported price/availability assertion into
@@ -904,6 +1026,8 @@ class ResearchToScriptWorkflow:
         raw = self.llm.complete("script_copy", {
             "topic": request.topic,
             "audience": request.audience,
+            "content_archetype": state["topic_plan"].archetype,
+            "content_focus": state["topic_plan"].source_focus,
             "claims": [{"claim_id": item.claim_id, "statement": item.statement} for item in selected],
             "instruction": "Верни по одной короткой понятной перефразировке для каждого утверждения в factual_narrations: максимум 24 слова и 150 символов. Пиши только по-русски, без иероглифов, сокращений и англицизмов без объяснения.",
             "cta_asset": request.cta_asset,
@@ -951,17 +1075,21 @@ class ResearchToScriptWorkflow:
 
     def _build_graph(self):
         graph = StateGraph(ResearchToScriptState)
+        graph.add_node("route_topic", self._route_topic)
         graph.add_node("plan_queries", self._plan_queries)
         graph.add_node("collect_sources", self._collect_sources)
+        graph.add_node("discover_community_leads", self._discover_community_leads)
         graph.add_node("fetch_evidence", self._fetch_evidence)
         graph.add_node("build_claims", self._build_claims)
         graph.add_node("validate_evidence", self._validate_evidence)
         graph.add_node("build_comparison_proof", self._build_comparison_proof)
         graph.add_node("compose_script", self._compose_script)
         graph.add_node("compose_storyboard", self._compose_storyboard)
-        graph.set_entry_point("plan_queries")
+        graph.set_entry_point("route_topic")
+        graph.add_edge("route_topic", "plan_queries")
         graph.add_edge("plan_queries", "collect_sources")
-        graph.add_edge("collect_sources", "fetch_evidence")
+        graph.add_edge("collect_sources", "discover_community_leads")
+        graph.add_edge("discover_community_leads", "fetch_evidence")
         graph.add_edge("fetch_evidence", "build_claims")
         graph.add_edge("build_claims", "validate_evidence")
         graph.add_edge("validate_evidence", "build_comparison_proof")
@@ -979,6 +1107,8 @@ class ResearchToScriptWorkflow:
                 script=state["script"],
                 storyboard=state["storyboard"],
                 comparison_proofs=state.get("comparison_proofs", []),
+                topic_plan=state.get("topic_plan"),
+                community_leads=state.get("community_leads", []),
                 milestones=state.get("milestones", []),
                 warnings=state.get("warnings", []),
             )

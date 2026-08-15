@@ -16,6 +16,7 @@ from msf.studio.research_to_script import (
     _official_seed_hits_for_topic,
     _rank_hit_for_topic,
     _queries_for,
+    _route_topic,
 )
 
 
@@ -129,8 +130,10 @@ def test_research_to_script_builds_evidence_linked_unique_storyboard() -> None:
     assert len({scene.preset for scene in result.storyboard.scenes}) == len(result.storyboard.scenes)
     assert {scene.style_kit for scene in result.storyboard.scenes} == {"llm_hubs_neon"}
     assert [item.phase for item in result.milestones] == [
-        "query_plan_created", "sources_collected", "pages_extracted", "claims_validated", "script_composed", "storyboard_validated",
+        "topic_routed", "query_plan_created", "sources_collected", "pages_extracted", "claims_validated", "script_composed", "storyboard_validated",
     ]
+    assert result.topic_plan is not None
+    assert result.topic_plan.archetype == "how_to"
 
 
 def test_observed_comparison_proof_creates_task_first_storyboard() -> None:
@@ -172,10 +175,12 @@ def test_russian_quality_gate_rejects_cjk_or_dense_proof_beats() -> None:
         _workflow(bad_proof=too_long).run(ResearchToScriptRequest(topic="проверяемая тема", max_queries=2, max_sources=2))
 
 
-def test_provider_query_plan_keeps_official_and_independent_routes() -> None:
-    queries = _queries_for("ограничения OpenAI API", 2)
+def test_provider_query_plan_keeps_official_and_topic_specific_routes() -> None:
+    plan = _route_topic(ResearchToScriptRequest(topic="как проверить ограничения OpenAI API"))
+    queries = _queries_for("как проверить ограничения OpenAI API", 3, plan)
     assert queries[0].startswith("site:developers.openai.com")
-    assert "независимая проверка" in queries[1]
+    assert "практическая инструкция" in queries[1]
+    assert "типичные ошибки" in queries[2]
     seed = _official_seed_hits_for_topic("ограничения OpenAI API")[0]
     irrelevant = SearchHit("Responses API reference", "https://developers.openai.com/api/reference/resources/responses")
     assert _rank_hit_for_topic(seed, "ограничения OpenAI API") > _rank_hit_for_topic(irrelevant, "ограничения OpenAI API")
@@ -205,3 +210,57 @@ def test_claude_provider_topics_use_current_official_platform_host() -> None:
     assert _official_domain_for_topic("Claude Sonnet 5 сравнение") == "platform.claude.com"
     seed = _official_seed_hits_for_topic("Claude Sonnet 5 сравнение")[0]
     assert seed.url == "https://platform.claude.com/docs/en/about-claude/models/overview"
+
+
+@pytest.mark.parametrize(("topic", "expected"), [
+    ("как настроить локальную базу знаний для команды", "how_to"),
+    ("почему ошибка агента удалила нужные файлы", "incident"),
+    ("миф: бесплатная модель всегда обходится дешевле", "myth_fact"),
+    ("кейс: команда сократила ручную проверку документов", "case_study"),
+    ("что меняется на рынке ИИ-инструментов для дизайнеров", "trend"),
+])
+def test_topic_router_supports_non_release_archetypes(topic: str, expected: str) -> None:
+    assert _route_topic(ResearchToScriptRequest(topic=topic)).archetype == expected
+
+
+def test_community_hit_becomes_review_only_lead() -> None:
+    from msf.studio.research_to_script import _community_lead_from_hit
+
+    lead = _community_lead_from_hit(SearchHit(
+        "Gemini vs Sonnet — same prompt UI test",
+        "https://www.youtube.com/watch?v=demo",
+        "same prompt, both outputs, score and conditions shown",
+    ))
+    assert lead is not None
+    assert lead.platform == "youtube"
+    assert lead.editorial_status == "needs_review"
+    assert lead.allowed_use == "attributed_recreation_only"
+    assert set(lead.evidence_completeness) == {"task_visible", "both_outputs_visible", "conditions_visible", "criterion_visible"}
+
+
+class CommunitySearch(FakeSearch):
+    def search(self, query: str, *, limit: int) -> list[SearchHit]:
+        if "site:youtube.com" in query:
+            return [SearchHit(
+                "Same prompt UI test: Gemini vs Sonnet",
+                "https://www.youtube.com/watch?v=community-demo",
+                "same prompt, both outputs, identical settings and score shown",
+            )]
+        return super().search(query, limit=limit)
+
+
+def test_community_discovery_returns_lead_not_factual_source() -> None:
+    workflow = ResearchToScriptWorkflow(search_provider=CommunitySearch(), extractor=FakeExtractor(), llm=FakeLLM())
+    result = workflow.run(ResearchToScriptRequest(
+        topic="как сравнить две модели на одной задаче",
+        max_queries=2,
+        max_sources=2,
+        community_proof_mode="discover",
+        community_platforms=["youtube"],
+        max_community_leads=1,
+    ))
+    assert len(result.community_leads) == 1
+    assert result.community_leads[0].editorial_status == "needs_review"
+    assert result.community_leads[0].platform == "youtube"
+    assert all("youtube" not in source.url for source in result.research.sources)
+    assert "community_proof_discovered" in [item.phase for item in result.milestones]
