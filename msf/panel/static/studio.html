@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MSF Studio</title>
-  <link rel="stylesheet" href="/static/studio.css?v=studio-voice-followup-2" />
+  <link rel="stylesheet" href="/static/studio.css?v=studio-voice-followup-3" />
 </head>
 <body>
   <div class="shell">
@@ -79,7 +79,9 @@
           <article class="card voice-catalog-card"><div class="card-heading"><div><p class="eyebrow">CATALOG</p><h2>Доступные голоса</h2></div></div><div id="voiceCatalog" class="voice-list empty-state">Загружаем голоса…</div></article>
           <article class="card voice-workflow-card"><div class="card-heading"><div><p class="eyebrow">ADD VOICE</p><h2>Подготовить референс</h2></div><span id="voiceStep" class="label">1 · файл</span></div>
             <div class="form-stack">
-              <label>Путь к записи на этом компьютере<input id="voicePath" placeholder="/home/user/Downloads/voice.wav" /></label>
+              <label>Добавить аудиофайл<input id="voiceFile" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/flac,audio/aac" /></label>
+              <div class="form-actions"><button id="uploadVoiceFile" class="button button-secondary" type="button">Загрузить в Studio</button><span>До 48 МБ; файл не добавляется в каталог автоматически.</span></div>
+              <label>Или путь к записи на этом компьютере<input id="voicePath" placeholder="/home/user/Downloads/voice.wav" /></label>
               <div class="form-actions"><button id="measureVoice" class="button button-secondary" type="button">Проверить качество</button><span>Ничего не изменяет.</span></div>
               <div id="voiceMeasurements" class="measurement empty-state">Введите путь к записи и запустите проверку.</div>
               <fieldset id="voiceCleanControls" class="clean-controls" disabled><legend>Очистка референса</legend><label class="check"><input id="denoiseVoice" type="checkbox"/><span>Шумоподавление по измеренному шумовому полу</span></label><label class="check"><input id="trimVoice" type="checkbox" checked/><span>Обрезать тишину в начале и конце</span></label><label class="check"><input id="normalizeVoice" type="checkbox" checked/><span>Выровнять уровень</span></label><label>Сила шумоподавления <input id="denoiseStrength" type="range" min="1" max="24" value="14"/><output id="denoiseStrengthValue">14</output></label><button id="prepareVoice" class="button button-secondary" type="button">Подготовить копию</button></fieldset>
@@ -101,6 +103,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/studio.js?v=studio-voice-followup-2" defer></script>
+  <script src="/static/studio.js?v=studio-voice-followup-3" defer></script>
 </body>
 </html>

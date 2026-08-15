@@ -44,7 +44,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -1003,13 +1003,52 @@ def api_add_voice(req: VoiceAddRequest) -> Dict[str, Any]:
     }
 
 
-class VoiceSourceRequest(BaseModel):
-    """A path to an audio file on this machine.
+_VOICE_UPLOAD_EXTENSIONS = {".wav", ".mp3", ".m4a", ".ogg", ".flac", ".aac"}
+_VOICE_UPLOAD_MAX_BYTES = 48 * 1024 * 1024
 
-    Path, not upload: the panel is a localhost operator tool and the references it
-    manages are already on disk. Accepting uploads would add a write path with no
-    caller.
+
+@app.post("/api/voices/upload")
+async def api_upload_voice_reference(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """Stage one local audio file for the Voice Lab workflow.
+
+    The panel is explicitly localhost-only. The endpoint still stores uploads only
+    in panel cache, applies a size and extension gate, and never auto-registers a
+    voice; quality measurement, transcript review and explicit registration remain
+    separate operator actions.
     """
+    original_name = Path(file.filename or "reference.wav").name
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in _VOICE_UPLOAD_EXTENSIONS:
+        raise HTTPException(422, f"unsupported audio format {suffix or '(none)'}")
+    upload_dir = CACHE / "voice_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    staged = upload_dir / f"{uuid.uuid4().hex}{suffix}"
+    total = 0
+    try:
+        with staged.open("wb") as handle:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > _VOICE_UPLOAD_MAX_BYTES:
+                    raise HTTPException(413, "audio file exceeds 48 MB limit")
+                handle.write(chunk)
+    except HTTPException:
+        staged.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+    if total == 0:
+        staged.unlink(missing_ok=True)
+        raise HTTPException(422, "empty audio file")
+    return {
+        "path": str(staged),
+        "original_name": original_name,
+        "bytes": total,
+        "next_step": "measure the staged file before preparation or registration",
+    }
+
+
+class VoiceSourceRequest(BaseModel):
+    """An operator-provided local path or a path staged through Voice Lab upload."""
 
     path: str = Field(..., min_length=1)
 

@@ -107,6 +107,31 @@
     finally { button.disabled = false; button.textContent = original; }
   }
 
+  async function uploadVoiceFile() {
+    const input = $('#voiceFile');
+    const file = input.files && input.files[0];
+    if (!file) { setMessage('#voiceMessage', 'Выберите аудиофайл для загрузки.', 'error'); return; }
+    const button = $('#uploadVoiceFile');
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Загружаем…';
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const response = await fetch('/api/voices/upload', { method: 'POST', body: form });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+      $('#voicePath').value = payload.path;
+      state.voicePreparedPath = null;
+      $('#voiceMeasurements').textContent = `Файл «${payload.original_name}» загружен в Studio (${Math.round(payload.bytes / 1024)} КБ). Теперь проверьте качество.`;
+      $('#voiceCleanControls').disabled = true;
+      $('#voicePrepResult').hidden = true;
+      $('#voiceStep').textContent = '1 · проверка качества';
+      setMessage('#voiceMessage', 'Файл загружен. Он не добавлен в каталог и не используется в рендере, пока вы явно не завершите workflow.', 'success');
+    } catch (error) { setMessage('#voiceMessage', `Не удалось загрузить файл: ${error.message}`, 'error'); }
+    finally { button.disabled = false; button.textContent = original; }
+  }
+
   async function measureVoice() {
     const path = $('#voicePath').value.trim(); if (!path) { setMessage('#voiceMessage', 'Укажите путь к записи.', 'error'); return; }
     try {
@@ -203,7 +228,7 @@
     window.addEventListener('hashchange', () => setPage(activePage()));
     $('#runForm').addEventListener('submit', prepareRun); $('#saveDraft').addEventListener('click', () => saveDraft(false)); $('#saveNodeInstruction').addEventListener('click', () => saveDraft(true)); $('#approveRun').addEventListener('click', approveRun); $('#cancelRun').addEventListener('click', cancelRun); $('#openCurrentRun').addEventListener('click', () => { location.hash = '#runs'; }); $('#nodeInstruction').addEventListener('input', () => { $('#instructionCount').textContent = `${$('#nodeInstruction').value.length} / 480`; });
     $('#refreshCatalog').addEventListener('click', loadCatalog); $('#renderStill').addEventListener('click', renderSelectedStill); $('#renderClip').addEventListener('click', renderSelectedClip); $('#useScene').addEventListener('click', () => { if (!state.selectedScene) return; $('#preset').value = state.selectedScene.name; location.hash = '#overview'; setMessage('#runMessage', `Сцена ${state.selectedScene.name} выбрана для следующего черновика.`, 'success'); });
-    $('#refreshRuns').addEventListener('click', loadRuns); $('#runStatusFilter').addEventListener('change', loadRuns); $('#settingsForm').addEventListener('submit', saveSettings); $('#refreshVoices').addEventListener('click', loadVoices); $('#measureVoice').addEventListener('click', measureVoice); $('#prepareVoice').addEventListener('click', prepareVoice); $('#transcribeVoice').addEventListener('click', transcribeVoice); $('#registerVoice').addEventListener('click', registerVoice); $('#denoiseStrength').addEventListener('input', () => { $('#denoiseStrengthValue').textContent = $('#denoiseStrength').value; }); $('#refreshAll').addEventListener('click', refreshAll);
+    $('#refreshRuns').addEventListener('click', loadRuns); $('#runStatusFilter').addEventListener('change', loadRuns); $('#settingsForm').addEventListener('submit', saveSettings); $('#refreshVoices').addEventListener('click', loadVoices); $('#uploadVoiceFile').addEventListener('click', uploadVoiceFile); $('#measureVoice').addEventListener('click', measureVoice); $('#prepareVoice').addEventListener('click', prepareVoice); $('#transcribeVoice').addEventListener('click', transcribeVoice); $('#registerVoice').addEventListener('click', registerVoice); $('#denoiseStrength').addEventListener('input', () => { $('#denoiseStrengthValue').textContent = $('#denoiseStrength').value; }); $('#refreshAll').addEventListener('click', refreshAll);
   }
   async function init() { bind(); try { await Promise.all([loadGraph(), loadStyles(), loadVoices(), loadCatalog()]); await loadSettings(); $('#systemStatus').textContent = 'Система доступна'; } catch (error) { $('#systemStatus').textContent = 'Не удалось загрузить данные'; } setPage(activePage()); }
   document.addEventListener('DOMContentLoaded', init);
