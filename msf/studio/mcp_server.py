@@ -137,6 +137,10 @@ def create_mcp_server() -> FastMCP:
         max_queries: int = 4,
         max_sources: int = 8,
         project_id: str = "default",
+        comparison_mode: str = "none",
+        comparison_models: Optional[list[str]] = None,
+        visual_evidence_mode: Optional[str] = None,
+        require_observed_comparison: bool = False,
     ) -> dict[str, Any]:
         """Create validated research, a Russian evidence-backed script and an editable unique-scene storyboard.
 
@@ -151,7 +155,9 @@ def create_mcp_server() -> FastMCP:
                 "cta_asset": cta_asset, "style_family": style_family,
                 "release_topic": release_topic, "provider": provider,
                 "max_queries": max_queries, "max_sources": max_sources,
-                "project_id": project_id,
+                "project_id": project_id, "comparison_mode": comparison_mode,
+                "comparison_models": comparison_models or [], "visual_evidence_mode": visual_evidence_mode,
+                "require_observed_comparison": require_observed_comparison,
             })
             return {"ok": True, "result": _dump(ResearchToScriptWorkflow().run(request))}
         except (ValidationError, ResearchToScriptError, ValueError) as exc:

@@ -74,6 +74,10 @@ STAGES = [
 @click.option("--style-family", default=None, help="One existing MSF renderer style family for the entire storyboard.")
 @click.option("--research-provider", type=click.Choice(["duckduckgo", "searxng"]), default="duckduckgo", show_default=True)
 @click.option("--release-topic", is_flag=True, default=False, help="Apply strict release freshness and primary-source requirements.")
+@click.option("--comparison-mode", type=click.Choice(["none", "observed", "proposed"]), default="none", show_default=True, help="Request a cited side-by-side comparison or a proposed test plan.")
+@click.option("--compare-model", "comparison_models", multiple=True, help="Model label to include in a side-by-side proof; pass twice for two models.")
+@click.option("--visual-evidence-mode", type=click.Choice(["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]), default=None, help="Preferred visual proof format.")
+@click.option("--require-observed-comparison", is_flag=True, default=False, help="Fail rather than create a proposed comparison when reproducible proof is absent.")
 def cli(
     topic: str,
     duration: float,
@@ -86,6 +90,10 @@ def cli(
     style_family: Optional[str],
     research_provider: str,
     release_topic: bool,
+    comparison_mode: str,
+    comparison_models: tuple[str, ...],
+    visual_evidence_mode: Optional[str],
+    require_observed_comparison: bool,
 ) -> None:
     """Motion Studio Framework (MSF) - Automated Viral Video Generation Pipeline."""
     click.echo(f"🎬 Motion Studio Framework CLI")
@@ -103,6 +111,10 @@ def cli(
                 style_family=style_family,
                 provider=research_provider,
                 release_topic=release_topic,
+                comparison_mode=comparison_mode,
+                comparison_models=list(comparison_models),
+                visual_evidence_mode=visual_evidence_mode,
+                require_observed_comparison=require_observed_comparison,
             ))
         except ResearchToScriptError as err:
             click.echo(f"Research-to-script failed: {err}", err=True)

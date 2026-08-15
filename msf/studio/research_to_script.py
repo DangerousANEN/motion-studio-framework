@@ -31,17 +31,19 @@ from .catalog import all_scenes
 from .contracts import (
     AudioPolicy,
     CapabilityTier,
+    ComparisonProof,
     EvidenceClaim,
     EvidenceSource,
     ResearchMilestone,
     ResearchPack,
     ResearchToScriptRequest,
     ResearchToScriptResult,
+    ScriptLine,
     ScriptPlan,
     StoryboardDraft,
     StoryboardScene,
 )
-from .research import ResearchQualityError, validate_research_pack
+from .research import ResearchQualityError, is_primaryish, validate_research_pack
 from .script_planner import ScriptQualityError, StoryAngle, plan_from_angle
 from .storyboard import StoryboardValidator
 
@@ -70,7 +72,7 @@ class SearchProvider(Protocol):
 class StructuredResearchLLM(Protocol):
     """A narrow structured-output LLM surface, easy to fake in deterministic tests."""
 
-    def complete(self, task: Literal["evidence_claims", "script_copy"], payload: Mapping[str, Any]) -> dict[str, Any]: ...
+    def complete(self, task: Literal["evidence_claims", "comparison_proof", "script_copy"], payload: Mapping[str, Any]) -> dict[str, Any]: ...
 
 
 class _StrictPayload(BaseModel):
@@ -87,6 +89,22 @@ class _ClaimItem(_StrictPayload):
 class _ClaimsPayload(_StrictPayload):
     summary: str = Field(min_length=20, max_length=4000)
     claims: list[_ClaimItem] = Field(min_length=1, max_length=5)
+
+
+class _ComparisonProofPayload(_StrictPayload):
+    mode: Literal["observed", "proposed"]
+    visual_mode: Literal["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]
+    task: str = Field(min_length=8, max_length=160)
+    prompt_summary: str = Field(min_length=8, max_length=180)
+    models: list[str] = Field(min_length=2, max_length=3)
+    conditions: list[str] = Field(min_length=2, max_length=6)
+    criterion: str = Field(min_length=8, max_length=160)
+    outcome: Literal["left_wins", "right_wins", "tie", "inconclusive"]
+    strength: str = Field(min_length=8, max_length=160)
+    weakness: str = Field(min_length=8, max_length=160)
+    evidence_claim_ids: list[str] = Field(default_factory=list, max_length=4)
+    asset_urls: list[str] = Field(default_factory=list, max_length=4)
+    disclosure: str = Field(min_length=12, max_length=180)
 
 
 class _ScriptCopyPayload(_StrictPayload):
@@ -111,18 +129,39 @@ class OpenAIResearchLLM:
 
     @staticmethod
     def _schema_for(task: str) -> dict[str, Any]:
+        if task == "comparison_proof":
+            return {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["observed", "proposed"]},
+                    "visual_mode": {"type": "string", "enum": ["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]},
+                    "task": {"type": "string", "minLength": 8, "maxLength": 160},
+                    "prompt_summary": {"type": "string", "minLength": 8, "maxLength": 180},
+                    "models": {"type": "array", "minItems": 2, "maxItems": 3, "items": {"type": "string"}},
+                    "conditions": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "string"}},
+                    "criterion": {"type": "string", "minLength": 8, "maxLength": 160},
+                    "outcome": {"type": "string", "enum": ["left_wins", "right_wins", "tie", "inconclusive"]},
+                    "strength": {"type": "string", "minLength": 8, "maxLength": 160},
+                    "weakness": {"type": "string", "minLength": 8, "maxLength": 160},
+                    "evidence_claim_ids": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
+                    "asset_urls": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
+                    "disclosure": {"type": "string", "minLength": 12, "maxLength": 180},
+                },
+                "required": ["mode", "visual_mode", "task", "prompt_summary", "models", "conditions", "criterion", "outcome", "strength", "weakness", "evidence_claim_ids", "asset_urls", "disclosure"],
+                "additionalProperties": False,
+            }
         if task == "evidence_claims":
             return {
                 "type": "object",
                 "properties": {
-                    "summary": {"type": "string"},
+                    "summary": {"type": "string", "minLength": 20, "maxLength": 4000},
                     "claims": {
-                        "type": "array",
+                        "type": "array", "minItems": 1, "maxItems": 5,
                         "items": {
                             "type": "object",
                             "properties": {
-                                "statement": {"type": "string"},
-                                "source_urls": {"type": "array", "items": {"type": "string"}},
+                                "statement": {"type": "string", "minLength": 12, "maxLength": 600},
+                                "source_urls": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}},
                                 "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
                                 "claim_type": {"type": "string", "enum": ["fact", "interpretation", "recommendation"]},
                             },
@@ -147,12 +186,21 @@ class OpenAIResearchLLM:
             "additionalProperties": False,
         }
 
-    def complete(self, task: Literal["evidence_claims", "script_copy"], payload: Mapping[str, Any]) -> dict[str, Any]:
+    def complete(self, task: Literal["evidence_claims", "comparison_proof", "script_copy"], payload: Mapping[str, Any]) -> dict[str, Any]:
         if task == "evidence_claims":
             system = (
                 "Ты исследователь для русскоязычных коротких видео. Работай только с переданными "
                 "источниками. Не добавляй фактов из памяти. Для каждого утверждения возвращай точные "
                 "source_urls только из входного списка. Отделяй факт от рекомендации. Пиши по-русски."
+            )
+        elif task == "comparison_proof":
+            system = (
+                "Ты редактор доказательных сравнений LLM для русскоязычных коротких видео. Работай только "
+                "с переданными claims и source URLs. Верни observed только если источники описывают одну и ту же "
+                "задачу, сопоставимые условия и наблюдаемый результат двух моделей; иначе верни proposed и outcome "
+                "inconclusive. Один пример не доказывает, что модель лучше вообще. Не выдумывай запрос, победителя, "
+                "скриншоты, метрики или ущерб. Пиши коротким понятным русским языком: task, criterion, strength и weakness — "
+                "максимум 18 слов; не используй английские слова, кроме точных названий моделей."
             )
         else:
             system = (
@@ -417,6 +465,61 @@ def _ensure_plain_russian_script(plan: ScriptPlan) -> None:
         raise ResearchToScriptError("script contains an overlong proof beat; split or simplify it")
 
 
+def _short_copy(text: str, *, max_words: int = 24, max_chars: int = 150) -> str:
+    """Shorten proof copy at a word boundary for safe vertical-video reading."""
+    words: list[str] = []
+    for word in text.split():
+        candidate = " ".join([*words, word])
+        if len(words) >= max_words or len(candidate) > max_chars:
+            break
+        words.append(word)
+    result = " ".join(words).rstrip(" ,;:-")
+    if not result:
+        return ""
+    return result if result.endswith((".", "!", "?")) else result + "."
+
+
+def _validate_comparison_proof(proof: ComparisonProof, research: ResearchPack, request: ResearchToScriptRequest) -> None:
+    claim_ids = {claim.claim_id for claim in research.claims}
+    source_urls = {_normalise_url(source.url) for source in research.sources}
+    if not set(proof.evidence_claim_ids) <= claim_ids:
+        raise ResearchToScriptError("comparison proof references unknown evidence claims")
+    if request.comparison_models and set(request.comparison_models) - set(proof.models):
+        raise ResearchToScriptError("comparison proof does not include every requested model")
+    if proof.mode == "proposed" and proof.outcome != "inconclusive":
+        raise ResearchToScriptError("proposed comparison cannot declare a winner")
+    if proof.mode == "observed":
+        if not proof.evidence_claim_ids:
+            raise ResearchToScriptError("observed comparison requires linked evidence claims")
+        if not proof.asset_urls:
+            raise ResearchToScriptError("observed comparison requires a reproducible result or source asset URL")
+        if not {_normalise_url(url) for url in proof.asset_urls} <= source_urls:
+            raise ResearchToScriptError("comparison proof asset URLs must come from extracted research")
+    if request.require_observed_comparison and proof.mode != "observed":
+        raise ResearchToScriptError("topic requires an observed comparison but no reproducible proof was found")
+
+
+def _script_with_comparison(script: ScriptPlan, proof: ComparisonProof) -> ScriptPlan:
+    """Replace generic middle beats with a task-first side-by-side proof sequence."""
+    cta = script.lines[-1]
+    hook = script.lines[0]
+    evidence = list(proof.evidence_claim_ids)
+    if proof.mode == "observed":
+        result = _short_copy(proof.strength)
+        caveat = _short_copy(f"Но {proof.weakness} {proof.disclosure}")
+    else:
+        result = _short_copy(f"Победителя пока нет: {proof.strength}")
+        caveat = _short_copy(f"Проверяйте так: {proof.criterion}. {proof.disclosure}")
+    lines = [
+        ScriptLine(kind="hook", narration=hook.narration, scene_intent="comparison_hook"),
+        ScriptLine(kind="fact", narration=_short_copy(f"Одна задача для всех: {proof.task}"), evidence_claim_ids=evidence, scene_intent="comparison_setup"),
+        ScriptLine(kind="fact", narration=result, evidence_claim_ids=evidence, scene_intent="comparison_result"),
+        ScriptLine(kind="interpretation", narration=caveat, evidence_claim_ids=evidence, scene_intent="comparison_caveat"),
+        ScriptLine(kind="cta", narration=cta.narration, scene_intent="cta"),
+    ]
+    return ScriptPlan(research_id=script.research_id, title=script.title, lines=lines, cta_handle=script.cta_handle)
+
+
 _OFFICIAL_TOPIC_DOMAINS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("openai", "chatgpt", "gpt-"), "developers.openai.com"),
     (("anthropic", "claude", "sonnet", "opus", "haiku"), "docs.anthropic.com"),
@@ -526,14 +629,57 @@ def _scene_for_role(role: str, used: set[str]) -> str:
     return matches[0][1]
 
 
-def _storyboard_from_script(request: ResearchToScriptRequest, research: ResearchPack, script: ScriptPlan) -> StoryboardDraft:
+_COMPARISON_SCENE_PREFERENCES: dict[str, tuple[str, ...]] = {
+    "comparison_hook": ("ColdOpenContradiction", "KineticPhrase", "HookStack"),
+    "comparison_setup": ("PromptABLab", "DecisionTree", "MythFact"),
+    "comparison_result": ("EvidenceConflictBoard", "BenchmarkArena", "BeforeAfterLens"),
+    "comparison_caveat": ("ClaimEvidenceChain", "EvidenceConflictBoard", "DecisionGrid"),
+}
+_COMPARISON_DATA_SCENES = {"ColdOpenContradiction", "PromptABLab", "EvidenceConflictBoard", "ClaimEvidenceChain"}
+
+
+def _comparison_scene_props(preset: str, proof: ComparisonProof) -> dict[str, Any]:
+    left, right = proof.models[0], proof.models[1]
+    task = _short_copy(proof.task, max_words=16, max_chars=110)
+    prompt = _short_copy(proof.prompt_summary, max_words=16, max_chars=110)
+    criterion = _short_copy(proof.criterion, max_words=16, max_chars=110)
+    strength = _short_copy(proof.strength, max_words=16, max_chars=110)
+    weakness = _short_copy(proof.weakness, max_words=16, max_chars=110)
+    disclosure = _short_copy(proof.disclosure, max_words=16, max_chars=110)
+    if preset == "ColdOpenContradiction":
+        return {"title": "ОДИН ЗАПРОС. ДВА РЕЗУЛЬТАТА.", "claimA": left, "claimB": right, "realQuestion": task, "proofLabel": criterion}
+    if preset == "PromptABLab":
+        return {"title": task, "promptA": f"{left}: {prompt}", "promptB": f"{right}: {prompt}", "resultA": left, "resultB": right, "rubric": criterion}
+    if preset == "EvidenceConflictBoard":
+        return {"title": "РЕЗУЛЬТАТ СРАВНЕНИЯ", "claim": strength, "sourceA": left, "sourceB": right, "difference": weakness}
+    if preset == "ClaimEvidenceChain":
+        return {"title": "ГРАНИЦА ВЫВОДА", "claim": strength, "evidence": criterion, "caveat": disclosure}
+    return {}
+
+
+def _scene_for_comparison_intent(intent: str, used: set[str], manifests: Mapping[str, Any]) -> str:
+    for name in _COMPARISON_SCENE_PREFERENCES.get(intent, ()):
+        manifest = manifests.get(name)
+        if manifest is not None and name not in used and (not manifest.data_driven or name in _COMPARISON_DATA_SCENES):
+            return name
+    role = {"comparison_hook": "hook", "comparison_setup": "evidence", "comparison_result": "proof", "comparison_caveat": "takeaway"}.get(intent, "explanation")
+    return _scene_for_role(role, used)
+
+
+def _storyboard_from_script(
+    request: ResearchToScriptRequest,
+    research: ResearchPack,
+    script: ScriptPlan,
+    *,
+    comparison_proof: ComparisonProof | None = None,
+) -> StoryboardDraft:
     style = _style_kit_for(request)
     used: set[str] = set()
     roles = {"hook": "hook", "fact": "evidence", "interpretation": "proof", "instruction": "takeaway", "cta": "cta"}
     scenes: list[StoryboardScene] = []
     manifests = {item.name: item for item in all_scenes(tier=CapabilityTier.PRESET)}
     for line in script.lines:
-        preset = _scene_for_role(roles.get(line.kind, "explanation"), used)
+        preset = _scene_for_comparison_intent(line.scene_intent, used, manifests) if comparison_proof else _scene_for_role(roles.get(line.kind, "explanation"), used)
         used.add(preset)
         manifest = manifests[preset]
         text = (line.on_screen_text or line.narration).strip()
@@ -544,6 +690,7 @@ def _storyboard_from_script(request: ResearchToScriptRequest, research: Research
             preset=preset,
             title=title,
             text=text,
+            props=_comparison_scene_props(preset, comparison_proof) if comparison_proof else {},
             style_kit=style,
             duration_in_frames=duration,
             audio=AudioPolicy(mode="suggest", music_mood="focused" if line.kind in {"fact", "instruction"} else "energetic", sfx_roles=manifest.recommended_audio_roles),
@@ -576,6 +723,7 @@ class ResearchToScriptState(TypedDict, total=False):
     hits: list[SearchHit]
     sources: list[EvidenceSource]
     research: ResearchPack
+    comparison_proofs: list[ComparisonProof]
     script: ScriptPlan
     storyboard: StoryboardDraft
     milestones: list[ResearchMilestone]
@@ -657,6 +805,15 @@ class ResearchToScriptWorkflow:
         sources = state["sources"]
         source_rows = [{"url": item.url, "title": item.title, "publisher": item.publisher, "excerpt": item.excerpt} for item in sources]
         raw = self.llm.complete("evidence_claims", {"topic": request.topic, "sources": source_rows, "maximum_claims": 4})
+        # Keep the contract compact without discarding an otherwise evidence-linked
+        # claim when the structured model returns more than three citations.
+        if isinstance(raw, Mapping) and isinstance(raw.get("claims"), list):
+            raw = dict(raw)
+            raw["claims"] = [
+                {**item, "source_urls": item.get("source_urls", [])[:3]}
+                if isinstance(item, Mapping) and isinstance(item.get("source_urls"), list) else item
+                for item in raw["claims"]
+            ]
         try:
             generated = _ClaimsPayload.model_validate(raw)
         except ValidationError as exc:
@@ -665,15 +822,26 @@ class ResearchToScriptWorkflow:
         claims: list[EvidenceClaim] = []
         for item in generated.claims:
             linked = [_normalise_url(url) for url in item.source_urls]
-            unknown = [url for url in linked if url not in source_by_url]
-            if unknown:
-                raise ResearchToScriptError("claim cites URLs absent from extracted research")
+            verified_links = [url for url in linked if url in source_by_url]
+            # An LLM may append a plausible but unextracted URL. It cannot become
+            # evidence: retain only explicit links from this ResearchPack, or drop
+            # the claim when none of its citations were actually retrieved.
+            if not verified_links:
+                continue
+            linked_sources = [source_by_url[url] for url in verified_links]
+            needs_primary = any(token in item.statement.lower() for token in ("цена", "стоимость", "бесплат", "free", "price", "availability", "доступ"))
+            if needs_primary and not any(is_primaryish(source) for source in linked_sources):
+                # Do not promote an unsupported price/availability assertion into
+                # a video claim simply because a lower-quality page mentioned it.
+                continue
             claims.append(EvidenceClaim(
                 statement=item.statement,
-                source_ids=[source_by_url[url].source_id for url in linked],
+                source_ids=[source.source_id for source in linked_sources],
                 confidence=item.confidence,
                 claim_type=item.claim_type,
             ))
+        if not claims:
+            raise ResearchToScriptError("claim extraction produced no claims linked to extracted research")
         pack = ResearchPack(topic=request.topic, release_topic=request.release_topic, sources=sources, claims=claims, summary=generated.summary)
         return {"research": pack}
 
@@ -686,6 +854,39 @@ class ResearchToScriptWorkflow:
         events = list(state.get("milestones", []))
         events.append(self._event("claims_validated", "Утверждения связаны с источниками и прошли evidence gate.", claims=len(research.claims), sources=len(research.sources)))
         return {"warnings": warnings, "milestones": events}
+
+    def _build_comparison_proof(self, state: ResearchToScriptState) -> ResearchToScriptState:
+        request = state["request"]
+        if request.comparison_mode == "none":
+            return {"comparison_proofs": []}
+        research = state["research"]
+        source_by_id = {source.source_id: source for source in research.sources}
+        raw = self.llm.complete("comparison_proof", {
+            "topic": request.topic,
+            "requested_mode": request.comparison_mode,
+            "requested_models": request.comparison_models,
+            "requested_visual_mode": request.visual_evidence_mode,
+            "claims": [
+                {"claim_id": claim.claim_id, "statement": claim.statement, "source_urls": [source_by_id[source_id].url for source_id in claim.source_ids]}
+                for claim in research.claims
+            ],
+            "source_urls": [source.url for source in research.sources],
+            "instruction": "Найди один честный side-by-side proof. Если источники не описывают одинаковую задачу и результат двух моделей, верни proposed/inconclusive. Для observed добавь только URL из source_urls и evidence_claim_ids только из claims.",
+        })
+        try:
+            payload = _ComparisonProofPayload.model_validate(raw)
+            proof = ComparisonProof.model_validate(payload.model_dump())
+        except ValidationError as exc:
+            raise ResearchToScriptError(f"comparison proof violates contract: {exc}") from exc
+        if request.comparison_mode == "proposed" and proof.mode != "proposed":
+            raise ResearchToScriptError("proposed comparison request cannot emit an observed winner")
+        _validate_comparison_proof(proof, research, request)
+        warnings = list(state.get("warnings", []))
+        if request.comparison_mode == "observed" and proof.mode == "proposed":
+            warnings.append("Не найден воспроизводимый observed side-by-side proof; подготовлен только план честного теста.")
+        events = list(state.get("milestones", []))
+        events.append(self._event("comparison_proof_validated", "Собрано доказательное сравнение: задача, условия, результат и оговорка.", proofs=1))
+        return {"comparison_proofs": [proof], "warnings": warnings, "milestones": events}
 
     def _compose_script(self, state: ResearchToScriptState) -> ResearchToScriptState:
         request = state["request"]
@@ -727,13 +928,17 @@ class ResearchToScriptWorkflow:
             script = plan_from_angle(title=copy.title, research=research, hook=copy.hook, angle=angle, cta_handle=request.cta_handle)
         except ScriptQualityError as exc:
             raise ResearchToScriptError(f"script policy failed: {exc}") from exc
+        comparison_proofs = state.get("comparison_proofs", [])
+        if comparison_proofs:
+            script = _script_with_comparison(script, comparison_proofs[0])
         _ensure_plain_russian_script(script)
         events = list(state.get("milestones", []))
         events.append(self._event("script_composed", "Собран короткий русскоязычный сценарий с конкретным Telegram-материалом.", lines=len(script.lines)))
         return {"script": script, "milestones": events}
 
     def _compose_storyboard(self, state: ResearchToScriptState) -> ResearchToScriptState:
-        storyboard = _storyboard_from_script(state["request"], state["research"], state["script"])
+        proofs = state.get("comparison_proofs", [])
+        storyboard = _storyboard_from_script(state["request"], state["research"], state["script"], comparison_proof=proofs[0] if proofs else None)
         events = list(state.get("milestones", []))
         events.append(self._event("storyboard_validated", "Подобраны уникальные сцены из live catalog и единый visual style.", scenes=len(storyboard.scenes)))
         return {"storyboard": storyboard, "milestones": events}
@@ -745,6 +950,7 @@ class ResearchToScriptWorkflow:
         graph.add_node("fetch_evidence", self._fetch_evidence)
         graph.add_node("build_claims", self._build_claims)
         graph.add_node("validate_evidence", self._validate_evidence)
+        graph.add_node("build_comparison_proof", self._build_comparison_proof)
         graph.add_node("compose_script", self._compose_script)
         graph.add_node("compose_storyboard", self._compose_storyboard)
         graph.set_entry_point("plan_queries")
@@ -752,7 +958,8 @@ class ResearchToScriptWorkflow:
         graph.add_edge("collect_sources", "fetch_evidence")
         graph.add_edge("fetch_evidence", "build_claims")
         graph.add_edge("build_claims", "validate_evidence")
-        graph.add_edge("validate_evidence", "compose_script")
+        graph.add_edge("validate_evidence", "build_comparison_proof")
+        graph.add_edge("build_comparison_proof", "compose_script")
         graph.add_edge("compose_script", "compose_storyboard")
         graph.add_edge("compose_storyboard", END)
         return graph.compile()
@@ -765,6 +972,7 @@ class ResearchToScriptWorkflow:
                 research=state["research"],
                 script=state["script"],
                 storyboard=state["storyboard"],
+                comparison_proofs=state.get("comparison_proofs", []),
                 milestones=state.get("milestones", []),
                 warnings=state.get("warnings", []),
             )

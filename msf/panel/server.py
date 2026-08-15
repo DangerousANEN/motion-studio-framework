@@ -1173,6 +1173,10 @@ class StudioResearchToScriptPayload(BaseModel):
     max_queries: int = Field(4, ge=1, le=4)
     max_sources: int = Field(8, ge=2, le=12)
     project_id: str = Field("default", min_length=1, max_length=120)
+    comparison_mode: str = "none"
+    comparison_models: list[str] = Field(default_factory=list, max_length=3)
+    visual_evidence_mode: Optional[str] = None
+    require_observed_comparison: bool = False
 
 
 class StudioRunPayload(BaseModel):

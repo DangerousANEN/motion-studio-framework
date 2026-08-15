@@ -357,3 +357,12 @@ def test_research_to_script_endpoint_rejects_unknown_provider_before_network() -
     )
     assert response.status_code == 422
     assert "provider" in response.text
+
+
+def test_research_to_script_endpoint_rejects_invalid_comparison_mode_before_network() -> None:
+    response = client.post(
+        "/api/studio/research-to-script",
+        json={"topic": "проверяемая тема", "comparison_mode": "unverified-winner"},
+    )
+    assert response.status_code == 422
+    assert "comparison_mode" in response.text

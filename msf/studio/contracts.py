@@ -301,6 +301,29 @@ class ResearchToScriptRequest(StudioModel):
     max_queries: int = Field(default=4, ge=1, le=4)
     max_sources: int = Field(default=8, ge=2, le=12)
     project_id: str = Field(default="default", min_length=1, max_length=120)
+    comparison_mode: Literal["none", "observed", "proposed"] = "none"
+    comparison_models: List[str] = Field(default_factory=list, max_length=3)
+    visual_evidence_mode: Optional[Literal["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]] = None
+    require_observed_comparison: bool = False
+
+
+class ComparisonProof(StudioModel):
+    """One bounded, evidence-linked side-by-side comparison for a short video."""
+
+    comparison_id: str = Field(default_factory=lambda: new_id("comparison"))
+    mode: Literal["observed", "proposed"]
+    visual_mode: Literal["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]
+    task: str = Field(min_length=8, max_length=240)
+    prompt_summary: str = Field(min_length=8, max_length=500)
+    models: List[str] = Field(min_length=2, max_length=3)
+    conditions: List[str] = Field(min_length=2, max_length=6)
+    criterion: str = Field(min_length=8, max_length=240)
+    outcome: Literal["left_wins", "right_wins", "tie", "inconclusive"]
+    strength: str = Field(min_length=8, max_length=300)
+    weakness: str = Field(min_length=8, max_length=300)
+    evidence_claim_ids: List[str] = Field(default_factory=list, max_length=4)
+    asset_urls: List[str] = Field(default_factory=list, max_length=4)
+    disclosure: str = Field(min_length=12, max_length=300)
 
 
 class ResearchMilestone(StudioModel):
@@ -313,6 +336,7 @@ class ResearchMilestone(StudioModel):
         "claims_validated",
         "script_composed",
         "storyboard_validated",
+        "comparison_proof_validated",
     ]
     message: str = Field(min_length=1, max_length=400)
     counts: Dict[str, int] = Field(default_factory=dict)
@@ -325,5 +349,6 @@ class ResearchToScriptResult(StudioModel):
     research: ResearchPack
     script: ScriptPlan
     storyboard: StoryboardDraft
+    comparison_proofs: List[ComparisonProof] = Field(default_factory=list)
     milestones: List[ResearchMilestone] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

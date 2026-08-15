@@ -91,3 +91,12 @@ Workflow собирается через существующий MSF LangGraph 
 ## Проверенные primary-source маршруты
 
 Для provider-specific тем workflow не принимает зеркала документации за официальный источник. В частности, проверенная страница OpenAI о rate limits доступна по адресу `https://developers.openai.com/api/docs/guides/rate-limits`; прежний `platform.openai.com/docs/guides/rate-limits` перенаправляет на этот домен. Native source routing использует `developers.openai.com` как допустимый официальный host для OpenAI API documentation.
+
+
+## Evidence-first side-by-side comparison
+
+Для model-versus-model ролика native request принимает `comparison_mode`, `comparison_models`, `visual_evidence_mode` и `require_observed_comparison`. Результат содержит typed `ComparisonProof` наряду с research, script и storyboard; timeline фиксирует milestone `comparison_proof_validated`.
+
+`observed` разрешён только при одной задаче, сопоставимых условиях, связанных evidence claims и URL результата/источника, уже извлечённого в research pack. Если публичная пара результатов не найдена, workflow возвращает `proposed` с `inconclusive` outcome и не называет победителя. Такой draft показывает зрителю план честного A/B теста: `ColdOpenContradiction → PromptABLab → EvidenceConflictBoard → ClaimEvidenceChain → CTA`.
+
+Полный contract, visual mapping и source policy находятся в [MSF comparison-proof policy](MSF_COMPARISON_PROOF_POLICY.md).
