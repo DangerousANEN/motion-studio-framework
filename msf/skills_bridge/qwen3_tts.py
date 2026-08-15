@@ -1,6 +1,6 @@
 """MSF Qwen3-TTS Bridge — zero-shot voice cloning with prosody transfer.
 
-Model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (bfloat16, CUDA).
+Model: Qwen3-TTS Base — CUDA 1.7B when available, official 0.6B CPU fallback otherwise.
 
 Two cloning modes exist, and the difference is audible:
 
@@ -32,7 +32,10 @@ import soundfile as sf
 
 warnings.filterwarnings("ignore")
 
-DEFAULT_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+CUDA_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+CPU_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+# Users with a local model cache may override either choice without changing code.
+DEFAULT_MODEL_ID = os.getenv("MSF_TTS_MODEL", CUDA_MODEL_ID)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _VOICES_JSON = _REPO_ROOT / "assets" / "voices" / "voices.json"
@@ -61,17 +64,13 @@ LEAD_SILENCE_MS = 30
 TAIL_SILENCE_MS = 120
 
 
-def get_qwen3_clone_model(model_id: str = DEFAULT_MODEL_ID) -> Any:
-    """Load Qwen3-TTS 1.7B as a module-level singleton.
+def get_qwen3_clone_model(model_id: Optional[str] = None) -> Any:
+    """Load an official Qwen3-TTS Base model as a process-wide singleton.
 
-    The load strategy matters:
-    - ``device_map="cuda:0"`` uses accelerate's meta-tensor init, which fails
-      with *"Cannot copy out of meta tensor"* when the GPU is partially
-      occupied or accelerate/transformers have the wrong dispatch tables.
-      This was the 500 error the panel produced on first listen.
-    - Loading to CPU first (``device_map="cpu"``) and then moving to CUDA
-      avoids meta-tensor dispatch entirely, adds ~2 s to cold start but
-      never crashes.
+    GPU hosts keep the 1.7B checkpoint. CPU-only hosts must not attempt a false
+    ``cuda:0`` load: they use the official 0.6B Base model in float32 eager mode.
+    It is slower than GPU inference, but it is a real, bounded batch fallback for
+    local Studio rendering rather than an immediate 500 error.
     """
     global _MODEL_SINGLETON
     if _MODEL_SINGLETON is not None:
@@ -81,28 +80,22 @@ def get_qwen3_clone_model(model_id: str = DEFAULT_MODEL_ID) -> Any:
     import torch
     from qwen_tts import Qwen3TTSModel
 
-    try:
-        # Fast path: direct CUDA load.
+    if torch.cuda.is_available():
+        selected = model_id or DEFAULT_MODEL_ID
         model = Qwen3TTSModel.from_pretrained(
-            model_id,
+            selected,
             device_map="cuda:0",
             dtype=torch.bfloat16,
             attn_implementation="eager",
         )
-    except NotImplementedError:
-        # Fallback: CPU → CUDA to dodge meta-tensor errors.
-        import logging
-        logging.getLogger(__name__).warning(
-            "device_map=cuda:0 hit meta-tensor error; loading via CPU fallback"
-        )
+    else:
+        selected = model_id or os.getenv("MSF_TTS_CPU_MODEL", CPU_MODEL_ID)
         model = Qwen3TTSModel.from_pretrained(
-            model_id,
+            selected,
             device_map="cpu",
-            dtype=torch.bfloat16,
+            dtype=torch.float32,
             attn_implementation="eager",
         )
-        model = model.to("cuda:0")
-
     _MODEL_SINGLETON = model
     return _MODEL_SINGLETON
 
@@ -332,5 +325,7 @@ __all__ = [
     "resolve_voice",
     "describe_reference",
     "tail_energy_ratio",
+    "CUDA_MODEL_ID",
+    "CPU_MODEL_ID",
     "DEFAULT_MODEL_ID",
 ]
