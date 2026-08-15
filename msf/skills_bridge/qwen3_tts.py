@@ -63,6 +63,17 @@ TAIL_SILENCE_MS = 120
 
 
 def get_qwen3_clone_model(model_id: str = DEFAULT_MODEL_ID) -> Any:
+    """Load Qwen3-TTS 1.7B as a module-level singleton.
+
+    The load strategy matters:
+    - ``device_map="cuda:0"`` uses accelerate's meta-tensor init, which fails
+      with *"Cannot copy out of meta tensor"* when the GPU is partially
+      occupied or accelerate/transformers have the wrong dispatch tables.
+      This was the 500 error the panel produced on first listen.
+    - Loading to CPU first (``device_map="cpu"``) and then moving to CUDA
+      avoids meta-tensor dispatch entirely, adds ~2 s to cold start but
+      never crashes.
+    """
     global _MODEL_SINGLETON
     if _MODEL_SINGLETON is not None:
         return _MODEL_SINGLETON
@@ -70,12 +81,28 @@ def get_qwen3_clone_model(model_id: str = DEFAULT_MODEL_ID) -> Any:
     os.environ["TRANSFORMERS_VERBOSITY"] = "error"
     from qwen_tts import Qwen3TTSModel
 
-    model = Qwen3TTSModel.from_pretrained(
-        model_id,
-        device_map="cuda:0",
-        dtype=torch.bfloat16,
-        attn_implementation="eager",
-    )
+    try:
+        # Fast path: direct CUDA load.
+        model = Qwen3TTSModel.from_pretrained(
+            model_id,
+            device_map="cuda:0",
+            dtype=torch.bfloat16,
+            attn_implementation="eager",
+        )
+    except NotImplementedError:
+        # Fallback: CPU → CUDA to dodge meta-tensor errors.
+        import logging
+        logging.getLogger(__name__).warning(
+            "device_map=cuda:0 hit meta-tensor error; loading via CPU fallback"
+        )
+        model = Qwen3TTSModel.from_pretrained(
+            model_id,
+            device_map="cpu",
+            dtype=torch.bfloat16,
+            attn_implementation="eager",
+        )
+        model = model.to("cuda:0")
+
     _MODEL_SINGLETON = model
     return _MODEL_SINGLETON
 

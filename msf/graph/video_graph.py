@@ -141,6 +141,11 @@ class VideoState(TypedDict, total=False):
     soundtrack_path: Optional[str]
     soundtrack_report: Optional[Dict[str, Any]]
     # ---- deep research (fail-closed; opt-in via `research` or `research_query`)
+    # ---- LLM script generation
+    use_llm_script: Optional[bool]  # True (default) → ScriptAgent via LLM; False → mechanical split
+    topic: Optional[str]            # topic for ScriptAgent when text is a raw topic, not full narration
+    style: Optional[str]            # style hint for ScriptAgent ("modern_tech", "funny", etc.)
+    duration_range: Optional[List[int]]  # [min_sec, max_sec] for ScriptAgent
     research: Optional[bool]
     research_query: Optional[str]
     research_detailed: Optional[bool]
@@ -313,13 +318,16 @@ def _script_from_facts(facts: Any, state: VideoState) -> str:
 
 
 def node_script_split(state: VideoState) -> VideoState:
-    """Split text into sentence-sized scenes, or accept a hand-authored storyboard.
+    """Generate or split narration into scenes.
 
-    When the caller supplies `storyboard` (a list of scene dicts), it wins: this is
-    how presets that need structured data (StatCounter's statValue, SwipePanels'
-    cards) get driven, since plain narration can't express them. Each storyboard
-    entry still needs a `text` field — that's what gets voiced.
+    Priority order:
+      1. ``storyboard`` — hand-authored scene list (data presets, custom layouts).
+      2. ``use_llm_script=True`` (default) — call ScriptAgent via LLM to write a
+         structured viral script with hook → narrative arc → CTA.
+      3. ``use_llm_script=False`` — mechanical split by sentence boundaries
+         (legacy fallback, useful when the caller provides finished narration).
     """
+    # ── 1. Hand-authored storyboard wins ─────────────────────────────────
     storyboard = state.get("storyboard")
     if storyboard:
         scenes = [dict(sc) for sc in storyboard]
@@ -331,7 +339,87 @@ def node_script_split(state: VideoState) -> VideoState:
         state["scenes"] = scenes
         return state
 
-    state["scenes"] = _split_into_scenes(state.get("text", ""))
+    # ── 2. LLM-powered script generation (default) ───────────────────────
+    use_llm = state.get("use_llm_script", True)
+    text = state.get("text", "")
+
+    if use_llm:
+        try:
+            from msf.agents.script_agent import ScriptAgent
+            from msf.agents.llm_client import LLMClient
+            from msf.config import MSFConfig, LLMConfig
+            from msf.contracts.models import ProjectBrief, ResearchResult
+
+            cfg = MSFConfig()
+            llm_cfg = cfg.llm if hasattr(cfg, "llm") and cfg.llm else LLMConfig(
+                base_url="http://localhost:20128/v1",
+                model="antigravity/gemini-2.5-flash",
+                api_key="not-needed",
+                temperature=0.7,
+                max_tokens=2048,
+            )
+            llm = LLMClient(config=llm_cfg)
+            agent = ScriptAgent(config=cfg, llm=llm)
+
+            # Build brief from state
+            topic = state.get("topic") or text or "General"
+            style = state.get("style", "modern_tech")
+            dur_range = state.get("duration_range") or [30, 60]
+
+            brief = ProjectBrief(
+                topic=topic,
+                style=style,
+                duration_range=tuple(dur_range),
+            )
+
+            # Use research results if available from deep_research node
+            research = ResearchResult(
+                facts=list((state.get("research_facts") or {}).get("facts", [])),
+                key_points=list((state.get("research_facts") or {}).get("key_points", [])),
+                statistics=list((state.get("research_facts") or {}).get("statistics", [])),
+                sources=state.get("research_sources") or [],
+            )
+
+            script = agent.execute({"brief": brief, "research": research})
+
+            # Validate and warn (non-blocking — we still use the script)
+            review = agent.validate(script)
+            if review.issues:
+                print(f"[script] ⚠ validation issues ({len(review.issues)}):")
+                for issue in review.issues:
+                    print(f"  - {issue}")
+
+            # Convert Script → scenes list for downstream nodes
+            scenes = []
+            # Hook is always the first scene
+            if script.hook and script.hook.strip():
+                scenes.append({"text": script.hook.strip()})
+
+            for scene_text in (script.scenes_text or []):
+                if scene_text and scene_text.strip():
+                    scenes.append({"text": scene_text.strip()})
+
+            # CTA is always the last scene
+            if script.cta and script.cta.strip():
+                scenes.append({"text": script.cta.strip()})
+
+            if not scenes:
+                print("[script] LLM returned empty script — falling back to mechanical split")
+                state["scenes"] = _split_into_scenes(text)
+            else:
+                state["scenes"] = scenes
+                print(f"[script] LLM script: {len(scenes)} scenes "
+                      f"(hook + {len(script.scenes_text or [])} body + CTA), "
+                      f"~{script.total_duration:.0f}s")
+
+            return state
+
+        except Exception as e:
+            print(f"[script] LLM script generation failed: {e}")
+            print("[script] falling back to mechanical split")
+
+    # ── 3. Mechanical fallback ───────────────────────────────────────────
+    state["scenes"] = _split_into_scenes(text)
     return state
 
 
