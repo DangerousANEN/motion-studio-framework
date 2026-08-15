@@ -199,3 +199,9 @@ def test_public_url_guard_and_deduplication_are_fail_closed() -> None:
         SearchHit("Unsafe", "http://127.0.0.1:8765/private"),
     ])
     assert [hit.url for hit in deduplicated] == ["https://example.com/article"]
+
+
+def test_claude_provider_topics_use_current_official_platform_host() -> None:
+    assert _official_domain_for_topic("Claude Sonnet 5 сравнение") == "platform.claude.com"
+    seed = _official_seed_hits_for_topic("Claude Sonnet 5 сравнение")[0]
+    assert seed.url == "https://platform.claude.com/docs/en/about-claude/models/overview"

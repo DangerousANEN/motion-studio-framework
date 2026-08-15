@@ -522,7 +522,7 @@ def _script_with_comparison(script: ScriptPlan, proof: ComparisonProof) -> Scrip
 
 _OFFICIAL_TOPIC_DOMAINS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("openai", "chatgpt", "gpt-"), "developers.openai.com"),
-    (("anthropic", "claude", "sonnet", "opus", "haiku"), "docs.anthropic.com"),
+    (("anthropic", "claude", "sonnet", "opus", "haiku"), "platform.claude.com"),
     (("gemini", "deepmind"), "ai.google.dev"),
     (("deepseek",), "api-docs.deepseek.com"),
     (("grok", "xai"), "docs.x.ai"),
@@ -546,6 +546,12 @@ def _official_seed_hits_for_topic(topic: str) -> list[SearchHit]:
             title="Rate limits | OpenAI API",
             url="https://developers.openai.com/api/docs/guides/rate-limits",
             publisher="developers.openai.com",
+        )]
+    if _official_domain_for_topic(topic) == "platform.claude.com":
+        return [SearchHit(
+            title="Models overview | Claude Platform",
+            url="https://platform.claude.com/docs/en/about-claude/models/overview",
+            publisher="platform.claude.com",
         )]
     return []
 
