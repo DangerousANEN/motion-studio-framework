@@ -29,7 +29,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
-import torch
 
 warnings.filterwarnings("ignore")
 
@@ -46,7 +45,7 @@ _VOICES_JSON = _REPO_ROOT / "assets" / "voices" / "voices.json"
 # fell through to the bare DEFAULT_REF_AUDIO path with ref_text=None, silently
 # downgrading every unattended render to x-vector mode (timbre copy, flat
 # prosody) instead of the ICL prosody transfer Qwen3-TTS is chosen for.
-DEFAULT_VOICE = "voice_3"
+DEFAULT_VOICE = "msf_narrator_recovered"
 
 # Absolute fallback if the registry is missing entirely.
 DEFAULT_REF_AUDIO = str(_REPO_ROOT / "assets" / "voices" / "refs" / "syenduk_8s_24k.wav")
@@ -79,6 +78,7 @@ def get_qwen3_clone_model(model_id: str = DEFAULT_MODEL_ID) -> Any:
         return _MODEL_SINGLETON
 
     os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+    import torch
     from qwen_tts import Qwen3TTSModel
 
     try:

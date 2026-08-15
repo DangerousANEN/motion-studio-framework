@@ -81,13 +81,15 @@
   function renderVoiceCatalog() {
     const root = $('#voiceCatalog');
     if (!state.voices.length) { root.textContent = 'В каталоге пока нет голосов.'; return; }
-    root.innerHTML = state.voices.map((voice) => { const status = !voice.exists ? 'Файл не найден' : !voice.icl ? 'Нужен текст' : 'Готов'; const tone = voice.usable ? 'completed' : 'failed'; return `<article class="voice-row"><header><b>${esc(voice.key)}</b><span class="status-badge ${tone}">${status}</span></header><p>${esc(voice.mode || '—')} · ${voice.duration_sec || '—'} c · ${esc(voice.lang || '—')}${voice.icl ? ' · текст проверен' : ''}</p><p>${esc(voice.notes || '')}</p><div class="voice-actions"><button class="button button-secondary" data-voice-preview="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Прослушать</button><button class="button button-secondary" data-voice-use="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Выбрать для запуска</button></div></article>`; }).join('');
+    root.innerHTML = state.voices.map((voice) => { const status = !voice.exists ? 'Файл не найден' : !voice.icl ? 'Нужен текст' : 'Готов'; const tone = voice.usable ? 'completed' : 'failed'; return `<article class="voice-row"><header><b>${esc(voice.key)}</b><span class="status-badge ${tone}">${status}</span></header><p>${esc(voice.mode || '—')} · ${voice.duration_sec || '—'} c · ${esc(voice.lang || '—')}${voice.icl ? ' · текст проверен' : ''}</p><p>${esc(voice.notes || '')}</p><div class="voice-actions"><button class="button button-secondary" data-voice-preview="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Слушать референс</button><button class="button button-secondary" data-voice-use="${esc(voice.key)}" ${voice.usable ? '' : 'disabled'}>Выбрать для запуска</button></div></article>`; }).join('');
     root.querySelectorAll('[data-voice-preview]').forEach((button) => button.addEventListener('click', () => previewVoice(button.dataset.voicePreview)));
     root.querySelectorAll('[data-voice-use]').forEach((button) => button.addEventListener('click', () => { $('#runVoice').value = button.dataset.voiceUse; location.hash = '#overview'; }));
   }
   async function previewVoice(voice) {
-    try { const result = await api('/api/preview/voice', { method: 'POST', body: JSON.stringify({ voice }) }); const audio = new Audio(result.url); await audio.play(); }
-    catch (error) { setMessage('#voiceMessage', `Не удалось создать sample: ${error.message}`, 'error'); }
+    const item = state.voices.find((candidate) => candidate.key === voice);
+    if (!item?.reference_preview_url) { setMessage('#voiceMessage', 'Reference audio для этого голоса недоступен.', 'error'); return; }
+    try { const audio = new Audio(item.reference_preview_url); await audio.play(); }
+    catch (error) { setMessage('#voiceMessage', `Не удалось воспроизвести референс: ${error.message}`, 'error'); }
   }
 
   async function measureVoice() {

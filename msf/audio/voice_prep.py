@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -327,7 +328,10 @@ def prepare(
         # short clip and loudnorm's two-pass gating misbehaves on those, while the
         # model cares about level consistency, not broadcast loudness.
         chain.append("dynaudnorm=f=200:g=5:p=0.9")
-        chain.append("alimiter=limit=0.84")
+        # `level=0` is essential: FFmpeg's default post-limiter auto-level can
+        # scale the protected signal back up to full scale, defeating the -1.5
+        # dBFS ceiling and creating clipped samples in the prepared reference.
+        chain.append("alimiter=limit=0.84:level=0")
         applied.append("выравнивание уровня + лимитер -1.5 dBFS")
 
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -444,6 +448,58 @@ def _get_whisper():
     return _WHISPER_MODEL
 
 
+def _transcribe_with_local_cli(path: Path) -> Dict[str, Any]:
+    """Use the bundled local speech-to-text utility when faster-whisper is absent.
+
+    The utility may use a managed runtime rather than the project's Python env. Its
+    output still remains review-only: no result from this fallback is auto-saved to
+    a voice registry, and no artificial confidence score is invented.
+    """
+    command = shutil.which("manus-speech-to-text")
+    if not command:
+        raise ImportError("faster-whisper and local speech-to-text fallback are unavailable")
+    started = __import__("time").time()
+    proc = subprocess.run([command, str(path)], capture_output=True, text=True, timeout=900)
+    output = "\n".join(part for part in (proc.stdout, proc.stderr) if part)
+    if proc.returncode != 0:
+        tail = output.strip().splitlines()[-4:]
+        raise RuntimeError(f"local speech-to-text failed: {' | '.join(tail)}")
+    found = re.findall(r"JSON saved to\s+(.+?\.json)(?:\n|$)", output)
+    candidate = Path(found[-1].strip()) if found else None
+    if not candidate or not candidate.is_file():
+        # The command writes beside the source. Time-gate candidates so an old
+        # transcription cannot be incorrectly returned for a new reference.
+        recent = [item for item in path.parent.glob(f"{path.stem}_transcription_*.json") if item.stat().st_mtime >= started - 2]
+        candidate = max(recent, key=lambda item: item.stat().st_mtime) if recent else None
+    if not candidate or not candidate.is_file():
+        raise RuntimeError("local speech-to-text completed but produced no JSON transcript")
+    payload = json.loads(candidate.read_text(encoding="utf-8"))
+    raw_segments = payload.get("segments") if isinstance(payload, dict) else None
+    parts = []
+    for segment in raw_segments if isinstance(raw_segments, list) else []:
+        if not isinstance(segment, dict):
+            continue
+        parts.append({
+            "start": round(float(segment.get("start", 0)), 2),
+            "end": round(float(segment.get("end", 0)), 2),
+            "text": str(segment.get("text", "")).strip(),
+            "logprob": None,
+        })
+    text = " ".join(part["text"] for part in parts).strip()
+    return {
+        "text": text or str(payload.get("full_text", "")).strip(),
+        "language": str(payload.get("language", "unknown")),
+        "language_probability": None,
+        "segments": parts,
+        "mean_logprob": None,
+        "low_confidence": None,
+        "model": "local speech-to-text fallback",
+        "device": "managed runtime",
+        "compute_type": "managed",
+        "needs_proofreading": True,
+    }
+
+
 def transcribe(path: Path, language: str = "ru") -> Dict[str, Any]:
     """Transcribe a reference clip verbatim.
 
@@ -460,7 +516,10 @@ def transcribe(path: Path, language: str = "ru") -> Dict[str, Any]:
     that removes words, and a transcript missing words is worse than one including
     a breath.
     """
-    model = _get_whisper()
+    try:
+        model = _get_whisper()
+    except ImportError:
+        return _transcribe_with_local_cli(path)
     segments, info = model.transcribe(
         str(path),
         language=language,

@@ -1,17 +1,26 @@
 {
   "_readme": {
-    "purpose": "Voice registry for MSF Qwen3-TTS zero-shot cloning with ICL prosody transfer."
+    "purpose": "Voice registry for MSF Qwen3-TTS zero-shot cloning with ICL prosody transfer.",
+    "active_policy": "Only entries with a local reference WAV and a reviewable transcript are active. Missing legacy assets are archived below and never selectable by the pipeline."
   },
-  "voice_2": {
-    "ref_audio": "assets/voices/refs/voice_2_17s_24k.wav",
-    "ref_text": "Вокруг столько интересных людей, занятий, не время скучать! Можно покататься на лыжах, попить кофе с незнакомцем, поиграть в настольную игру или сходить на концерт. Приезжая в новый город, найди себе друзей по интересам или вторую половинку, потратив на поиски всего 5 минут.",
+  "msf_narrator_recovered": {
+    "ref_audio": "assets/voices/refs/msf_narrator_recovered_20260814.wav",
+    "ref_text": "Gemini 3.7 Flash вышел 13 августа. 75 центов за input и 3 доллара 75 центов за output. В таблице Google он выше Sonnet 5 на Frontier Code: 43.6 против 42.7 и на Code Arena 15.88 против 15.41. Это не общий рейтинг, но по прайсу Flash на 62,5% дешевле. Проверьте на своем коде. Больше свежих разборов в LLM Hubs.",
     "lang": "ru",
-    "notes": "Voice #2 (17.6s, 24kHz mono male voice)"
+    "notes": "Recovered MSF narrator reference from an internal generated narration stem; 29.72s, 24kHz mono. Transcript recovered with local speech-to-text and should be proofread before any high-stakes voice clone work."
   },
-  "voice_3": {
-    "ref_audio": "assets/voices/refs/voice_3_24k.wav",
-    "ref_text": "Сегодня и только сегодня мы предлагаем вам уникальную возможность. Купите наш замечательный товар по великолепной скидке. Приходите по этому адресу и порадуйте себя. С точки зрения банальной эрудиции, каждый индивидуум критически мотивирующий абстракцию не может игнорировать критерии утопического субъективизма концептуально интерпретируя общепринятые дефонизирующие поляризаторы.",
-    "lang": "ru",
-    "notes": "Voice #3 (26.2s, 24kHz mono male voice, exact user transcript)"
+  "_legacy_missing": {
+    "voice_2": {
+      "ref_audio": "assets/voices/refs/voice_2_17s_24k.wav",
+      "ref_text": "Вокруг столько интересных людей, занятий, не время скучать! Можно покататься на лыжах, попить кофе с незнакомцем, поиграть в настольную игру или сходить на концерт. Приезжая в новый город, найди себе друзей по интересам или вторую половинку, потратив на поиски всего 5 минут.",
+      "lang": "ru",
+      "notes": "Archived: reference WAV is absent from this checkout. Re-register it through Voice Lab after supplying the original file."
+    },
+    "voice_3": {
+      "ref_audio": "assets/voices/refs/voice_3_24k.wav",
+      "ref_text": "Сегодня и только сегодня мы предлагаем вам уникальную возможность. Купите наш замечательный товар по великолепной скидке. Приходите по этому адресу и порадуйте себя. С точки зрения банальной эрудиции, каждый индивидуум критически мотивирующий абстракцию не может игнорировать критерии утопического субъективизма концептуально интерпретируя общепринятые дефонизирующие поляризаторы.",
+      "lang": "ru",
+      "notes": "Archived: reference WAV is absent from this checkout. Re-register it through Voice Lab after supplying the original file."
+    }
   }
 }

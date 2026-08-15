@@ -195,8 +195,25 @@ def api_voices() -> Dict[str, Any]:
     from msf.config import MSFConfig
 
     default_voice, voices = _local_voice_catalog()
+    for item in voices:
+        if item.get("exists"):
+            item["reference_preview_url"] = f"/api/preview/voice-reference/{item['key']}"
     cfg = MSFConfig()
     return {"default": default_voice, "configured": cfg.tts.speaker, "configured_is_valid": any(v["key"] == cfg.tts.speaker for v in voices), "items": voices}
+
+
+@app.get("/api/preview/voice-reference/{key}")
+def api_preview_voice_reference(key: str) -> FileResponse:
+    """Play a registered source reference without loading a TTS model."""
+    _, voices = _local_voice_catalog()
+    item = next((voice for voice in voices if voice["key"] == key), None)
+    if not item or not item.get("exists"):
+        raise HTTPException(404, "voice reference not available")
+    root = (REPO / "assets" / "voices" / "refs").resolve()
+    candidate = (REPO / str(item["ref_audio"])).resolve()
+    if root not in candidate.parents or not candidate.is_file():
+        raise HTTPException(404, "voice reference not available")
+    return FileResponse(candidate, media_type="audio/wav")
 
 
 @app.get("/api/audio")
@@ -240,9 +257,10 @@ def api_status() -> Dict[str, Any]:
     is worse than no panel — the whole reason the pipeline shipped with a broken
     voice reference is that nothing checked the file existed.
     """
+    import importlib.util
+
     from msf import registry
     from msf.config import MSFConfig
-    from msf.skills_bridge.qwen3_tts import DEFAULT_VOICE, describe_reference
 
     cfg = MSFConfig()
     checks: List[Dict[str, Any]] = []
@@ -261,15 +279,19 @@ def api_status() -> Dict[str, Any]:
         "detail": f"{len(effects)} effects, {len(registry.scene_transition_types())} transitions",
     })
 
-    try:
-        info = describe_reference(None)
-        checks.append({
-            "name": f"default voice ({DEFAULT_VOICE})",
-            "ok": bool(info.get("exists")) and bool(info.get("has_ref_text")),
-            "detail": f"{info.get('mode')} — {Path(str(info.get('ref_audio'))).name}",
-        })
-    except Exception as exc:
-        checks.append({"name": "default voice", "ok": False, "detail": str(exc)})
+    default_voice, voices = _local_voice_catalog()
+    info = next((item for item in voices if item["key"] == default_voice), None)
+    checks.append({
+        "name": f"default voice ({default_voice})",
+        "ok": bool(info and info.get("exists") and info.get("has_ref_text")),
+        "detail": f"{info.get('mode') if info else 'missing'} — {Path(str(info.get('ref_audio') if info else '')).name}",
+    })
+    has_tts_runtime = bool(importlib.util.find_spec("torch")) and bool(importlib.util.find_spec("qwen_tts"))
+    checks.append({
+        "name": "Qwen TTS runtime",
+        "ok": has_tts_runtime,
+        "detail": "torch + qwen_tts installed" if has_tts_runtime else "torch and/or qwen_tts unavailable; Voice Lab management still works",
+    })
 
     checks.append({
         "name": "configured speaker",
@@ -1306,11 +1328,13 @@ def api_studio_settings() -> Dict[str, Any]:
     from msf.studio.operator_settings import load
 
     settings = load()
-    if settings["default_voice"] is None:
+    voices = _local_voice_catalog()[1]
+    usable_voice_keys = {item["key"] for item in voices if item.get("usable")}
+    if settings["default_voice"] is None or settings["default_voice"] not in usable_voice_keys:
         settings["default_voice"] = MSFConfig().tts.speaker
     return {
         "settings": settings,
-        "available_voice_keys": [item["key"] for item in _local_voice_catalog()[1]],
+        "available_voice_keys": [item["key"] for item in voices],
         "runtime": {
             "render": {"width": MSFConfig().render.width, "height": MSFConfig().render.height, "fps": MSFConfig().render.fps},
             "audio": {"target_lufs": MSFConfig().audio.target_lufs, "sample_rate": MSFConfig().audio.sample_rate},

@@ -40,7 +40,7 @@ class TTSConfig:
     # so anything that honoured this config value failed voice synthesis outright
     # and fell through to a female fallback voice. Guarded by
     # tests/test_config_parity.py against qwen3_tts.DEFAULT_VOICE.
-    speaker: str = "voice_3"
+    speaker: str = "msf_narrator_recovered"
     sample_rate: int = 24000
     speed: float = 1.0
 
