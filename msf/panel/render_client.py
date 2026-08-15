@@ -72,6 +72,13 @@ class RenderClient:
             raise RenderServerError(
                 "remotion/node_modules is missing — run `npm install` in remotion/"
             )
+        env = os.environ.copy()
+        # Sandbox images ship Chromium already. Explicitly choosing it avoids a
+        # first-preview attempt that waits for Remotion to download another browser
+        # shell; non-Linux or custom installations keep Remotion's default.
+        system_chromium = Path("/usr/bin/chromium")
+        if system_chromium.is_file() and not env.get("MSF_CHROMIUM"):
+            env["MSF_CHROMIUM"] = str(system_chromium)
         self._proc = subprocess.Popen(
             ["node", str(SERVER_SCRIPT)],
             cwd=str(REMOTION),
@@ -82,6 +89,7 @@ class RenderClient:
             encoding="utf-8",
             bufsize=1,
             shell=False,
+            env=env,
         )
         self.started_at = time.time()
 

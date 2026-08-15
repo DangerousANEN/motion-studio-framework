@@ -181,6 +181,9 @@ class RunRequest(StudioModel):
     music: bool = True
     sfx: bool = True
     agent_level: int = Field(default=3, ge=1, le=5)
+    # Versioned editorial guidance for supported agent-assisted nodes only. These
+    # are not raw system prompts and never carry credentials or executable code.
+    operator_overrides: Dict[str, str] = Field(default_factory=dict, max_length=3)
     approved: bool = False
     created_at: datetime = Field(default_factory=utc_now)
 

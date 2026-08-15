@@ -24,6 +24,9 @@ from .events import EventStore
 
 _REPO = Path(__file__).resolve().parents[2]
 _DEFAULT_ROOT = _REPO / "output" / "studio"
+_PATCHABLE_REQUEST_FIELDS = {"topic", "preset", "style", "style_config", "voice", "research", "music", "sfx", "agent_level"}
+_SUPPORTED_OPERATOR_NODES = {"deep_research", "script_split"}
+_MAX_OPERATOR_INSTRUCTION_CHARS = 480
 
 
 class RunNotFoundError(KeyError):
@@ -79,6 +82,52 @@ class StudioRunService:
         updated = snapshot.model_copy(update=changes)
         self._store_snapshot(updated)
         return updated
+
+    def get_request(self, run_id: str) -> RunRequest:
+        """Return the immutable request snapshot currently attached to a local run."""
+        path = self._request_path(run_id)
+        if not path.is_file():
+            raise RunNotFoundError(run_id)
+        return RunRequest.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def patch_draft(
+        self,
+        run_id: str,
+        *,
+        request_patch: dict[str, object] | None = None,
+        operator_overrides: dict[str, str] | None = None,
+    ) -> tuple[RunSnapshot, RunRequest]:
+        """Apply a bounded editorial patch before approval, never after worker start."""
+        snapshot = self.get_snapshot(run_id)
+        if snapshot.status != RunStatus.DRAFT:
+            raise RunStateError("only a draft run can be edited; cancel and create a revised draft after approval")
+        patch = request_patch or {}
+        unknown = set(patch) - _PATCHABLE_REQUEST_FIELDS
+        if unknown:
+            raise ValueError(f"unsupported draft patch fields: {', '.join(sorted(unknown))}")
+        current = self.get_request(run_id)
+        payload = current.model_dump(mode="json")
+        payload.update(patch)
+        merged_overrides = dict(current.operator_overrides)
+        for node, instruction in (operator_overrides or {}).items():
+            if node not in _SUPPORTED_OPERATOR_NODES:
+                raise ValueError(f"operator instruction is not supported for node {node!r}")
+            clean = str(instruction).strip()
+            if not clean:
+                merged_overrides.pop(node, None)
+                continue
+            if len(clean) > _MAX_OPERATOR_INSTRUCTION_CHARS:
+                raise ValueError(f"operator instruction for {node!r} exceeds {_MAX_OPERATOR_INSTRUCTION_CHARS} characters")
+            merged_overrides[node] = clean
+        payload["operator_overrides"] = merged_overrides
+        updated_request = RunRequest.model_validate(payload)
+        self._write_json(self._request_path(run_id), updated_request.model_dump(mode="json"))
+        EventStore(self._run_dir(run_id), run_id).append(
+            "run.draft_updated",
+            message="Operator updated draft inputs before approval",
+            payload={"fields": sorted(patch), "instruction_nodes": sorted(merged_overrides)},
+        )
+        return snapshot, updated_request
 
     def create_run(self, request: RunRequest) -> RunSnapshot:
         """Create an immutable request + draft run without consuming GPU work."""

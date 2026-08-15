@@ -156,6 +156,9 @@ class VideoState(TypedDict, total=False):
     research_timeout: Optional[float]
     research_scenes: Optional[int]
     research_facts: Optional[Dict[str, Any]]
+    # Short operator-authored editorial directions for supported nodes. They are
+    # surfaced in the local dashboard and never replace system safety rules.
+    operator_overrides: Optional[Dict[str, str]]
     research_summary: Optional[str]
     research_sources: Optional[List[str]]
 
@@ -235,6 +238,9 @@ def node_deep_research(state: VideoState) -> VideoState:
     from msf.skills_bridge.deep_research import research as run_research
 
     query = state.get("research_query") or state.get("text") or ""
+    research_direction = (state.get("operator_overrides") or {}).get("deep_research", "").strip()
+    if research_direction:
+        query = f"{query}\n\nРедакторский фокус: {research_direction}"
     if not query.strip():
         raise ValueError(
             "research was requested but there is no `research_query` and no `text` "
@@ -285,6 +291,8 @@ def _script_from_facts(facts: Any, state: VideoState) -> str:
         "Ты сценарист коротких вертикальных видео (Shorts/Reels). "
         "Пиши по-русски, живо и без канцелярита."
     )
+    script_direction = (state.get("operator_overrides") or {}).get("script_split", "").strip()
+    direction_block = f"\nРЕДАКТОРСКОЕ НАПРАВЛЕНИЕ: {script_direction}\n" if script_direction else ""
     user = (
         f"Ниже — результат исследования с источниками. Напиши закадровый текст "
         f"для видео из {n_scenes} сцен.\n\n"
@@ -296,6 +304,7 @@ def _script_from_facts(facts: Any, state: VideoState) -> str:
         "и без markdown.\n"
         "4. Первое предложение — цепляющее, последнее — вывод.\n\n"
         f"ИССЛЕДОВАНИЕ:\n{facts.summary[:6000]}\n"
+        f"{direction_block}"
     )
 
     text = llm.chat(
@@ -363,6 +372,9 @@ def node_script_split(state: VideoState) -> VideoState:
 
             # Build brief from state
             topic = state.get("topic") or text or "General"
+            script_direction = (state.get("operator_overrides") or {}).get("script_split", "").strip()
+            if script_direction:
+                topic = f"{topic}\nРедакторское направление: {script_direction}"
             style = state.get("style", "modern_tech")
             dur_range = state.get("duration_range") or [30, 60]
 

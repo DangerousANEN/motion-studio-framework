@@ -29,6 +29,7 @@ RUN
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -379,6 +380,63 @@ def _preview_scene_and_spec(req: ScenePreviewRequest) -> tuple[Dict[str, Any], D
     return scene, spec
 
 
+def _thumbnail_cache_entry(req: ScenePreviewRequest) -> tuple[Dict[str, Any], Dict[str, Any], Path, str]:
+    """Return a stable thumbnail path derived from the exact validated scene spec.
+
+    Unlike the ad-hoc review preview, the catalogue thumbnail must not mint a new
+    file on every page visit. The spec includes demo props and duration, so a
+    component change or a changed demo scene produces a new cache key naturally.
+    """
+    scene, spec = _preview_scene_and_spec(req)
+    canonical = json.dumps(
+        {"spec": spec, "frame_pct": req.frame_pct, "scale": req.scale},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()[:16]
+    safe_preset = "".join(ch for ch in req.preset if ch.isalnum() or ch in "-_")
+    filename = f"{safe_preset}-{digest}.png"
+    path = CACHE / "thumbnails" / filename
+    return scene, spec, path, filename
+
+
+class SceneThumbnailRequest(ScenePreviewRequest):
+    """Catalogue-size still. Rendered only on cache miss through the resident client."""
+
+    scale: float = Field(0.18, gt=0.0, le=0.5)
+    frame_pct: float = Field(0.76, ge=0.0, le=1.0)
+
+
+def _thumbnail_payload(req: SceneThumbnailRequest, render_on_miss: bool) -> Dict[str, Any]:
+    from msf.panel.render_client import RenderServerError, get_client
+
+    _, spec, png, filename = _thumbnail_cache_entry(req)
+    if png.is_file():
+        return {"url": f"/preview/thumbnails/{filename}", "preset": req.preset, "cached": True, "bytes": png.stat().st_size}
+    if not render_on_miss:
+        raise HTTPException(404, "thumbnail not cached")
+    png.parent.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    try:
+        result = get_client().still(spec, png, frame_pct=req.frame_pct, scale=req.scale)
+    except RenderServerError as exc:
+        raise HTTPException(503, f"render server: {exc}") from exc
+    if not png.is_file():
+        raise HTTPException(500, "render server reported success but wrote no thumbnail")
+    return {"url": f"/preview/thumbnails/{filename}", "preset": req.preset, "cached": False, "bytes": png.stat().st_size, "frame": result.get("frame"), "render_ms": result.get("ms"), "wall_sec": round(time.time() - started, 2)}
+
+
+@app.get("/api/preview/thumbnail/{preset}")
+def api_cached_thumbnail(preset: str) -> Dict[str, Any]:
+    """Return a cached catalogue thumbnail without starting a renderer job."""
+    return _thumbnail_payload(SceneThumbnailRequest(preset=preset), render_on_miss=False)
+
+
+@app.post("/api/preview/thumbnail")
+def api_preview_thumbnail(req: SceneThumbnailRequest) -> Dict[str, Any]:
+    """Render a small catalogue thumbnail exactly once per deterministic cache key."""
+    return _thumbnail_payload(req, render_on_miss=True)
+
+
 @app.post("/api/preview/scene")
 def api_preview_scene(req: ScenePreviewRequest) -> Dict[str, Any]:
     """Render one still of a preset and return a URL to the PNG."""
@@ -619,7 +677,7 @@ def serve_preview(kind: str, filename: str) -> FileResponse:
     INSIDE the cache: `kind`/`filename` come from the network, and a naive join
     would let `../../..` read any file the process can reach.
     """
-    if kind not in ("scenes", "clips", "voice", "sfx", "music"):
+    if kind not in ("scenes", "clips", "thumbnails", "voice", "sfx", "music"):
         raise HTTPException(404, "unknown preview kind")
     candidate = (CACHE / kind / filename).resolve()
     root = (CACHE / kind).resolve()
@@ -1183,6 +1241,30 @@ class StudioResearchToScriptPayload(BaseModel):
     require_observed_comparison: bool = False
 
 
+_CONTROL_ROOM_NODES = [
+    {"id": "gate_check", "label": "Input gate", "title": "Проверка входа", "description": "Проверяет ограничения запуска и обязательные параметры.", "editable_instruction": False},
+    {"id": "deep_research", "label": "Research", "title": "Исследование", "description": "Собирает и проверяет публичные источники перед factual narration.", "editable_instruction": True},
+    {"id": "script_split", "label": "Script", "title": "Сценарий", "description": "Собирает hook, narrative arc и CTA из проверенного brief.", "editable_instruction": True},
+    {"id": "voice_synthesis", "label": "Voice", "title": "Озвучка", "description": "Готовит голосовые дорожки готовых сцен.", "editable_instruction": False},
+    {"id": "soundtrack", "label": "Sound", "title": "Звук", "description": "Сводит музыку, SFX и ducking.", "editable_instruction": False},
+    {"id": "build_spec", "label": "Spec", "title": "VideoSpec", "description": "Проверяет сцены, style contract и renderer inputs.", "editable_instruction": False},
+    {"id": "render", "label": "Render", "title": "Render", "description": "Remotion рендерит цельную композицию.", "editable_instruction": False},
+    {"id": "master_audio", "label": "Master", "title": "Мастеринг", "description": "Нормализует и финализирует аудио.", "editable_instruction": False},
+    {"id": "qa", "label": "QA", "title": "QA", "description": "Проверяет длительность, кадры, звук и итоговый файл.", "editable_instruction": False},
+    {"id": "repair", "label": "Repair", "title": "Repair", "description": "Разрешённая repair-ветка после неуспешного QA.", "editable_instruction": False},
+]
+_CONTROL_ROOM_EDGES = [
+    ["gate_check", "deep_research"], ["deep_research", "script_split"], ["script_split", "voice_synthesis"],
+    ["voice_synthesis", "soundtrack"], ["soundtrack", "build_spec"], ["build_spec", "render"],
+    ["render", "master_audio"], ["master_audio", "qa"], ["qa", "repair"], ["repair", "render"],
+]
+
+
+class StudioDraftPatchPayload(BaseModel):
+    request_patch: Dict[str, Any] = Field(default_factory=dict)
+    operator_overrides: Dict[str, str] = Field(default_factory=dict, max_length=2)
+
+
 class StudioRunPayload(BaseModel):
     topic: str = Field(..., min_length=3, max_length=400)
     preset: str = "HeroKinetic"
@@ -1191,6 +1273,8 @@ class StudioRunPayload(BaseModel):
     project_id: str = "default"
     storyboard_id: Optional[str] = None
     research: bool = False
+    music: bool = True
+    sfx: bool = True
     voice: Optional[str] = None
     agent_level: int = Field(3, ge=1, le=5)
 
@@ -1324,6 +1408,8 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
             style=payload.style,
             style_config=payload.style_config,
             research=payload.research,
+            music=payload.music,
+            sfx=payload.sfx,
             voice=payload.voice,
             agent_level=payload.agent_level,
             approved=False,
@@ -1332,6 +1418,49 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
         raise HTTPException(422, f"cannot prepare Studio run: {exc}") from exc
     snapshot = StudioRunService().create_run(request)
     return {"request": request.model_dump(mode="json"), "run": snapshot.model_dump(mode="json"), "next_step": "Validate and explicitly approve through the local operator dashboard."}
+
+
+@app.get("/api/studio/control-room/graph")
+def api_studio_control_room_graph() -> Dict[str, Any]:
+    """Return the exact canonical worker graph used by the local Control Room."""
+    return {"nodes": _CONTROL_ROOM_NODES, "edges": _CONTROL_ROOM_EDGES, "transport": "cursor_polling", "policy": "operational telemetry only"}
+
+
+@app.get("/api/studio/runs/{run_id}/control")
+def api_studio_run_control(run_id: str) -> Dict[str, Any]:
+    """Return snapshot plus editable draft inputs; never includes hidden reasoning."""
+    from msf.studio.runs import RunNotFoundError, StudioRunService
+    service = StudioRunService()
+    try:
+        return {"snapshot": service.get_snapshot(run_id).model_dump(mode="json"), "request": service.get_request(run_id).model_dump(mode="json")}
+    except RunNotFoundError as exc:
+        raise HTTPException(404, "Studio run not found") from exc
+
+
+@app.patch("/api/studio/runs/{run_id}/draft")
+def api_studio_patch_draft(run_id: str, payload: StudioDraftPatchPayload) -> Dict[str, Any]:
+    """Apply whitelisted brief/instruction changes only before explicit approval."""
+    from msf.studio.runs import RunNotFoundError, RunStateError, StudioRunService
+    try:
+        snapshot, request = StudioRunService().patch_draft(
+            run_id, request_patch=payload.request_patch, operator_overrides=payload.operator_overrides,
+        )
+        return {"snapshot": snapshot.model_dump(mode="json"), "request": request.model_dump(mode="json")}
+    except RunNotFoundError as exc:
+        raise HTTPException(404, "Studio run not found") from exc
+    except (RunStateError, ValueError) as exc:
+        raise HTTPException(409, f"cannot edit Studio draft: {exc}") from exc
+
+
+@app.post("/api/studio/runs/{run_id}/cancel")
+def api_studio_cancel_run(run_id: str) -> Dict[str, Any]:
+    """Cancel an active local worker; completed runs remain immutable."""
+    from msf.studio.runs import RunNotFoundError, StudioRunService
+    try:
+        snapshot = StudioRunService().cancel(run_id)
+    except RunNotFoundError as exc:
+        raise HTTPException(404, "Studio run not found") from exc
+    return {"run": snapshot.model_dump(mode="json")}
 
 
 @app.get("/api/studio/runs/{run_id}")

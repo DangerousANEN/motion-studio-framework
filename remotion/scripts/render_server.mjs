@@ -56,6 +56,9 @@ const log = (...a) => process.stderr.write(`[render-server] ${a.join(' ')}\n`);
 const send = (obj) => process.stdout.write(`${JSON.stringify(obj)}\n`);
 
 let serveUrl = null;
+// The local panel may point this at a maintained system Chromium. Leaving it unset
+// preserves Remotion's normal downloaded-browser behaviour for portable installs.
+const browserExecutable = process.env.MSF_CHROMIUM || process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
 
 async function ensureBundle() {
   if (serveUrl) return serveUrl;
@@ -73,7 +76,7 @@ async function ensureBundle() {
 
 async function handleStill(req) {
   const url = await ensureBundle();
-  const comp = await selectComposition({ serveUrl: url, id: 'Main', inputProps: req.spec });
+  const comp = await selectComposition({ serveUrl: url, id: 'Main', inputProps: req.spec, browserExecutable });
   const total = comp.durationInFrames;
   // `frame_pct` is resolved HERE, not by the caller: durationInFrames is only
   // known after calculateMetadata runs (transitions shorten the timeline), so a
@@ -92,13 +95,14 @@ async function handleStill(req) {
     scale: req.scale ?? 1,
     overwrite: true,
     chromiumOptions: { gl: 'angle' },
+    browserExecutable,
   });
   return { frame, durationInFrames: total, bytes: statSync(req.out).size };
 }
 
 async function handleClip(req) {
   const url = await ensureBundle();
-  const comp = await selectComposition({ serveUrl: url, id: 'Main', inputProps: req.spec });
+  const comp = await selectComposition({ serveUrl: url, id: 'Main', inputProps: req.spec, browserExecutable });
   const total = comp.durationInFrames;
   const from = Math.max(0, Math.min(total - 1, Math.round(req.from ?? 0)));
   const to = Math.max(from, Math.min(total - 1, Math.round(req.to ?? total - 1)));
@@ -121,6 +125,7 @@ async function handleClip(req) {
     overwrite: true,
     onProgress: () => {},
     chromiumOptions: { gl: 'angle' },
+    browserExecutable,
   });
   return { from, to, durationInFrames: total, bytes: statSync(req.out).size };
 }
