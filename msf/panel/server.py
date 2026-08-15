@@ -1162,6 +1162,19 @@ class StudioStoryboardPayload(BaseModel):
     tier: str = "preset"
 
 
+class StudioResearchToScriptPayload(BaseModel):
+    topic: str = Field(..., min_length=3, max_length=400)
+    audience: str = Field("широкая русскоязычная аудитория", min_length=3, max_length=180)
+    cta_handle: str = Field("@llm_hubs", min_length=2, max_length=80)
+    cta_asset: str = Field("готовый чек-лист и ссылки на источники", min_length=3, max_length=240)
+    style_family: Optional[str] = Field(None, max_length=80)
+    release_topic: bool = False
+    provider: str = "duckduckgo"
+    max_queries: int = Field(4, ge=1, le=4)
+    max_sources: int = Field(8, ge=2, le=12)
+    project_id: str = Field("default", min_length=1, max_length=120)
+
+
 class StudioRunPayload(BaseModel):
     topic: str = Field(..., min_length=3, max_length=400)
     preset: str = "HeroKinetic"
@@ -1214,6 +1227,25 @@ def api_studio_sound_design() -> Dict[str, Any]:
     """Stable semantic audio recipes; the UI never invents SFX identifiers."""
     from msf.studio.sound_design import all_recipes
     return {"items": [item.__dict__ for item in all_recipes()]}
+
+
+@app.post("/api/studio/research-to-script")
+def api_studio_research_to_script(payload: StudioResearchToScriptPayload) -> Dict[str, Any]:
+    """Research a topic, validate linked evidence and return a Russian editable storyboard.
+
+    This endpoint is deliberately separate from render preparation: the caller
+    receives the evidence and script first, then can edit/validate/approve a
+    render through the existing controlled lifecycle.
+    """
+    from pydantic import ValidationError
+    from msf.studio.contracts import ResearchToScriptRequest
+    from msf.studio.research_to_script import ResearchToScriptError, ResearchToScriptWorkflow
+    try:
+        request = ResearchToScriptRequest.model_validate(payload.model_dump())
+        result = ResearchToScriptWorkflow().run(request)
+    except (ValidationError, ResearchToScriptError, ValueError) as exc:
+        raise HTTPException(422, f"research-to-script failed: {exc}") from exc
+    return result.model_dump(mode="json")
 
 
 @app.post("/api/studio/research/validate")

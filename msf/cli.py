@@ -63,17 +63,57 @@ STAGES = [
     default=None,
     help="Path to YAML configuration file.",
 )
+@click.option(
+    "--research-to-script",
+    is_flag=True,
+    default=False,
+    help="Research the topic and write a validated Russian storyboard JSON without rendering video.",
+)
+@click.option("--cta-handle", default="@llm_hubs", show_default=True, help="Telegram handle for the final CTA.")
+@click.option("--cta-asset", default="готовый чек-лист и ссылки на источники", show_default=True, help="Concrete Telegram asset promised by CTA.")
+@click.option("--style-family", default=None, help="One existing MSF renderer style family for the entire storyboard.")
+@click.option("--research-provider", type=click.Choice(["duckduckgo", "searxng"]), default="duckduckgo", show_default=True)
+@click.option("--release-topic", is_flag=True, default=False, help="Apply strict release freshness and primary-source requirements.")
 def cli(
     topic: str,
     duration: float,
     style: str,
     output: Optional[str],
     config: Optional[str],
+    research_to_script: bool,
+    cta_handle: str,
+    cta_asset: str,
+    style_family: Optional[str],
+    research_provider: str,
+    release_topic: bool,
 ) -> None:
     """Motion Studio Framework (MSF) - Automated Viral Video Generation Pipeline."""
     click.echo(f"🎬 Motion Studio Framework CLI")
     click.echo(f"Topic: {topic}")
     click.echo(f"Target Duration: {duration}s | Style: {style}")
+
+    if research_to_script:
+        from msf.studio.contracts import ResearchToScriptRequest
+        from msf.studio.research_to_script import ResearchToScriptError, ResearchToScriptWorkflow
+        try:
+            result = ResearchToScriptWorkflow().run(ResearchToScriptRequest(
+                topic=topic,
+                cta_handle=cta_handle,
+                cta_asset=cta_asset,
+                style_family=style_family,
+                provider=research_provider,
+                release_topic=release_topic,
+            ))
+        except ResearchToScriptError as err:
+            click.echo(f"Research-to-script failed: {err}", err=True)
+            raise click.Abort() from err
+        serialized = result.model_dump_json(indent=2)
+        if output:
+            Path(output).write_text(serialized, encoding="utf-8")
+            click.echo(f"Research-to-script draft saved: {output}")
+        else:
+            click.echo(serialized)
+        return
 
     # Load configuration
     if config:

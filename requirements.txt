@@ -7,8 +7,10 @@ click
 jinja2
 pillow
 
-# LangGraph drives the pipeline itself (msf/graph/video_graph.py).
-langgraph
+# LangGraph drives the pipeline itself (msf/graph/video_graph.py and Studio research-to-script workflow).
+langgraph>=1,<2
+# Public search results for native local research; no provider API key is required.
+ddgs>=9,<10
 
 # Audio: numpy/scipy synthesise the SFX and music beds, soundfile reads and
 # writes reference wavs, and voice_prep measures them.

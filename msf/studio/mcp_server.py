@@ -126,6 +126,38 @@ def create_mcp_server() -> FastMCP:
             return {"ok": False, "error": "research.invalid", "message": str(exc)}
 
     @mcp.tool()
+    def research_topic_to_storyboard(
+        topic: str,
+        audience: str = "широкая русскоязычная аудитория",
+        cta_handle: str = "@llm_hubs",
+        cta_asset: str = "готовый чек-лист и ссылки на источники",
+        style_family: Optional[str] = None,
+        release_topic: bool = False,
+        provider: str = "duckduckgo",
+        max_queries: int = 4,
+        max_sources: int = 8,
+        project_id: str = "default",
+    ) -> dict[str, Any]:
+        """Create validated research, a Russian evidence-backed script and an editable unique-scene storyboard.
+
+        The tool only prepares a draft. It does not start a render and returns an
+        error instead of narrating facts when public evidence cannot pass policy.
+        """
+        from .contracts import ResearchToScriptRequest
+        from .research_to_script import ResearchToScriptError, ResearchToScriptWorkflow
+        try:
+            request = ResearchToScriptRequest.model_validate({
+                "topic": topic, "audience": audience, "cta_handle": cta_handle,
+                "cta_asset": cta_asset, "style_family": style_family,
+                "release_topic": release_topic, "provider": provider,
+                "max_queries": max_queries, "max_sources": max_sources,
+                "project_id": project_id,
+            })
+            return {"ok": True, "result": _dump(ResearchToScriptWorkflow().run(request))}
+        except (ValidationError, ResearchToScriptError, ValueError) as exc:
+            return {"ok": False, "error": "research_to_script.failed", "message": str(exc)}
+
+    @mcp.tool()
     def validate_storyboard(
         storyboard_json: str,
         research_json: Optional[str] = None,

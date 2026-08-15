@@ -286,3 +286,44 @@ class CatalogSearchResult(StudioModel):
     query: str = ""
     total: int
     items: List[SceneManifest]
+
+
+class ResearchToScriptRequest(StudioModel):
+    """Bounded request for the evidence-first short-video planning workflow."""
+
+    topic: str = Field(min_length=3, max_length=400)
+    audience: str = Field(default="широкая русскоязычная аудитория", min_length=3, max_length=180)
+    cta_handle: str = Field(default="@llm_hubs", min_length=2, max_length=80)
+    cta_asset: str = Field(default="готовый чек-лист и ссылки на источники", min_length=3, max_length=240)
+    style_family: Optional[str] = Field(default=None, max_length=80)
+    release_topic: bool = False
+    provider: Literal["duckduckgo", "searxng"] = "duckduckgo"
+    max_queries: int = Field(default=4, ge=1, le=4)
+    max_sources: int = Field(default=8, ge=2, le=12)
+    project_id: str = Field(default="default", min_length=1, max_length=120)
+
+
+class ResearchMilestone(StudioModel):
+    """Safe high-level workflow event; never stores hidden model reasoning."""
+
+    phase: Literal[
+        "query_plan_created",
+        "sources_collected",
+        "pages_extracted",
+        "claims_validated",
+        "script_composed",
+        "storyboard_validated",
+    ]
+    message: str = Field(min_length=1, max_length=400)
+    counts: Dict[str, int] = Field(default_factory=dict)
+
+
+class ResearchToScriptResult(StudioModel):
+    """Validated local research, script and editable storyboard produced from one topic."""
+
+    request: ResearchToScriptRequest
+    research: ResearchPack
+    script: ScriptPlan
+    storyboard: StoryboardDraft
+    milestones: List[ResearchMilestone] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)

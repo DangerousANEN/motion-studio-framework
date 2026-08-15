@@ -24,6 +24,9 @@ class StoryAngle:
     takeaway_claim_ids: tuple[str, ...]
     cta_asset: str
     cta_text: str
+    # Optional short paraphrases for proof beats. Their claim IDs remain the
+    # source of truth, while the wording can be made understandable on screen.
+    factual_narrations: tuple[str, ...] = ()
 
 
 
@@ -97,19 +100,23 @@ def plan_from_angle(
         raise ScriptQualityError("takeaway must be supported by selected angle claims")
     if not angle.cta_asset.strip() or not angle.cta_text.strip():
         raise ScriptQualityError("angle needs a concrete Telegram asset and CTA text")
+    if angle.factual_narrations and len(angle.factual_narrations) != len(selected):
+        raise ScriptQualityError("evidence paraphrases must match selected evidence claims")
     intent_list = list(intents or ("hook", "evidence", "proof", "takeaway", "cta"))
     lines = [ScriptLine(kind="hook", narration=hook, scene_intent=intent_list[0])]
     for index, claim in enumerate(selected):
+        narration = angle.factual_narrations[index] if angle.factual_narrations else claim.statement
         lines.append(ScriptLine(
-            kind="fact", narration=claim.statement, on_screen_text=claim.statement[:150],
+            kind="fact", narration=narration, on_screen_text=narration[:150],
             evidence_claim_ids=[claim.claim_id], scene_intent=intent_list[min(index + 1, len(intent_list) - 1)],
         ))
     lines.append(ScriptLine(
         kind="instruction", narration=angle.takeaway, evidence_claim_ids=list(angle.takeaway_claim_ids),
         scene_intent=intent_list[min(3, len(intent_list) - 1)],
     ))
+    cta_narration = angle.cta_text if cta_handle.lower() in angle.cta_text.lower() else f"{angle.cta_text} {cta_handle}."
     lines.append(ScriptLine(
-        kind="cta", narration=f"{angle.cta_text} {cta_handle}.", scene_intent=intent_list[-1],
+        kind="cta", narration=cta_narration, scene_intent=intent_list[-1],
     ))
     plan = ScriptPlan(research_id=research.research_id, title=title, lines=lines, cta_handle=cta_handle)
     validate_script_plan(plan, research)

@@ -77,7 +77,7 @@ description: Создавать, проверять, отлаживать и р�
 
 ## Research video
 
-Прочитать `workflows/research-video.md`. Хранить claims, source URL, retrieval date и confidence отдельно от сценарного текста. Factual scene должен ссылаться на evidence ID. При недостаточном evidence обозначать непроверенность или расширять исследование; не маскировать summary как источник.
+Прочитать `workflows/research-video.md`. Когда дан только topic, сначала вызвать native `research_topic_to_storyboard`: он возвращает один связанный `ResearchPack`, русскоязычный `ScriptPlan` и `StoryboardDraft` с уникальными preset scenes и единым style kit. Передать Telegram handle и конкретный CTA asset; для релизов включить strict `release_topic`. Хранить claims, source URL, retrieval date и confidence отдельно от сценарного текста. Factual scene должен ссылаться на evidence ID. При недостаточном evidence, отсутствии первичного источника для provider topic или нарушении русского jargon gate workflow должен остановиться; не маскировать summary как источник и не продолжать к render.
 
 ## Debug run
 
@@ -101,6 +101,7 @@ description: Создавать, проверять, отлаживать и р�
 | Выбрать scenes/effects/audio | `references/catalog-contract.md` |
 | Проверить доступ и approval | `references/tiers-and-approvals.md` |
 | Создать storyboard | `references/storyboard-policy.md` |
+| Исследовать тему и получить сценарий | `workflows/research-video.md`, `../../docs/MSF_RESEARCH_TO_SCRIPT_PIPELINE.md` |
 | Вставить media или screen guide | `workflows/media-guide.md` |
 | Выбрать новые styles/scenes | `../../docs/MSF_STUDIO_STYLE_SCENE_EXPANSION.md` |
 | Создать asset/release | `references/release-gates.md` |

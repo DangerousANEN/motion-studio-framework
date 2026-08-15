@@ -35,7 +35,7 @@ async def main() -> None:
             await session.initialize()
             tools = await session.list_tools()
             names = {tool.name for tool in tools.tools}
-            required = {"search_scene_catalog", "describe_scene", "list_style_families", "validate_research_evidence", "validate_storyboard", "inspect_run"}
+            required = {"search_scene_catalog", "describe_scene", "list_style_families", "validate_research_evidence", "research_topic_to_storyboard", "validate_storyboard", "inspect_run"}
             missing = required - names
             if missing:
                 raise RuntimeError(f"MCP tools missing: {sorted(missing)}")

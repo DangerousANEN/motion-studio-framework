@@ -1,11 +1,13 @@
 # Research video workflow
 
-1. Break the brief into individually verifiable claims.
-2. Retrieve at least two current sources; use official/primary documentation for pricing, free tiers, availability and model limits.
-3. Store each source as `EvidenceSource` with URL, publisher, retrieval date, type and a bounded excerpt.
-4. Store every claim as `EvidenceClaim` with source IDs and confidence. Run `validate_research_pack`; stop on a hard error.
-5. Build `ScriptPlan` where every `fact`, `interpretation` or `instruction` line has an evidence claim ID. Hooks and CTA are explicitly non-factual.
-6. Run `validate_script_plan`, then `storyboard_from_script`; preserve evidence claim IDs on each factual scene.
-7. Validate storyboard with the original `ResearchPack`. If evidence conflicts or is incomplete, state uncertainty, seek another source or remove the claim.
+Используй этот workflow, когда агент получает только тему ролика и должен подготовить доказательный русскоязычный storyboard. Не собирай факты «по памяти» и не обходи Studio evidence gates.
 
-Never use a search-result snippet as final evidence and never fabricate citations to satisfy a storyboard format.
+1. Вызови `research_topic_to_storyboard` с `topic`, аудиторией, `cta_handle`, конкретным `cta_asset` и одной существующей `style_family`. Для релизов включай `release_topic=true`.
+2. Native workflow сам строит до четырёх поисковых вопросов, извлекает публичные страницы, исключает небезопасные URL и останавливается, если нет минимум двух пригодных источников.
+3. Для тем известных LLM-провайдеров workflow требует официальный источник. Для цен, доступности и лимитов не заменяй первичную документацию обзорной статьёй или зеркалом.
+4. Получи `ResearchPack`, `ScriptPlan` и `StoryboardDraft` одним результатом. Каждая factual и practical сцена должна сохранить `evidence_claim_ids` из возвращённого `ScriptPlan`.
+5. Проверь, что сценарий остаётся на русском, без неразъяснённого provider jargon. Структура должна быть: hook → смысл → доказательство → практический вывод → конкретный Telegram asset.
+6. Не меняй `default_style_kit` и не смешивай families внутри этого storyboard. Native workflow уже выбирает уникальные preset scenes из live catalog; не подменяй их догадками.
+7. Перед сохранением вызови `validate_storyboard` с исходным `ResearchPack`. Затем сохрани draft. Render запускай только отдельным явным approval действием.
+
+Если native workflow сообщает об отсутствии первичного источника, недостатке доказательств или недопустимом сценарии, не продолжай к render. Уточни тему, подожди официальную публикацию или запроси у оператора ссылку на источник.
