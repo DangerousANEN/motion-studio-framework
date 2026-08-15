@@ -244,6 +244,25 @@ const cyber_lime: Theme = {
   accentWarm: '#C6FF00',
 };
 
+/** LLM Hubs — near-black product surface, neon-green action colour and aqua data colour. */
+const llm_hubs: Theme = {
+  ...pop,
+  bg: '#030807',
+  surface: '#091512',
+  // Legacy field name only: it intentionally resolves to the same neon green,
+  // so un-migrated presets cannot leak a gold/amber card into this series.
+  gold: '#00F0A8',
+  neon: '#00F0A8',
+  cyan: '#58E6D2',
+  text: '#F4FFF9',
+  muted: '#91B3A5',
+  darkBorder: '#00120C',
+  shadowColor: '#000000',
+  accentCyan: '#58E6D2',
+  accentGreen: '#00F0A8',
+  accentWarm: '#00F0A8',
+};
+
 /** «Конфета» — тёмный пастель-поп (фон тёмный, акценты мягко-конфетные). */
 const candy: Theme = {
   ...pop,
@@ -278,6 +297,20 @@ const steel: Theme = {
   accentWarm: '#7AAED8',
 };
 
+// Ten additional palette families for the v2.3 expansion. `gold` remains a
+// compatibility alias for legacy presets; it is intentionally never amber by
+// default in these kits.
+const aurora_flux: Theme = { ...pop, bg: '#07101A', surface: '#0D1D2B', gold: '#9B8CFF', neon: '#58E6D2', cyan: '#9B8CFF', text: '#F1F7FF', muted: '#8CA4B8', darkBorder: '#02070C', shadowColor: '#01050A', accentCyan: '#9B8CFF', accentGreen: '#58E6D2', accentWarm: '#9B8CFF' };
+const cobalt_command: Theme = { ...pop, bg: '#07101E', surface: '#0D1D35', gold: '#84B7FF', neon: '#4D8DFF', cyan: '#83D7FF', text: '#F2F7FF', muted: '#91A8C8', darkBorder: '#010712', shadowColor: '#01040B', accentCyan: '#83D7FF', accentGreen: '#4D8DFF', accentWarm: '#84B7FF' };
+const infrared_alert: Theme = { ...pop, bg: '#130809', surface: '#271012', gold: '#FF8B8B', neon: '#FF4B55', cyan: '#FFB2B2', text: '#FFF5F5', muted: '#C5969A', darkBorder: '#160103', shadowColor: '#080001', accentCyan: '#FFB2B2', accentGreen: '#FF4B55', accentWarm: '#FF8B8B' };
+const violet_luxe: Theme = { ...pop, bg: '#100A1B', surface: '#1B1130', gold: '#D9C4FF', neon: '#B28AFF', cyan: '#8DE8FF', text: '#FAF7FF', muted: '#B3A1CD', darkBorder: '#08040F', shadowColor: '#030106', accentCyan: '#8DE8FF', accentGreen: '#B28AFF', accentWarm: '#D9C4FF' };
+const porcelain: Theme = { ...pop, bg: '#F1F3F0', surface: '#FFFFFF', gold: '#126C68', neon: '#0B8078', cyan: '#175B86', text: '#10171B', muted: '#58676C', darkBorder: '#C6D0CC', shadowColor: '#9DA9A5', accentCyan: '#175B86', accentGreen: '#0B8078', accentWarm: '#126C68' };
+const liquid_chrome: Theme = { ...pop, bg: '#0A0C10', surface: '#141922', gold: '#E1E7EF', neon: '#75DAFF', cyan: '#A9C7FF', text: '#F5F9FF', muted: '#94A3B4', darkBorder: '#020304', shadowColor: '#000102', accentCyan: '#A9C7FF', accentGreen: '#75DAFF', accentWarm: '#E1E7EF' };
+const kinetic_poster: Theme = { ...pop, bg: '#080908', surface: '#121512', gold: '#E7FF3D', neon: '#D7FF00', cyan: '#FFFFFF', text: '#FFFFFF', muted: '#AAB19C', darkBorder: '#000000', shadowColor: '#000000', accentCyan: '#FFFFFF', accentGreen: '#D7FF00', accentWarm: '#E7FF3D' };
+const midnight_orbit: Theme = { ...pop, bg: '#050B1A', surface: '#0B1730', gold: '#B6D6FF', neon: '#45B7FF', cyan: '#73F0E2', text: '#F1F7FF', muted: '#8CA5C6', darkBorder: '#00030B', shadowColor: '#000109', accentCyan: '#73F0E2', accentGreen: '#45B7FF', accentWarm: '#B6D6FF' };
+const pixel_arcade: Theme = { ...pop, bg: '#100819', surface: '#1C1030', gold: '#C8FF4A', neon: '#91FF00', cyan: '#C57BFF', text: '#F7FFE0', muted: '#A89BBB', darkBorder: '#050008', shadowColor: '#030004', accentCyan: '#C57BFF', accentGreen: '#91FF00', accentWarm: '#C8FF4A' };
+const coral_creator: Theme = { ...pop, bg: '#1A0910', surface: '#2A111C', gold: '#FFC0AB', neon: '#FF7C78', cyan: '#FFB3DC', text: '#FFF5F5', muted: '#C69AA7', darkBorder: '#090103', shadowColor: '#050001', accentCyan: '#FFB3DC', accentGreen: '#FF7C78', accentWarm: '#FFC0AB' };
+
 export const THEMES: Record<string, Theme> = {
   pop,
   noir,
@@ -292,8 +325,19 @@ export const THEMES: Record<string, Theme> = {
   forest,
   mono_warm,
   cyber_lime,
+  llm_hubs,
   candy,
   steel,
+  aurora_flux,
+  cobalt_command,
+  infrared_alert,
+  violet_luxe,
+  porcelain,
+  liquid_chrome,
+  kinetic_poster,
+  midnight_orbit,
+  pixel_arcade,
+  coral_creator,
 };
 
 export const getTheme = (name?: string): Theme => THEMES[name || 'pop'] || pop;

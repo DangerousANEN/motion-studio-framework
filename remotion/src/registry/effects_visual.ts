@@ -60,6 +60,9 @@ import {
   MirrorSplit,
 } from '../fx/effects/distort';
 
+// Studio effects
+import { FocusPulse } from '../fx/effects/studio';
+
 import React from 'react';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +79,12 @@ interface EffectEntry {
 }
 
 export const VISUAL_EFFECTS: Record<string, EffectEntry> = {
+  FocusPulse: {
+    component: FocusPulse,
+    family: 'grade',
+    summary: 'Subtle deterministic centre glow that emphasizes a key reveal without moving layout.',
+    stochastic: false,
+  },
   // ── 2.4  Camera ────────────────────────────────────────────────────────
   ZoomPunch: {
     component: ZoomPunch,

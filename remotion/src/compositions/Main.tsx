@@ -4,84 +4,76 @@ import { TransitionSeries } from '@remotion/transitions';
 import { VideoSpec } from '../VideoSpec.schema';
 import { SceneDispatcher } from './SceneDispatcher';
 import { EffectStack } from './EffectStack';
-import { StyleProvider } from '../theme/StyleContext';
 import { OverlayStack } from './OverlayStack';
+import { PostFX } from '../fx/PostFX';
+import { StyleProvider, mergeStyleConfig, useStyle } from '../theme/StyleContext';
 import { buildPresentation, buildTiming, getTransitionPlan } from '../lib/transitions';
 
-/**
- * Scene timeline.
- *
- * Uses <TransitionSeries> rather than <Series> so scenes cross-fade instead of
- * hard-cutting. The composition length is computed by the same getTransitionPlan()
- * that lays out this series (see Root.tsx) -- transitions consume timeline, so
- * the two must agree or the voice-over drifts out of sync with the picture.
- */
-export const MainComposition: React.FC<VideoSpec> = ({
+/** Scene content is graded; HUD overlays intentionally remain outside the grade. */
+const StyledScene: React.FC<{ scene: VideoSpec['scenes'][number] }> = ({ scene }) => {
+  const { kit } = useStyle();
+  return (
+    <>
+      <PostFX effects={kit.effects}>
+        <EffectStack effects={scene.effects}>
+          <SceneDispatcher {...scene} />
+        </EffectStack>
+      </PostFX>
+      <OverlayStack overlays={scene.overlays} />
+    </>
+  );
+};
+
+/** The visual canvas reads the resolved family palette rather than a hardcoded bg. */
+const StyledTimeline: React.FC<VideoSpec> = ({
   scenes,
   audioUrl,
   width,
   height,
   style,
+  styleConfig,
 }) => {
+  const { theme } = useStyle();
   const plan = getTransitionPlan(scenes);
-
-  // Index the plan by the scene it precedes for O(1) lookup while mapping.
-  const transitionBefore = new Map(
-    plan.transitions.map((t) => [t.beforeSceneIndex, t])
-  );
-
+  const transitionBefore = new Map(plan.transitions.map((item) => [item.beforeSceneIndex, item]));
   const resolveSrc = (src: string) => (src.startsWith('http') ? src : staticFile(src));
 
   return (
-    <StyleProvider style={style}>
-      <div style={{ flex: 1, backgroundColor: '#0E0F11', display: 'flex' }}>
-        {audioUrl && <Audio src={resolveSrc(audioUrl)} />}
-        <TransitionSeries>
+    <div style={{ flex: 1, backgroundColor: theme.bg, display: 'flex' }}>
+      {audioUrl && <Audio src={resolveSrc(audioUrl)} />}
+      <TransitionSeries>
         {scenes.flatMap((scene, index) => {
           const planned = transitionBefore.get(index);
-
           const sequence = (
-            <TransitionSeries.Sequence
-              key={scene.id}
-              durationInFrames={scene.durationInFrames}
-            >
+            <TransitionSeries.Sequence key={scene.id} durationInFrames={scene.durationInFrames}>
               {scene.audioUrl && <Audio src={resolveSrc(scene.audioUrl)} />}
-              {/* Per-scene style override: a scene may switch kit mid-video. */}
-              <StyleProvider style={scene.style ?? style} accentColor={scene.accentColor}>
-                <EffectStack effects={scene.effects}>
-                  <SceneDispatcher {...scene} />
-                </EffectStack>
-                {/* Overlays ride ABOVE the effect stack on purpose: a countdown
-                    or a payment toast is a HUD element, and putting it inside
-                    the stack would let a camera shake or a colour grade move
-                    and tint the HUD along with the content. */}
-                <OverlayStack overlays={scene.overlays} />
+              <StyleProvider
+                style={scene.style ?? style}
+                accentColor={scene.accentColor}
+                config={mergeStyleConfig(styleConfig, scene.styleConfig)}
+              >
+                <StyledScene scene={scene} />
               </StyleProvider>
             </TransitionSeries.Sequence>
           );
-
-          if (!planned) {
-            return [sequence];
-          }
-
+          if (!planned) return [sequence];
           return [
             <TransitionSeries.Transition
               key={`${scene.id}-transition`}
-              presentation={buildPresentation({
-                config: planned.config,
-                width,
-                height,
-              })}
-              timing={buildTiming({
-                ...planned.config,
-                durationInFrames: planned.durationInFrames,
-              })}
+              presentation={buildPresentation({ config: planned.config, width, height })}
+              timing={buildTiming({ ...planned.config, durationInFrames: planned.durationInFrames })}
             />,
             sequence,
           ];
         })}
-        </TransitionSeries>
-      </div>
-    </StyleProvider>
+      </TransitionSeries>
+    </div>
   );
 };
+
+/** Main Remotion composition: named style family plus optional safe token overrides. */
+export const MainComposition: React.FC<VideoSpec> = (props) => (
+  <StyleProvider style={props.style} config={props.styleConfig}>
+    <StyledTimeline {...props} />
+  </StyleProvider>
+);

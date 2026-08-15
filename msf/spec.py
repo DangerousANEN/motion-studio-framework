@@ -122,6 +122,12 @@ class Scene:
     stat_label: Optional[str] = None
     # SwipePanels / comparisons
     cards: Optional[List[Dict[str, Any]]] = None
+    # Studio v2 BeforeAfter: two labelled textual states.
+    before: Optional[Dict[str, Any]] = None
+    after: Optional[Dict[str, Any]] = None
+    # Studio v2 MetricTrend: 2–6 labelled numeric values.
+    points: Optional[List[Dict[str, Any]]] = None
+    metric_label: Optional[str] = None
     # 3D presets
     model_url: Optional[str] = None
     model_scale: Optional[float] = None
@@ -155,6 +161,17 @@ class Scene:
     messages: Optional[List[Dict[str, Any]]] = None
     response: Optional[str] = None
     chat_title: Optional[str] = None
+    # TgChat fidelity controls: typed composer, client identity and safe theme.
+    contact_name: Optional[str] = None
+    contact_status: Optional[str] = None
+    compose: Optional[str] = None
+    typing: Optional[bool] = None
+    show_cursor: Optional[bool] = None
+    show_input_bar: Optional[bool] = None
+    send_at_progress: Optional[float] = None
+    tg_theme: Optional[str] = None
+    date_pill: Optional[str] = None
+    is_group: Optional[bool] = None
     # CryptoWallet — `tokens` is [{"symbol", "amount", "change"}].
     # amount/change/balance are NUMBERS on the wire (Zod rejects "2.4" and
     # "+3.1%"); formatting and the % sign are the preset's job, not the spec's.
@@ -181,7 +198,16 @@ class Scene:
     url_bar: Optional[str] = None
     app_name: Optional[str] = None
     show_rec: Optional[bool] = None
-    # VoiceMemo
+    # ScreenGuide: normalized focus anchor, optional pan and click path.
+    focus_x: Optional[float] = None
+    focus_y: Optional[float] = None
+    focus_scale: Optional[float] = None
+    pan_x: Optional[float] = None
+    pan_y: Optional[float] = None
+    cursor_steps: Optional[List[Dict[str, Any]]] = None
+    guide_text: Optional[str] = None
+    # VoiceMemo / TelegramVoiceRound
+    avatar: Optional[str] = None
     duration: Optional[float] = None
     waveform_seed: Optional[int] = None
     transcript: Optional[str] = None
@@ -217,7 +243,8 @@ class Scene:
     rows: Optional[List[Dict[str, Any]]] = None
     # ---------------------------------------------------------------- learn
     question: Optional[str] = None
-    options: Optional[List[str]] = None
+    # QuizCard accepts strings; PollResult also accepts typed {label, value} rows.
+    options: Optional[List[Any]] = None
     correct_index: Optional[int] = None
     reveal_at_progress: Optional[float] = None
     current_step: Optional[int] = None
@@ -242,12 +269,172 @@ class Scene:
     left: Optional[Dict[str, Any]] = None
     right: Optional[Dict[str, Any]] = None
     vs_label: Optional[str] = None
+    # ------------------------------------------------------- v2.3 expansion
+    headline: Optional[str] = None
+    subhead: Optional[str] = None
+    proof: Optional[str] = None
+    urgency: Optional[str] = None
+    phrase: Optional[str] = None
+    highlight: Optional[str] = None
+    caption: Optional[str] = None
+    problem: Optional[str] = None
+    solution: Optional[str] = None
+    feature: Optional[str] = None
+    benefit: Optional[str] = None
+    index: Optional[str] = None
+    context: Optional[str] = None
+    action: Optional[str] = None
+    result: Optional[str] = None
+    myth: Optional[str] = None
+    fact: Optional[str] = None
+    quote: Optional[str] = None
+    footnote: Optional[str] = None
+    status: Optional[str] = None
+    value: Optional[Any] = None
+    progress: Optional[float] = None
+    stats: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+    prompt: Optional[str] = None
+    provider: Optional[str] = None
+    send_label: Optional[str] = None
+    avatar_text: Optional[str] = None
+    answer: Optional[str] = None
+    chips: Optional[List[str]] = None
+    notifications: Optional[List[Dict[str, Any]]] = None
+    platform_label: Optional[str] = None
+    screenshot_url: Optional[str] = None
+    media_url: Optional[str] = None
+    focus: Optional[str] = None
+    zoom: Optional[float] = None
+    speaker: Optional[str] = None
+    channel: Optional[str] = None
+    chapter: Optional[str] = None
+    # ---------------------------------------------------------- v2.4 scene 50
+    benchmark: Optional[str] = None
+    models: Optional[List[Dict[str, Any]]] = None
+    rank_before: Optional[List[Dict[str, Any]]] = None
+    rank_after: Optional[List[Dict[str, Any]]] = None
+    scatter_points: Optional[List[Dict[str, Any]]] = None
+    axes: Optional[List[str]] = None
+    series: Optional[List[Dict[str, Any]]] = None
+    items: Optional[List[Dict[str, Any]]] = None
+    line_items: Optional[List[Dict[str, Any]]] = None
+    flow_nodes: Optional[List[Dict[str, Any]]] = None
+    decision_nodes: Optional[List[Dict[str, Any]]] = None
+    workflow_nodes: Optional[List[Dict[str, Any]]] = None
+    links: Optional[List[Dict[str, Any]]] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
+    caveat: Optional[str] = None
+    source_a: Optional[Dict[str, Any]] = None
+    source_b: Optional[Dict[str, Any]] = None
+    difference: Optional[str] = None
+    threshold: Optional[str] = None
+    previous: Optional[str] = None
+    current: Optional[str] = None
+    deltas: Optional[List[Dict[str, Any]]] = None
+    as_of: Optional[str] = None
+    x_label: Optional[str] = None
+    y_label: Optional[str] = None
+    unit: Optional[str] = None
+    method: Optional[str] = None
+    # Telegram, community and agent workflow
+    post_text: Optional[str] = None
+    reactions: Optional[List[Dict[str, Any]]] = None
+    views: Optional[int] = None
+    time: Optional[str] = None
+    cta: Optional[str] = None
+    posts: Optional[List[Dict[str, Any]]] = None
+    focus_post_id: Optional[Any] = None
+    scroll_direction: Optional[str] = None
+    origin: Optional[Dict[str, Any]] = None
+    forwards: Optional[List[Dict[str, Any]]] = None
+    original: Optional[Dict[str, Any]] = None
+    commentary: Optional[str] = None
+    questions: Optional[List[str]] = None
+    answers: Optional[List[str]] = None
+    changes: Optional[List[Dict[str, Any]]] = None
+    prompt_a: Optional[str] = None
+    prompt_b: Optional[str] = None
+    result_a: Optional[str] = None
+    result_b: Optional[str] = None
+    rubric: Optional[List[str]] = None
+    artifacts: Optional[List[str]] = None
+    selected_cell: Optional[Dict[str, Any]] = None
+    period: Optional[str] = None
+    product: Optional[str] = None
+    version: Optional[str] = None
+    columns: Optional[List[str]] = None
+    # Media choreography
+    positions: Optional[List[Dict[str, Any]]] = None
+    camera_path: Optional[List[float]] = None
+    captions: Optional[List[str]] = None
+    layout_seed: Optional[int] = None
+    focus_order: Optional[List[int]] = None
+    image: Optional[str] = None
+    stops: Optional[List[Dict[str, Any]]] = None
+    before_url: Optional[str] = None
+    after_url: Optional[str] = None
+    label_before: Optional[str] = None
+    label_after: Optional[str] = None
+    video_url: Optional[str] = None
+    chapters: Optional[List[Dict[str, Any]]] = None
+    document_url: Optional[str] = None
+    notes: Optional[List[Dict[str, Any]]] = None
+    screens: Optional[List[str]] = None
+    windows: Optional[List[Dict[str, Any]]] = None
+    left_image: Optional[str] = None
+    right_image: Optional[str] = None
+    left_meta: Optional[str] = None
+    right_meta: Optional[str] = None
+    # Universal 3D
+    asset_url: Optional[str] = None
+    asset_license: Optional[str] = None
+    asset_attribution: Optional[str] = None
+    camera_preset: Optional[str] = None
+    material_mode: Optional[str] = None
+    fallback_shape: Optional[str] = None
+    parts: Optional[List[Dict[str, Any]]] = None
+    explode_distance: Optional[float] = None
+    svg_url: Optional[str] = None
+    devices: Optional[List[str]] = None
+    groups: Optional[List[Dict[str, Any]]] = None
+    zones: Optional[List[Dict[str, Any]]] = None
+    active_path: Optional[List[str]] = None
+    locations: Optional[List[Dict[str, Any]]] = None
+    routes: Optional[List[Dict[str, Any]]] = None
+    milestones: Optional[List[Dict[str, Any]]] = None
+    values: Optional[List[float]] = None
+    focus_group: Optional[str] = None
+    tagline: Optional[str] = None
+    # Narrative, conversion and utility
+    claim_a: Optional[str] = None
+    claim_b: Optional[str] = None
+    real_question: Optional[str] = None
+    proof_label: Optional[str] = None
+    choice_a: Optional[str] = None
+    choice_b: Optional[str] = None
+    outcomes_a: Optional[List[str]] = None
+    outcomes_b: Optional[List[str]] = None
+    past: Optional[str] = None
+    present: Optional[str] = None
+    next: Optional[str] = None
+    chosen_path: Optional[List[str]] = None
+    dimensions: Optional[List[Dict[str, Any]]] = None
+    takeaway: Optional[str] = None
+    window: Optional[str] = None
+    timezone: Optional[str] = None
+    what_changes: Optional[str] = None
+    brand_name: Optional[str] = None
+    logo_url: Optional[str] = None
+    media: Optional[List[Dict[str, Any]]] = None
+    date: Optional[str] = None
     # -------------------------------------------------------------- overlays
     # HUD elements above the scene: [{"type": "timer"|"notification"|"money", ...}].
     # See remotion/src/compositions/OverlayStack.tsx for per-type fields.
     overlays: Optional[List[Dict[str, Any]]] = None
-    # Style
+    # Style family plus safe per-scene token overrides (wire: styleConfig).
     style: Optional[str] = None
+    style_config: Optional[Dict[str, Any]] = None
     audio_url: Optional[str] = None
     # Transition played BEFORE this scene. Ignored on scene 0 (nothing to come
     # from). Dict on the wire: {"type", "durationInFrames", "direction", "timing"}.
@@ -276,10 +463,19 @@ class Scene:
         "gap_angle": "gapAngle",
         "highlight_segment": "highlightSegment",
         "value_suffix": "valueSuffix",
+        "metric_label": "metricLabel",
         # TgChat renders `title` as the scene caption and `contactName` as the
         # chat partner. Keeping them separate stops a caption from silently
         # renaming the contact.
         "chat_title": "contactName",
+        "contact_name": "contactName",
+        "contact_status": "contactStatus",
+        "show_cursor": "showCursor",
+        "show_input_bar": "showInputBar",
+        "send_at_progress": "sendAtProgress",
+        "tg_theme": "tgTheme",
+        "date_pill": "datePill",
+        "is_group": "isGroup",
         # `brand` is taken on the wire by BankCard's scheme mark; the Python
         # attribute is card_brand so it cannot collide with a future top-level
         # brand field.
@@ -290,6 +486,13 @@ class Scene:
         "url_bar": "urlBar",
         "app_name": "appName",
         "show_rec": "showRec",
+        "focus_x": "focusX",
+        "focus_y": "focusY",
+        "focus_scale": "focusScale",
+        "pan_x": "panX",
+        "pan_y": "panY",
+        "cursor_steps": "cursorSteps",
+        "guide_text": "guideText",
         "waveform_seed": "waveformSeed",
         "inner_preset": "innerPreset",
         "inner_props": "innerProps",
@@ -308,6 +511,67 @@ class Scene:
         "count_from": "from",
         "final_word": "finalWord",
         "vs_label": "vsLabel",
+        "send_label": "sendLabel",
+        "avatar_text": "avatarText",
+        "platform_label": "platformLabel",
+        "screenshot_url": "screenshotUrl",
+        "media_url": "mediaUrl",
+        "rank_before": "rankBefore",
+        "rank_after": "rankAfter",
+        "scatter_points": "scatterPoints",
+        "line_items": "lineItems",
+        "flow_nodes": "flowNodes",
+        "decision_nodes": "decisionNodes",
+        "workflow_nodes": "workflowNodes",
+        "source_a": "sourceA",
+        "source_b": "sourceB",
+        "as_of": "asOf",
+        "x_label": "xLabel",
+        "y_label": "yLabel",
+        "post_text": "postText",
+        "focus_post_id": "focusPostId",
+        "scroll_direction": "scrollDirection",
+        "prompt_a": "promptA",
+        "prompt_b": "promptB",
+        "result_a": "resultA",
+        "result_b": "resultB",
+        "selected_cell": "selectedCell",
+        "camera_path": "cameraPath",
+        "layout_seed": "layoutSeed",
+        "focus_order": "focusOrder",
+        "before_url": "beforeUrl",
+        "after_url": "afterUrl",
+        "label_before": "labelBefore",
+        "label_after": "labelAfter",
+        "video_url": "videoUrl",
+        "document_url": "documentUrl",
+        "left_image": "leftImage",
+        "right_image": "rightImage",
+        "left_meta": "leftMeta",
+        "right_meta": "rightMeta",
+        "asset_url": "assetUrl",
+        "asset_license": "assetLicense",
+        "asset_attribution": "assetAttribution",
+        "camera_preset": "cameraPreset",
+        "material_mode": "materialMode",
+        "fallback_shape": "fallbackShape",
+        "explode_distance": "explodeDistance",
+        "svg_url": "svgUrl",
+        "active_path": "activePath",
+        "focus_group": "focusGroup",
+        "claim_a": "claimA",
+        "claim_b": "claimB",
+        "real_question": "realQuestion",
+        "proof_label": "proofLabel",
+        "choice_a": "choiceA",
+        "choice_b": "choiceB",
+        "outcomes_a": "outcomesA",
+        "outcomes_b": "outcomesB",
+        "chosen_path": "chosenPath",
+        "what_changes": "whatChanges",
+        "brand_name": "brandName",
+        "logo_url": "logoUrl",
+        "style_config": "styleConfig",
         "audio_url": "audioUrl",
     }
 
@@ -413,6 +677,27 @@ _DATA_REQUIREMENTS = {
     "TimelineReveal": ("events",),
     "LyricLines": ("lines",),
     "VersusSplit": ("left", "right"),
+    # v2.3 expansion — all of these require structured or scene-specific copy.
+    "HookStack": ("headline", "title"),
+    "KineticPhrase": ("phrase", "title", "text"),
+    "ProblemSolution": ("problem", "solution"),
+    "FeatureSpotlight": ("feature", "benefit"),
+    "CaseStudyBoard": ("context", "action", "result"),
+    "MythFact": ("myth", "fact"),
+    "QuoteEvidence": ("quote", "text"),
+    "StatsBand": ("stats",),
+    "SourceStack": ("sources",),
+    "CountdownRing": ("value", "title", "label"),
+    "PromptComposer": ("prompt",),
+    "ProviderChat": ("provider", "prompt", "answer"),
+    "NotificationStack": ("notifications",),
+    "CommentThread": ("comments",),
+    "PollResult": ("options",),
+    "BrowserTour": ("screenshotUrl", "src"),
+    "ScreenMagnifier": ("mediaUrl", "src", "images"),
+    "DeviceShowcase": ("mediaUrl", "src", "images"),
+    "VoiceWave": ("speaker", "caption"),
+    "VideoFrame": ("mediaUrl", "src", "images"),
 }
 
 
@@ -433,8 +718,10 @@ _ROW_SHAPES_HARD: Dict[str, tuple] = {
     "tokens": ("symbol", "amount"),        # TokenRowSchema
     "transactions": ("label", "amount"),   # TransactionSchema
     "segments": ("label", "value"),        # SegmentSchema
-    "messages": ("text",),                 # ChatMessageSchema
+    # messages are checked separately: a regular bubble needs text, but a
+    # bounded sticker-only item is now valid in the TypeScript contract.
 }
+_ALLOWED_CHAT_STICKERS = {"brain", "rocket", "spark", "thumbsUp"}
 
 # SOFT: the TS schema declares these items with all-optional keys plus
 # `.passthrough()`, so Zod accepts them and the render succeeds — it just draws a
@@ -444,6 +731,11 @@ _ROW_SHAPES_SOFT: Dict[str, tuple] = {
     "rows": ("name",),        # `label` is an accepted alias — see _ROW_ALIASES
     "comments": ("text",),
     "events": ("label",),     # `date` alone renders a dated row with no event
+    "stats": ("label", "value"),
+    "sources": ("title",),
+    "notifications": ("text",),
+    # PollResult permits string shorthand as well as {label, value} objects.
+    "options": ("label",),
 }
 
 # Fields where an alias is legitimately accepted by the TS schema, so requiring
@@ -507,8 +799,28 @@ def validate_spec(spec: Dict[str, Any]) -> None:
             "question", "options", "steps", "term", "definition", "events",
             "lines", "score", "health", "playerName", "from", "finalWord",
             "left", "right", "comments",
+            # v2.3 expansion
+            "headline", "subhead", "phrase", "highlight", "caption",
+            "problem", "solution", "feature", "benefit", "context", "action",
+            "result", "myth", "fact", "quote", "footnote", "stats", "sources",
+            "value", "prompt", "provider", "answer", "notifications", "screenshotUrl",
+            "mediaUrl", "speaker", "channel", "chapter",
+            # v2.4 expansion semantic fields
+            "models", "rankBefore", "rankAfter", "scatterPoints", "axes", "series", "items",
+            "lineItems", "flowNodes", "decisionNodes", "workflowNodes", "links", "evidence",
+            "sourceA", "sourceB", "deltas", "postText", "reactions", "posts", "origin",
+            "forwards", "original", "questions", "answers", "changes", "promptA", "promptB",
+            "resultA", "resultB", "artifacts", "columns", "positions", "captions", "image",
+            "stops", "beforeUrl", "afterUrl", "videoUrl", "chapters", "documentUrl", "notes",
+            "screens", "windows", "leftImage", "rightImage", "assetUrl", "assetLicense", "parts",
+            "devices", "groups", "zones", "locations", "routes", "milestones", "claimA", "claimB",
+            "realQuestion", "choiceA", "choiceB", "outcomesA", "outcomesB", "past", "present",
+            "next", "dimensions", "date", "brandName", "media", "product",
         )
-        has_content = any(sc.get(k) for k in content_keys) or sc.get("statValue") is not None
+        has_content = (any(sc.get(k) for k in content_keys)
+                       or sc.get("statValue") is not None
+                       or sc.get("value") is not None
+                       or sc.get("progress") is not None)
         if not has_content:
             raise ValueError(
                 f"Spec validation failed: scene[{i}] (id={sc.get('id')!r}, "
@@ -541,6 +853,24 @@ def validate_spec(spec: Dict[str, Any]) -> None:
                 f"with content (got {supplied!r}). That would render a placeholder "
                 "instead of real content."
             )
+
+        # TgChat accepts either a regular text bubble or one of the allowlisted
+        # sticker-only message kinds. This mirrors ChatMessageSchema exactly.
+        messages = sc.get("messages")
+        if isinstance(messages, list):
+            for j, item in enumerate(messages):
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        f"Spec validation failed: scene[{i}] (id={sc.get('id')!r}) "
+                        f"messages[{j}] must be an object, got {type(item).__name__}."
+                    )
+                has_text = isinstance(item.get("text"), str)
+                sticker = item.get("sticker")
+                if not has_text and sticker not in _ALLOWED_CHAT_STICKERS:
+                    raise ValueError(
+                        f"Spec validation failed: scene[{i}] (id={sc.get('id')!r}) "
+                        f"messages[{j}] needs text or an allowlisted sticker; got {item!r}."
+                    )
 
         # ROW SHAPE. The check above proves the list exists; this proves its items
         # are the shape the TS side expects.
@@ -681,6 +1011,8 @@ def build_spec(
     video_format: Optional[Any] = None,
     audio_url: Optional[str] = None,
     theme: Optional[str] = None,
+    style: Optional[str] = None,
+    style_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the VideoSpec dict handed to Remotion.
 
@@ -713,6 +1045,8 @@ def build_spec(
         "format": fmt.name,
         "safeMargin": fmt.safe_margin_px,
         "theme": theme or DEFAULT_THEME,
+        "style": style,
+        "styleConfig": style_config,
         "brandColors": {
             "bg": "#0E0F11",
             "surface": "#16181C",
@@ -724,6 +1058,10 @@ def build_spec(
         },
         "scenes": scene_dicts,
     }
+    if style is None:
+        spec.pop("style")
+    if style_config is None:
+        spec.pop("styleConfig")
     if audio_url:
         spec["audioUrl"] = audio_url
     return spec

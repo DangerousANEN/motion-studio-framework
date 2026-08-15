@@ -1410,15 +1410,20 @@ export const TimelineReveal: React.FC<BaseSceneProps> = (props) => {
                 {/* Dot */}
                 <div
                   style={{
-                    width: dotDiameter,
-                    height: dotDiameter,
-                    borderRadius: '50%',
-                    backgroundColor: dotColor,
-                    border: `2px solid ${isActive ? accent : blend(theme.muted, theme.bg, 0.27)}`,
-                    transform: `scale(${dotScale})`,
-                    flexShrink: 0,
-                    zIndex: 2,
-                    marginLeft: Math.round(safe.width * 0.03) - dotR,
+                      width: dotDiameter,
+                      height: dotDiameter,
+                      boxSizing: 'border-box',
+                      borderRadius: '50%',
+                      backgroundColor: dotColor,
+                      border: `2px solid ${isActive ? accent : blend(theme.muted, theme.bg, 0.27)}`,
+                      transform: `scale(${dotScale})`,
+                      transformOrigin: 'center',
+                      flexShrink: 0,
+                      zIndex: 2,
+                      // Date column ends at axisX - dotR - dateGap. Add the
+                      // full dateGap back: subtracting dotR here shifted every
+                      // circle left of the vertical spine by one radius.
+                      marginLeft: Math.round(safe.width * 0.03),
                   }}
                 />
 

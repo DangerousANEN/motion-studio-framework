@@ -1,7 +1,7 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './brand';
+import { useSceneStyle } from '../theme/StyleContext';
 import { resolveMotion } from '../lib/motion';
 import { getSafeArea } from '../lib/safeArea';
 
@@ -23,7 +23,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
   text,
   author,
   role,
-  accentColor = BRAND.gold,
+  accentColor,
   motion,
   safeArea = 'platform',
 }) => {
@@ -32,6 +32,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
   const vertical = height >= width;
   const safe = getSafeArea(width, height, safeArea);
 
+  const { theme, accent } = useSceneStyle(undefined, accentColor);
   const quote = text || '⚠ NO QUOTE IN SPEC';
   const words = quote.split(' ');
 
@@ -72,7 +73,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
         inset: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: BRAND.bg,
+        backgroundColor: theme.bg,
         overflow: 'hidden',
         fontFamily: FONT,
       }}
@@ -86,7 +87,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
           width: 620,
           height: 620,
           borderRadius: '50%',
-          background: `radial-gradient(circle, ${accentColor}18 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${accent}18 0%, transparent 70%)`,
           opacity: cardProgress,
         }}
       />
@@ -111,7 +112,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
               fontWeight: 800,
               letterSpacing: '4px',
               textTransform: 'uppercase',
-              color: accentColor,
+              color: accent,
               marginBottom: 24,
               textAlign: 'center',
               opacity: animateReveal(frame, 0, 1),
@@ -126,8 +127,8 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
             position: 'relative',
             opacity: cardProgress,
             transform: `translateY(${(1 - cardProgress) * 40}px)`,
-            backgroundColor: BRAND.surface,
-            borderLeft: `7px solid ${accentColor}`,
+            backgroundColor: theme.surface,
+            borderLeft: `7px solid ${accent}`,
             borderRadius: '4px 18px 18px 4px',
             padding: vertical ? '46px 42px' : '40px 56px',
             maxWidth: cardMaxWidth,
@@ -150,7 +151,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
               fontSize: quoteMarkSize,
               lineHeight: 1,
               fontWeight: 900,
-              color: accentColor,
+              color: accent,
               opacity: markProgress * 0.32,
               transform: `scale(${0.5 + markProgress * 0.5})`,
               transformOrigin: 'top left',
@@ -166,7 +167,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
               fontSize: vertical ? 40 : 38,
               lineHeight: 1.4,
               fontWeight: 600,
-              color: BRAND.text,
+              color: theme.text,
               margin: 0,
               // Clears the quote mark instead of letting the first line collide
               // with it.
@@ -200,7 +201,7 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
                 style={{
                   width: 46,
                   height: 3,
-                  backgroundColor: accentColor,
+                  backgroundColor: accent,
                   borderRadius: 2,
                   marginBottom: 14,
                 }}
@@ -214,12 +215,12 @@ export const QuoteCard: React.FC<BaseSceneProps> = ({
                 }}
               >
                 {author && (
-                  <span style={{ fontSize: vertical ? 28 : 26, fontWeight: 800, color: BRAND.text }}>
+                  <span style={{ fontSize: vertical ? 28 : 26, fontWeight: 800, color: theme.text }}>
                     {author}
                   </span>
                 )}
                 {role && (
-                  <span style={{ fontSize: vertical ? 22 : 20, color: BRAND.muted }}>{role}</span>
+                  <span style={{ fontSize: vertical ? 22 : 20, color: theme.muted }}>{role}</span>
                 )}
               </div>
             </div>

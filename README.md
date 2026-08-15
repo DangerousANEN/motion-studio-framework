@@ -48,6 +48,32 @@ The panel at `http://127.0.0.1:8765` lets you:
 
 No build step for the UI — it's vanilla HTML/JS/CSS served by FastAPI.
 
+## Studio v2: Safe Agent, MCP and Evidence-First Workflow
+
+Studio v2 is the application boundary for both human operators and agent clients. It provides typed, versioned contracts for research packs, script plans, storyboards, assets, runs, events and redacted traces. A restricted agent should discover presets through the catalog, compose only stable manifests, validate the storyboard, and only then prepare a run. It must not guess scene names, construct arbitrary renderer code, or present an unsupported factual claim as verified.
+
+```bash
+# Check the Studio contracts, catalog, research gates, audio recipes and MCP import.
+PYTHONPATH=. python tools/check_studio_v2.py
+PYTHONPATH=. python tools/check_studio_research.py
+PYTHONPATH=. python tools/check_studio_observability.py
+PYTHONPATH=. python tools/check_studio_audio.py
+PYTHONPATH=. python tools/check_studio_mcp.py
+
+# Run the local agent adapter through stdio after installation.
+PYTHONPATH=. python -m msf.studio.mcp_server
+```
+
+The MCP server exposes catalog discovery, scene manifests, sound-design recommendations, evidence/storyboard validation, draft persistence, safe render preparation, and event/trace inspection. It never exposes host filesystem paths, arbitrary commands, raw prompts, credentials, or hidden model reasoning. The versioned `skills/msf-studio` package routes agents into `preset`, `curated`, `sandbox`, `voice`, `research`, and `debug` workflows with explicit approval boundaries.
+
+For the included LLM Hubs evidence-backed sample series, validate the source packs and build the specs/audio first. The final batch-render uses the system Chromium explicitly to avoid an unnecessary browser download.
+
+```bash
+PYTHONPATH=. python tools/check_llm_hubs_evidence.py
+PYTHONPATH=. python projects/llm_hubs/build_series.py
+projects/llm_hubs/render_series.sh
+```
+
 ## Architecture
 
 ```
@@ -59,8 +85,8 @@ Operator ─→ Control Panel (:8765)
    Pipeline          (resident node process)
    (Python)               │
         │           Remotion (React/TS)
-        ▼           38 presets
-   Qwen3-TTS         96 effects
+        ▼           Live preset catalog
+   Qwen3-TTS         Visual effect catalog
    Whisper           18 transitions
    ffmpeg            14 style kits
 ```
@@ -81,7 +107,10 @@ Operator ─→ Control Panel (:8765)
 | `msf/audio/soundtrack.py` | Music bed + SFX generator |
 | `msf/registry.py` | TS → Python parser (presets, effects, transitions, kits) |
 | `msf/spec.py` | VideoSpec validator + readability constants |
-| `remotion/src/presets/` | 38 scene compositions (React) |
+| `msf/studio/` | v2 contracts, catalog, evidence/script gates, run/event/trace services and MCP adapter |
+| `skills/msf-studio/` | Unified agent skill with preset, curated, sandbox, voice, research and debug workflows |
+| `projects/llm_hubs/` | Evidence packs, reproducible scripts/specs and sample-series renderer |
+| `remotion/src/presets/` | Live React scene composition catalog |
 | `remotion/lib/transitions.ts` | 18 Zod scene transitions |
 | `remotion/lib/pacing.ts` | Dwell pacing calculator |
 | `config/default.yml` | Runtime config (LLM, TTS, render, audio) |
@@ -98,11 +127,19 @@ Every scene is guaranteed readable:
 ## Testing
 
 ```bash
-python -m pytest tests/ -q
-# 165 passed, 1 skipped, 0 failed
+# Targeted Studio v2 release checks (works without optional GPU voice stack):
+PYTHONPATH=. python tools/check_studio_v2.py
+PYTHONPATH=. python tools/check_studio_research.py
+PYTHONPATH=. python tools/check_studio_observability.py
+PYTHONPATH=. python tools/check_studio_audio.py
+PYTHONPATH=. python tools/check_studio_mcp.py
+PYTHONPATH=. python tools/check_llm_hubs_evidence.py
+
+# Full legacy suite; installs its optional LangGraph, Torch voice and Playwright browser dependencies separately.
+PYTHONPATH=. python -m pytest tests/ -q
 ```
 
-14 test files covering: registry parity (Python ↔ TypeScript), pacing constants, row shapes, panel API, soundtrack, deep research, model icons, theme parity, and end-to-end spec validation.
+The repository contains legacy graph, panel and renderer tests in addition to the Studio v2 smoke checks. The full suite is environment-sensitive because the legacy path imports optional GPU voice, LLM orchestration and Playwright browser components.
 
 ## License
 

@@ -32,6 +32,14 @@ import { MEDIA_PRESETS } from './media';
 import { SOCIAL_PRESETS } from './social';
 import { LEARN_PRESETS } from './learn';
 import { STAGE_PRESETS } from './stage';
+import { STUDIO_PRESETS } from './studio';
+import { EXPANSION_NARRATIVE_PRESETS } from './expansion_narrative';
+import { EXPANSION_SOCIAL_PRESETS } from './expansion_social';
+import { EXPANSION_RESEARCH_V24_PRESETS } from './expansion_research_v24';
+import { EXPANSION_COMMUNITY_V24_PRESETS } from './expansion_community_v24';
+import { EXPANSION_MEDIA_V24_PRESETS } from './expansion_media_v24';
+import { EXPANSION_THREE_V24_PRESETS } from './expansion_three_v24';
+import { EXPANSION_NARRATIVE_UTILITY_V24_PRESETS } from './expansion_narrative_utility_v24';
 
 export { COMMON_FIELDS };
 
@@ -41,7 +49,15 @@ export const PRESETS: PresetRegistry = mergeRegistries(
   MEDIA_PRESETS,
   SOCIAL_PRESETS,
   LEARN_PRESETS,
-  STAGE_PRESETS
+  STAGE_PRESETS,
+  STUDIO_PRESETS,
+  EXPANSION_NARRATIVE_PRESETS,
+  EXPANSION_SOCIAL_PRESETS,
+  EXPANSION_RESEARCH_V24_PRESETS,
+  EXPANSION_COMMUNITY_V24_PRESETS,
+  EXPANSION_MEDIA_V24_PRESETS,
+  EXPANSION_THREE_V24_PRESETS,
+  EXPANSION_NARRATIVE_UTILITY_V24_PRESETS
 );
 
 /** All preset names, sorted — the source for the Zod enum. */

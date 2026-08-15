@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/VideoSpec.schema.ts",
+    "src/registry/types.ts",
+    "src/registry/core.ts",
+    "src/registry/ui_mock.ts",
+    "src/registry/media.ts",
+    "src/registry/social.ts",
+    "src/registry/learn.ts",
+    "src/registry/stage.ts",
+    "src/registry/studio.ts",
+    "src/registry/presets.ts",
+    "src/presets/studio.tsx",
+    "src/lib/**/*.ts",
+    "src/theme/**/*.ts",
+    "src/theme/**/*.tsx"
+  ]
+}

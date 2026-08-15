@@ -1,209 +1,224 @@
-import React from 'react';
 import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './brand';
+import { useSceneStyle } from '../theme/StyleContext';
 import { resolveMotion } from '../lib/motion';
 import { getSafeArea, safeAreaPadding } from '../lib/safeArea';
-import { fitOneLine } from '../theme/layout';
-
-export { BRAND };
+import { fitOneLine, fitWrapped } from '../theme/layout';
 
 /**
- * One source of truth for the hero font stack: `fitOneLine` measures with the
- * same family the container renders with, otherwise the fitted size is wrong.
+ * HeroKinetic — premium editorial hook with a short controlled entrance and a
+ * long static reading dwell. It deliberately avoids an all-accent rectangular
+ * card: style families provide the colour while the structure remains useful
+ * for high-retention openings, product announcements and myth-busting claims.
  */
-const HERO_FONT = '"Impact", "Arial Black", system-ui, sans-serif';
+const HERO_FONT = '"Arial Black", "Inter", system-ui, sans-serif';
 
-/**
- * Kinetic hero card with an optional badge and subtitle.
- *
- * Three defects fixed while moving this onto the shared layers:
- *  - `padding: '60px'` ignored the asymmetric platform strips, so the subtitle
- *    landed under the Shorts action column
- *  - `width: '90%'` (972px at 1080) exceeded the 920px safe box, and the card's
- *    tilt pushed its corners further out still
- *  - `fontSize` was picked from `title.length`, which is not a width: 30 wide
- *    uppercase glyphs overflow where 30 narrow ones fit. Now measured.
- */
 export const HeroKinetic: React.FC<BaseSceneProps> = ({
   title,
   text,
   subtitle,
   badge,
-  accentColor = BRAND.gold,
+  accentColor,
   motion,
   safeArea = 'platform',
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-
-  const displayTitle = title || text || '⚠ NO TITLE IN SPEC';
+  const { theme, accent, surface } = useSceneStyle(undefined, accentColor);
   const safe = getSafeArea(width, height, safeArea);
-
-  // `reveal` drives the card entrance, `transform` the delayed subtitle.
-  // Separate channels let a spec retime one without touching the other.
-  const animateReveal = resolveMotion(motion, fps, 'reveal');
-  const animateSub = resolveMotion(motion, fps, 'transform');
-
-  const springSnap = animateReveal(frame, 0, 1);
-  // The subtitle trails the card by 8 frames.
-  const subSpring = animateSub(frame - 8, 0, 1);
-
-  const scale = interpolate(springSnap, [0, 1], [0.4, 1]);
-  const rotation = interpolate(springSnap, [0, 1], [-6, -2]); // Signature pop-brutalist tilt
-  const shadowOffset = interpolate(springSnap, [0, 1], [0, 14]);
-
-  const subOffsetY = interpolate(subSpring, [0, 1], [40, 0]);
-  const subOpacity = interpolate(subSpring, [0, 1], [0, 1]);
-
-  // The card is tilted, so its rotated bounding box is wider than its layout
-  // box. Reserve that overhang instead of letting a corner cross the inset.
-  const tiltRad = (Math.abs(rotation) * Math.PI) / 180;
-  const cardWidth = Math.min(safe.width * Math.cos(tiltRad) - 24, 920);
-
-  // Measure the title rather than guessing from character count.
-  const fontSize = fitOneLine({
+  const displayTitle = title || text || 'NO TITLE';
+  const reveal = resolveMotion(motion ?? 'normal', fps, 'reveal');
+  const panelIn = reveal(frame, 0, 1);
+  const copyIn = reveal(frame - 8, 0, 1);
+  // Use the ACTUAL inner width of the glass card. The old 0.86×safe estimate
+  // ignored horizontal card padding; a no-break Cyrillic word could therefore
+  // be measured as fitting but still clip in the rendered H1.
+  const panelWidth = Math.min(safe.width * 0.9, 820);
+  const panelPadX = Math.round(width * 0.05);
+  const titleMaxWidth = panelWidth - panelPadX * 2;
+  const longestWord = displayTitle.split(/\s+/).reduce((longest, word) => word.length > longest.length ? word : longest, '');
+  const titleFit = fitWrapped({
     text: displayTitle,
-    maxWidth: cardWidth - 96, // minus horizontal card padding
+    maxWidth: titleMaxWidth,
+    maxHeight: height * 0.23,
     fontFamily: HERO_FONT,
     fontWeight: 900,
-    letterSpacing: '-1px',
+    maxLines: 2,
+    lineHeight: 0.96,
+    letterSpacing: '-2px',
     textTransform: 'uppercase',
-    maxFontSize: 88,
-    minFontSize: 40,
+    maxFontSize: Math.round(height * 0.094),
+    minFontSize: Math.round(height * 0.048),
   });
+  // fitTextOnNLines optimises wrapped lines. This second measurement protects
+  // the longest unbreakable token after CSS word breaking is disabled.
+  const longestWordSize = fitOneLine({
+    text: longestWord,
+    maxWidth: titleMaxWidth,
+    fontFamily: HERO_FONT,
+    fontWeight: 900,
+    letterSpacing: '-2px',
+    textTransform: 'uppercase',
+    maxFontSize: Math.round(height * 0.094),
+    minFontSize: Math.round(height * 0.026),
+  });
+  const titleFontSize = Math.min(titleFit.fontSize, longestWordSize);
+  const subFit = subtitle
+    ? fitWrapped({
+      text: subtitle,
+      maxWidth: titleMaxWidth,
+      maxHeight: height * 0.13,
+      fontFamily: '"Inter", system-ui, sans-serif',
+      fontWeight: 700,
+      maxLines: 3,
+      lineHeight: 1.14,
+      maxFontSize: Math.round(height * 0.035),
+      minFontSize: Math.round(height * 0.024),
+    })
+    : null;
+
+  const translateY = interpolate(panelIn, [0, 1], [34, 0]);
+  const titleY = interpolate(copyIn, [0, 1], [22, 0]);
+  const scanX = interpolate(frame, [0, Math.max(36, Math.round(fps * 1.3))], [-safe.width * 0.4, safe.width * 1.15], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const rimOpacity = interpolate(panelIn, [0, 1], [0, 0.74]);
 
   return (
     <div
       style={{
         flex: 1,
-        backgroundColor: BRAND.bg,
+        backgroundColor: theme.bg,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        // Platform-aware insets, not a symmetric 60px. The bottom strip on
-        // Shorts/Reels is ~380px; a flat padding put the subtitle under the
-        // action column.
         ...safeAreaPadding(width, height, safeArea),
         position: 'relative',
         overflow: 'hidden',
         fontFamily: HERO_FONT,
       }}
     >
-      {/* Neo-Brutalist Isometric Background Grid */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
+          opacity: 0.62,
           backgroundImage: `
-            linear-gradient(to right, rgba(255, 255, 255, 0.05) 2px, transparent 2px),
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 2px, transparent 2px)
+            linear-gradient(${theme.muted}14 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.muted}14 1px, transparent 1px)
           `,
-          backgroundSize: '60px 60px',
-          opacity: 0.6,
+          backgroundSize: `${Math.round(width * 0.09)}px ${Math.round(width * 0.09)}px`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          width: width * 1.05,
+          height: width * 1.05,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${accent}2C 0%, ${accent}10 27%, transparent 66%)`,
+          filter: 'blur(4px)',
+          transform: `translateY(${height * -0.03}px) scale(${0.92 + panelIn * 0.08})`,
+          opacity: panelIn,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: scanX,
+          top: safe.top + safe.height * 0.24,
+          height: safe.height * 0.52,
+          width: Math.max(10, width * 0.045),
+          background: `linear-gradient(90deg, transparent, ${accent}45, transparent)`,
+          filter: 'blur(5px)',
+          opacity: panelIn * 0.55,
+          pointerEvents: 'none',
         }}
       />
 
-      {/* Decorative Geometric Neo-Brutalist Badge (Optional) */}
-      {badge && (
+      <div
+        style={{
+          width: panelWidth,
+          position: 'relative',
+          zIndex: 2,
+          opacity: panelIn,
+          transform: `translateY(${translateY}px)`,
+          padding: `${Math.round(height * 0.034)}px ${panelPadX}px ${Math.round(height * 0.04)}px`,
+          boxSizing: 'border-box',
+          borderRadius: surface === 'glass' ? 34 : 22,
+          border: `1.5px solid ${accent}88`,
+          background: surface === 'glass'
+            ? `linear-gradient(145deg, ${theme.surface}F2, ${theme.bg}DE)`
+            : theme.surface,
+          boxShadow: `0 0 0 1px ${theme.text}0D inset, 0 22px 58px ${theme.shadowColor}88, 0 0 48px ${accent}25`,
+          overflow: 'hidden',
+        }}
+      >
         <div
           style={{
             position: 'absolute',
-            // Pinned to the top of the SAFE box, not the raw canvas. At 120px
-            // the badge sat inside the platform's 280px top strip.
-            top: safe.top,
-            backgroundColor: BRAND.neon,
-            color: '#000000',
-            padding: '12px 28px',
-            borderRadius: '4px',
-            border: '4px solid #000000',
-            boxShadow: '6px 6px 0px #000000',
-            fontSize: '28px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
-            transform: 'rotate(3deg)',
-            maxWidth: cardWidth,
-            textAlign: 'center',
-            overflowWrap: 'break-word',
-            wordBreak: 'break-word',
+            left: 0,
+            top: 0,
+            height: 3,
+            width: `${Math.round(55 + panelIn * 45)}%`,
+            background: `linear-gradient(90deg, ${accent}, ${theme.cyan}, transparent)`,
+            opacity: rimOpacity,
           }}
-        >
-          {badge}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: Math.round(height * 0.022) }}>
+          <div style={{ width: 9, height: 9, borderRadius: '50%', background: accent, boxShadow: `0 0 14px ${accent}` }} />
+          <span style={{ fontFamily: '"Inter", system-ui, sans-serif', color: accent, fontSize: Math.round(height * 0.018), fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase' }}>
+            {badge || 'НОВЫЙ РАЗБОР'}
+          </span>
+          <div style={{ flex: 1, height: 1, background: `${theme.muted}44` }} />
+          <span style={{ fontFamily: '"Inter", system-ui, sans-serif', color: theme.muted, fontSize: Math.round(height * 0.016), fontWeight: 700 }}>LLM HUBS</span>
         </div>
-      )}
 
-      {/* Main Kinetic Pop-Laboratory Card */}
-      <div
-        style={{
-          transform: `scale(${scale}) rotate(${rotation}deg)`,
-          backgroundColor: accentColor,
-          padding: '36px 48px',
-          borderRadius: '8px',
-          border: '6px solid #000000',
-          boxShadow: `${shadowOffset}px ${shadowOffset}px 0px ${BRAND.shadowColor}`,
-          textAlign: 'center',
-          width: cardWidth,
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          overflowWrap: 'break-word',
-          wordBreak: 'break-word',
-          zIndex: 5,
-        }}
-      >
-        <h1
-          style={{
-            fontSize,
-            fontWeight: 900,
-            color: '#000000',
-            letterSpacing: '-1px',
-            margin: 0,
-            lineHeight: 1.1,
-            textTransform: 'uppercase',
-            overflowWrap: 'break-word',
-            wordBreak: 'break-word',
-          }}
-        >
-          {displayTitle}
-        </h1>
-      </div>
+        <div style={{ overflow: 'visible', maxWidth: titleMaxWidth }}>
+          <h1
+            style={{
+              fontSize: titleFontSize,
+              fontWeight: 900,
+              color: theme.text,
+              letterSpacing: '-0.045em',
+              lineHeight: 0.96,
+              margin: 0,
+              maxWidth: titleMaxWidth,
+              textTransform: 'uppercase',
+              transform: `translateY(${titleY}px)`,
+              opacity: copyIn,
+              overflowWrap: 'normal',
+              wordBreak: 'keep-all',
+              hyphens: 'none',
+            }}
+          >
+            {displayTitle}
+          </h1>
+        </div>
 
-      {/* Subtitle Neo-Brutalist Tag */}
-      {subtitle && (
-        <div
-          style={{
-            marginTop: '40px',
-            transform: `translateY(${subOffsetY}px)`,
-            opacity: subOpacity,
-            backgroundColor: BRAND.surface,
-            border: '4px solid #000000',
-            boxShadow: '8px 8px 0px #000000',
-            padding: '20px 36px',
-            borderRadius: '6px',
-            maxWidth: cardWidth,
-            boxSizing: 'border-box',
-            overflowWrap: 'break-word',
-            wordBreak: 'break-word',
-            zIndex: 5,
-          }}
-        >
+        <div style={{ width: Math.round(width * 0.13), height: 4, borderRadius: 999, background: accent, boxShadow: `0 0 18px ${accent}`, marginTop: Math.round(height * 0.026), opacity: copyIn }} />
+        {subtitle && subFit && (
           <p
             style={{
-              fontSize: '32px',
-              fontWeight: 800,
-              color: BRAND.text,
-              letterSpacing: '1px',
-              textTransform: 'uppercase',
-              margin: 0,
-              overflowWrap: 'break-word',
-              wordBreak: 'break-word',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: subFit.fontSize,
+              fontWeight: 700,
+              color: theme.muted,
+              lineHeight: 1.14,
+              margin: `${Math.round(height * 0.022)}px 0 0`,
+              maxWidth: titleMaxWidth,
+              opacity: copyIn,
+              overflowWrap: 'normal',
+              wordBreak: 'keep-all',
+              hyphens: 'none',
             }}
           >
             {subtitle}
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

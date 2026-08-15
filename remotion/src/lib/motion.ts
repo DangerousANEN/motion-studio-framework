@@ -245,7 +245,10 @@ export function resolveMotion(
 
     // Spring curve — use Remotion's spring()
     if (curve === 'spring') {
-      const clampOvershoot = springParams?.overshootClamping ?? false;
+      // Readable UI must settle by default. Agents can still explicitly opt into
+      // a bouncy object transition with `overshootClamping: false`, but an
+      // omitted flag must never make text or labels oscillate at the final pose.
+      const clampOvershoot = springParams?.overshootClamping ?? true;
       const config: SpringConfig = {
         damping: springParams?.damping ?? 14,
         stiffness: springParams?.stiffness ?? 90,
@@ -257,10 +260,9 @@ export function resolveMotion(
         fps,
         config,
       });
-      // A spring's overshoot is the whole point of using one: an under-damped
-      // spring returns progress > 1 mid-flight. Clamping the interpolate output
-      // would flatten that back to `to` and destroy the bounce, so extrapolation
-      // is left open unless the caller explicitly asked for overshootClamping.
+      // Overshoot is permitted only for an explicit object-motion choice. The
+      // default is clamped so subtitle/card/text transforms stop moving before
+      // the audience starts reading them.
       return interpolate(progress, [0, 1], [from, to], {
         extrapolateLeft: 'clamp',
         extrapolateRight: clampOvershoot ? 'clamp' : 'extend',

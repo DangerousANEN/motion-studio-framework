@@ -23,5 +23,8 @@ fastapi
 uvicorn
 pydantic>=2
 
+# Local stdio MCP adapter for agent clients (msf/studio/mcp_server.py).
+mcp>=1,<2
+
 # Tests. This repo uses unittest classes but they are run with pytest.
 pytest

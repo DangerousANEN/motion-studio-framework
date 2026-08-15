@@ -163,13 +163,17 @@ def load_registry() -> Dict[str, PresetInfo]:
             if m:
                 common = tuple(re.findall(r"'([^']+)'", m.group(1)))
 
-        for match in entry_re.finditer(text):
-            # Entry body: from the opening brace to the closing one at the same
-            # indent. Registry entries are two-space indented objects, so the
-            # terminator is a `  }` line.
-            rest = text[match.end():]
+        # The original packs place the closing brace on its own line. Expansion
+        # packs may keep one declarative entry on a line, so a same-indent closing
+        # brace alone is not a sufficient delimiter: it would absorb later entries
+        # and inherit their `dataDriven: true`. The next entry's start is always a
+        # hard boundary; use the traditional closing line only when it occurs first.
+        entries = list(entry_re.finditer(text))
+        for index, match in enumerate(entries):
+            next_start = entries[index + 1].start() if index + 1 < len(entries) else len(text)
+            rest = text[match.end():next_start]
             end = re.search(r"^\s{2}\},?\s*$", rest, re.M)
-            block = rest[: end.start()] if end else rest[:800]
+            block = rest[: end.start()] if end else rest
             if "component:" not in block:
                 continue
             meta = _parse_entry(block)

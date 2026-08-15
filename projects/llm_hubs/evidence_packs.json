@@ -1,0 +1,75 @@
+{
+  "retrieved_at": "2026-08-14T00:00:00+07:00",
+  "packs": [
+    {
+      "research_id": "research_ollama_local",
+      "topic": "Локальный запуск открытых LLM через Ollama",
+      "sources": [
+        {"source_id": "src_ollama_quickstart", "url": "https://docs.ollama.com/quickstart", "title": "Ollama Quickstart", "publisher": "Ollama", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Ollama runs on macOS, Windows, and Linux. The quickstart shows starting an interactive chat with ollama run gemma4."},
+        {"source_id": "src_ollama_import", "url": "https://docs.ollama.com/import", "title": "Importing a Model", "publisher": "Ollama", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Quantizing a model allows it to run faster and with less memory consumption at reduced accuracy, enabling more modest hardware."},
+        {"source_id": "src_ollama_api", "url": "https://docs.ollama.com/api/introduction", "title": "Ollama API Introduction", "publisher": "Ollama", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "After installation the Ollama API is served by default at localhost:11434/api, with official Python and JavaScript libraries."}
+      ],
+      "claims": [
+        {"claim_id": "claim_ollama_local", "statement": "Ollama документирует запуск моделей локально на macOS, Windows и Linux; quickstart показывает команду ollama run gemma4.", "source_ids": ["src_ollama_quickstart"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_ollama_quant", "statement": "Квантование может снизить потребление памяти и ускорить запуск, но даёт компромисс по точности.", "source_ids": ["src_ollama_import"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_ollama_api", "statement": "После установки Ollama поднимает локальный API по умолчанию на localhost:11434/api и имеет официальные Python и JavaScript библиотеки.", "source_ids": ["src_ollama_api"], "confidence": "high", "claim_type": "fact", "freshness_days": 0}
+      ]
+    },
+    {
+      "research_id": "research_gemini_free",
+      "topic": "Gemini API и Google AI Studio: бесплатный tier без опасных обещаний",
+      "sources": [
+        {"source_id": "src_gemini_pricing", "url": "https://ai.google.dev/gemini-api/docs/pricing", "title": "Gemini Developer API pricing", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "The Free tier provides limited access to certain models, free input and output tokens and Google AI Studio access; content is used to improve products."},
+        {"source_id": "src_gemini_limits", "url": "https://ai.google.dev/gemini-api/docs/rate-limits", "title": "Gemini API rate limits", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Rate limits use requests per minute, tokens per minute and requests per day; they apply per project and vary by model and usage tier."},
+        {"source_id": "src_gemini_billing", "url": "https://ai.google.dev/gemini-api/docs/billing", "title": "Gemini API billing", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "New accounts begin on the Free Tier with access to certain models in Gemini API and AI Studio up to the models free tier rate limits."}
+      ],
+      "claims": [
+        {"claim_id": "claim_gemini_free", "statement": "Google описывает Free tier Gemini API как ограниченный доступ к части моделей, бесплатные input/output tokens и доступ к AI Studio; в этом tier контент используется для улучшения продуктов.", "source_ids": ["src_gemini_pricing"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_gemini_limits", "statement": "Лимиты Gemini зависят от модели и project usage tier, считаются по RPM, TPM и RPD и применяются к проекту, а не к отдельному API key.", "source_ids": ["src_gemini_limits"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_gemini_check", "statement": "Новый аккаунт начинает на Free tier, а актуальные ограничения нужно проверять в AI Studio для конкретного проекта и модели.", "source_ids": ["src_gemini_billing", "src_gemini_limits"], "confidence": "high", "claim_type": "recommendation", "freshness_days": 0}
+      ]
+    },
+    {
+      "research_id": "research_openrouter_free",
+      "topic": "OpenRouter Free Models Router для экспериментов и прототипов",
+      "sources": [
+        {"source_id": "src_or_router", "url": "https://openrouter.ai/docs/guides/routing/routers/free-router", "title": "Free Models Router", "publisher": "OpenRouter", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "openrouter/free filters available free models for required features and randomly selects one; the response includes the model actually used."},
+        {"source_id": "src_or_limits", "url": "https://openrouter.ai/docs/api_reference/limits", "title": "OpenRouter limits", "publisher": "OpenRouter", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Free variants have a 20 RPM cap; daily free requests are 50 below ten dollars purchased credits and 1000 at or above ten dollars."},
+        {"source_id": "src_or_faq", "url": "https://openrouter.ai/docs/faq", "title": "OpenRouter FAQ", "publisher": "OpenRouter", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Free models have low rate limits and are usually not suitable for production use; free model availability changes frequently."}
+      ],
+      "claims": [
+        {"claim_id": "claim_or_random", "statement": "OpenRouter Free Models Router с идентификатором openrouter/free подбирает доступную бесплатную модель после фильтрации возможностей и возвращает идентификатор фактически использованной модели.", "source_ids": ["src_or_router"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_or_limits", "statement": "Документация OpenRouter для free variants указывает лимит 20 RPM и суточные лимиты, зависящие от истории купленных credits.", "source_ids": ["src_or_limits"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_or_prototype", "statement": "Free router разумно использовать для экспериментов и прототипов, а в рабочем контуре нужно фиксировать модель из ответа и иметь fallback, потому что доступность и выбор модели меняются.", "source_ids": ["src_or_router", "src_or_faq"], "confidence": "high", "claim_type": "recommendation", "freshness_days": 0}
+      ]
+    },
+    {
+      "research_id": "research_hf_providers",
+      "topic": "Hugging Face Inference Providers: тесты и экономичный routing",
+      "sources": [
+        {"source_id": "src_hf_pricing", "url": "https://huggingface.co/docs/inference-providers/en/pricing", "title": "Inference Providers pricing", "publisher": "Hugging Face", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Free Users receive $0.10 monthly credits subject to change; after credits are exhausted, extra usage requires purchasing credits."},
+        {"source_id": "src_hf_index", "url": "https://huggingface.co/docs/inference-providers/en/index", "title": "Inference Providers", "publisher": "Hugging Face", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Inference Providers offers a unified API across providers; :cheapest chooses the provider with the lowest price per output token."},
+        {"source_id": "src_hf_hub", "url": "https://huggingface.co/docs/hub/en/models-inference", "title": "Inference Providers on the Hub", "publisher": "Hugging Face", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Inference Playground and interactive model-page widgets let users test models; API use needs a token with inference permissions."}
+      ],
+      "claims": [
+        {"claim_id": "claim_hf_credit", "statement": "Hugging Face указывает для Free Users ежемесячные credits $0.10, subject to change; после этого routed usage требует покупки credits.", "source_ids": ["src_hf_pricing"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_hf_cheapest", "statement": "В Inference Providers суффикс :cheapest выбирает для модели provider с наименьшей ценой output token, а unified API позволяет сравнивать варианты без переписывания интеграции.", "source_ids": ["src_hf_index"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_hf_test", "statement": "Для first-pass тестов можно использовать Inference Playground и интерактивные widgets, а затем переносить подтверждённый сценарий в API с inference token.", "source_ids": ["src_hf_hub"], "confidence": "high", "claim_type": "recommendation", "freshness_days": 0}
+      ]
+    },
+    {
+      "research_id": "research_gemini_batch",
+      "topic": "Снижение стоимости LLM-задач через Gemini Batch и Flex",
+      "sources": [
+        {"source_id": "src_batch_api", "url": "https://ai.google.dev/gemini-api/docs/batch-api", "title": "Gemini Batch API", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "Gemini Batch API processes large volumes asynchronously at 50% of standard cost, with a target turnaround of 24 hours, for non-urgent tasks."},
+        {"source_id": "src_flex_blog", "url": "https://blog.google/innovation-and-ai/technology/developers-tools/introducing-flex-and-priority-inference/", "title": "Flex and Priority inference", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "primary", "excerpt": "Flex Inference offers 50% price savings for latency-tolerant workloads by lowering request criticality and adding latency; it is for paid tiers."},
+        {"source_id": "src_batch_pricing", "url": "https://ai.google.dev/gemini-api/docs/pricing", "title": "Gemini API pricing", "publisher": "Google", "retrieved_at": "2026-08-14T00:00:00+07:00", "source_type": "official_docs", "excerpt": "The pricing overview lists Batch API with 50% cost reduction as a feature of the Paid tier, while Free tier has limited model access."}
+      ],
+      "claims": [
+        {"claim_id": "claim_batch_half", "statement": "Gemini Batch API предназначен для массовых асинхронных запросов по 50% стандартной стоимости; целевой срок обработки — до 24 часов.", "source_ids": ["src_batch_api"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_flex_half", "statement": "Google описывает Flex inference как paid-tier режим с 50% экономией для latency-tolerant задач, где допустимы добавленная latency и меньшая критичность запроса.", "source_ids": ["src_flex_blog"], "confidence": "high", "claim_type": "fact", "freshness_days": 0},
+        {"claim_id": "claim_batch_choice", "statement": "Для не срочных пачек следует рассматривать Batch, а для синхронного фонового запроса — Flex; оба подхода требуют сверки конкретной модели и paid-tier условий.", "source_ids": ["src_batch_api", "src_flex_blog", "src_batch_pricing"], "confidence": "high", "claim_type": "recommendation", "freshness_days": 0}
+      ]
+    }
+  ]
+}

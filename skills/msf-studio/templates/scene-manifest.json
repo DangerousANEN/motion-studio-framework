@@ -1,0 +1,16 @@
+{
+  "asset_id": "scene:Example@0.1.0",
+  "name": "Example",
+  "version": "0.1.0",
+  "status": "draft",
+  "capability_tier": "sandbox",
+  "category": "diagram",
+  "summary": "One-sentence visual job.",
+  "fields": ["title", "items"],
+  "intent_tags": ["explainer"],
+  "data_driven": true,
+  "required_data_hints": ["items"],
+  "compatible_effect_families": ["camera", "grade"],
+  "recommended_audio_roles": ["intro_hit", "data_tick"],
+  "demo_available": true
+}

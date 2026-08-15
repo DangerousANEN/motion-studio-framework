@@ -1,7 +1,7 @@
 import React from 'react';
 import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './brand';
+import { useSceneStyle } from '../theme/StyleContext';
 import { resolveMotion } from '../lib/motion';
 import { getSafeArea } from '../lib/safeArea';
 import { fitOneLine, fitWrapped } from '../theme/layout';
@@ -27,7 +27,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
   title,
   text,
   cards,
-  accentColor = BRAND.cyan,
+  accentColor,
   motion,
   safeArea = 'platform',
 }) => {
@@ -39,6 +39,9 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
   const right = cards && cards[1];
 
   const safe = getSafeArea(width, height, safeArea);
+  const { theme, accent } = useSceneStyle(undefined, accentColor);
+  const leftAccent = left?.color || theme.cyan || accent;
+  const rightAccent = right?.color || accent;
 
   // 'reveal' channel drives header entrance; 'transform' handles card & badge motion.
   const animateReveal = resolveMotion(motion, fps, 'reveal');
@@ -131,7 +134,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
       style={{
         position: 'absolute',
         inset: 0,
-        backgroundColor: BRAND.bg,
+        backgroundColor: theme.bg,
         overflow: 'hidden',
         fontFamily: COMPARE_FONT,
       }}
@@ -163,7 +166,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
             style={{
               fontSize: `${headerFontSize}px`,
               fontWeight: 900,
-              color: BRAND.text,
+              color: theme.text,
               margin: 0,
               letterSpacing: '2px',
               textTransform: 'uppercase',
@@ -178,7 +181,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
             style={{
               width: '140px',
               height: '5px',
-              backgroundColor: accentColor,
+              backgroundColor: accent,
               margin: '14px auto 0',
               borderRadius: '3px',
             }}
@@ -202,11 +205,11 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 boxSizing: 'border-box',
                 opacity: leftProgress,
                 transform: `translateX(${leftOffsetX}px)`,
-                backgroundColor: BRAND.surface,
+                backgroundColor: theme.surface,
                 borderRadius: '18px',
                 padding: `28px ${cardPaddingX}px`,
-                border: `2px solid ${left.color || '#FF4D5E'}`,
-                boxShadow: '8px 8px 0 rgba(0,0,0,0.45)',
+                border: `2px solid ${leftAccent}`,
+                boxShadow: `0 16px 36px ${theme.shadowColor}99, 0 0 24px ${leftAccent}22`,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
@@ -221,8 +224,8 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                     fontSize: '16px',
                     fontWeight: 800,
                     letterSpacing: '2px',
-                    color: left.color || '#FF4D5E',
-                    border: `1px solid ${left.color || '#FF4D5E'}`,
+                    color: leftAccent,
+                    border: `1px solid ${leftAccent}`,
                     borderRadius: '4px',
                     padding: '4px 12px',
                   }}
@@ -234,7 +237,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 style={{
                   fontSize: `${leftTitleSize}px`,
                   fontWeight: 900,
-                  color: BRAND.text,
+                  color: theme.text,
                   margin: 0,
                   lineHeight: 1.15,
                 }}
@@ -245,7 +248,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 <p
                   style={{
                     fontSize: `${leftDescBlock.fontSize}px`,
-                    color: BRAND.muted,
+                    color: theme.muted,
                     margin: 0,
                     lineHeight: 1.35,
                   }}
@@ -264,13 +267,13 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
               boxSizing: 'border-box',
               opacity: vsOpacity,
               transform: `scale(${vsScale})`,
-              backgroundColor: accentColor,
-              color: BRAND.bg,
+              backgroundColor: accent,
+              color: theme.bg,
               fontSize: '26px',
               fontWeight: 900,
               padding: '12px 0',
               borderRadius: '50%',
-              boxShadow: `0 0 24px ${accentColor}80`,
+              boxShadow: `0 0 24px ${accent}80`,
               whiteSpace: 'nowrap',
               flexShrink: 0,
             }}
@@ -285,11 +288,11 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 boxSizing: 'border-box',
                 opacity: rightProgress,
                 transform: `translateX(${rightOffsetX}px)`,
-                backgroundColor: BRAND.surface,
+                backgroundColor: theme.surface,
                 borderRadius: '18px',
                 padding: `28px ${cardPaddingX}px`,
-                border: `2px solid ${right.color || accentColor}`,
-                boxShadow: '8px 8px 0 rgba(0,0,0,0.45)',
+                border: `2px solid ${rightAccent}`,
+                boxShadow: `0 16px 36px ${theme.shadowColor}99, 0 0 24px ${rightAccent}22`,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
@@ -304,8 +307,8 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                     fontSize: '16px',
                     fontWeight: 800,
                     letterSpacing: '2px',
-                    color: right.color || accentColor,
-                    border: `1px solid ${right.color || accentColor}`,
+                    color: rightAccent,
+                    border: `1px solid ${rightAccent}`,
                     borderRadius: '4px',
                     padding: '4px 12px',
                   }}
@@ -317,7 +320,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 style={{
                   fontSize: `${rightTitleSize}px`,
                   fontWeight: 900,
-                  color: BRAND.text,
+                  color: theme.text,
                   margin: 0,
                   lineHeight: 1.15,
                 }}
@@ -328,7 +331,7 @@ export const CompareSplit: React.FC<BaseSceneProps> = ({
                 <p
                   style={{
                     fontSize: `${rightDescBlock.fontSize}px`,
-                    color: BRAND.muted,
+                    color: theme.muted,
                     margin: 0,
                     lineHeight: 1.35,
                   }}

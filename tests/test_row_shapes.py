@@ -162,9 +162,25 @@ def _item_object_source(field: str) -> str | None:
             rf"export const {named[field]} = z\s*\n?\s*\.?object\(\{{(.*?)\n\}}\)", ts, re.S
         )
         return m.group(1) if m else None
-    # Inline arrays: `field: z\n .array(\n z\n .object({...})`
-    m = re.search(rf"\n    {field}: z[\s\S]{{0,120}}?\.object\(\{{([\s\S]*?)\n          \}}\)", ts)
+    # Inline arrays may be multi-line or compact (`field: z.array(z.object({...}))`).
+    # The compact expansion schemas deliberately trade vertical space for a
+    # focused field list, so use the z.object close rather than fixed indentation.
+    m = re.search(rf"\n    {field}: z[\s\S]{{0,240}}?\.object\(\{{([\s\S]*?)\}}\)", ts)
     return m.group(1) if m else None
+
+
+def _field_declaration(body: str, key: str) -> str | None:
+    """Return one object-field declaration without truncating a z.union at commas."""
+    start = re.search(rf"\b{key}:\s*", body)
+    if not start:
+        return None
+    tail = body[start.end():]
+    next_field = re.search(
+        r",\s*(?:(?:/\*.*?\*/|//[^\n]*\n)\s*)*[A-Za-z][A-Za-z0-9_]*:\s*z\.",
+        tail,
+        re.S,
+    )
+    return tail[:next_field.start()] if next_field else tail
 
 
 def test_hard_table_keys_are_required_in_the_ts_schema(subtests=None) -> None:
@@ -177,9 +193,9 @@ def test_hard_table_keys_are_required_in_the_ts_schema(subtests=None) -> None:
         body = _item_object_source(field)
         assert body, f"cannot locate the item schema for {field!r} in VideoSpec.schema.ts"
         for key in keys:
-            m = re.search(rf"\b{key}:\s*z\.[^,\n]*", body)
-            assert m, f"{field}[].{key} not found in the TS schema"
-            assert ".optional()" not in m.group(0), (
+            declaration = _field_declaration(body, key)
+            assert declaration is not None, f"{field}[].{key} not found in the TS schema"
+            assert ".optional()" not in declaration, (
                 f"{field}[].{key} IS optional in the TS schema, so treating it as HARD "
                 f"rejects valid specs. Move it to _ROW_SHAPES_SOFT."
             )
@@ -192,9 +208,9 @@ def test_soft_table_keys_are_optional_in_the_ts_schema() -> None:
         body = _item_object_source(field)
         assert body, f"cannot locate the item schema for {field!r} in VideoSpec.schema.ts"
         for key in keys:
-            m = re.search(rf"\b{key}:\s*z\.[^,\n]*", body)
-            assert m, f"{field}[].{key} not found in the TS schema"
-            assert ".optional()" in m.group(0), (
+            declaration = _field_declaration(body, key)
+            assert declaration is not None, f"{field}[].{key} not found in the TS schema"
+            assert ".optional()" in declaration, (
                 f"{field}[].{key} is REQUIRED in the TS schema, so a missing value "
                 f"red-cards the whole video. Move it to _ROW_SHAPES_HARD."
             )

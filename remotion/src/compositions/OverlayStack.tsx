@@ -51,6 +51,14 @@ export interface OverlaySpec {
   amount?: number;
   currency?: string;
   sender?: string;
+  // cursor / focus / badge — normalized 0..1 target coordinates.
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  radius?: number;
+  targetLabel?: string;
+  badgeText?: string;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -434,12 +442,66 @@ const MoneyOverlay: React.FC<{ spec: OverlaySpec }> = ({ spec }) => {
   );
 };
 
+/* ---------------------------------------------------------- CursorOverlay */
+
+/** A deterministic pointer-and-click ripple for product tutorials. */
+const CursorOverlay: React.FC<{ spec: OverlaySpec }> = ({ spec }) => {
+  const { width, height, fps } = useVideoConfig();
+  const { theme, fonts, accent } = useStyle();
+  const { visible, t, local } = useEnvelope(spec);
+  if (!visible) return null;
+  const x = clamp01(spec.x ?? 0.5) * width;
+  const y = clamp01(spec.y ?? 0.5) * height;
+  const click = clamp01(local / Math.max(1, fps * 0.26));
+  const ring = Math.round(height * (0.016 + click * 0.045));
+  return (
+    <div style={{ position: 'absolute', left: x, top: y, zIndex: 64, opacity: t, pointerEvents: 'none', transform: 'translate(-10%, -8%)' }}>
+      <div style={{ width: Math.round(height * .033), height: Math.round(height * .044), background: theme.text, clipPath: 'polygon(0 0, 0 100%, 30% 72%, 48% 100%, 64% 91%, 46% 63%, 88% 61%)', filter: `drop-shadow(0 0 8px ${accent})` }} />
+      <div style={{ position: 'absolute', left: Math.round(height * .025), top: Math.round(height * .031), width: ring, height: ring, borderRadius: '50%', border: `2px solid ${accent}`, opacity: 1 - click, transform: 'translate(-50%, -50%)' }} />
+      {spec.targetLabel && <div style={{ position: 'absolute', top: Math.round(height * .056), left: Math.round(height * .026), padding: `${Math.round(height * .008)}px ${Math.round(height * .014)}px`, borderRadius: 8, background: accent, color: theme.bg, fontFamily: fonts.body, fontWeight: 800, fontSize: Math.round(height * .016), whiteSpace: 'nowrap' }}>{spec.targetLabel}</div>}
+    </div>
+  );
+};
+
+/** An animated focus box for a control/section inside a screen capture. */
+const FocusOverlay: React.FC<{ spec: OverlaySpec }> = ({ spec }) => {
+  const { width, height } = useVideoConfig();
+  const { fonts, accent, theme } = useStyle();
+  const { visible, t } = useEnvelope(spec);
+  if (!visible) return null;
+  const boxW = clamp01(spec.w ?? .28) * width;
+  const boxH = clamp01(spec.h ?? .12) * height;
+  const left = clamp01(spec.x ?? .5) * width - boxW / 2;
+  const top = clamp01(spec.y ?? .5) * height - boxH / 2;
+  return (
+    <div style={{ position: 'absolute', left, top, width: boxW, height: boxH, border: `2px solid ${accent}`, borderRadius: spec.radius ?? 14, boxShadow: `0 0 0 9999px ${theme.bg}55, 0 0 24px ${accent}BB`, opacity: t, zIndex: 63, pointerEvents: 'none' }}>
+      {spec.targetLabel && <div style={{ position: 'absolute', top: -Math.round(height * .026), left: 0, color: accent, fontFamily: fonts.mono, fontWeight: 800, fontSize: Math.round(height * .015), letterSpacing: 1, whiteSpace: 'nowrap' }}>{spec.targetLabel}</div>}
+    </div>
+  );
+};
+
+/** Compact CTA badge: useful at the exact moment a creator names the next action. */
+const BadgeOverlay: React.FC<{ spec: OverlaySpec }> = ({ spec }) => {
+  const { height } = useVideoConfig();
+  const { fonts, accent, theme } = useStyle();
+  const { visible, t } = useEnvelope(spec);
+  if (!visible) return null;
+  return (
+    <div style={{ position: 'absolute', ...anchor(spec.position, Math.round(height * .03), 'bottom'), zIndex: 64, display: 'flex', justifyContent: spec.position === 'bottom' || !spec.position ? 'center' : undefined, opacity: t, transform: `${spec.position === 'center' ? 'translate(-50%, -50%) ' : ''}scale(${.94 + t * .06})`, pointerEvents: 'none' }}>
+      <div style={{ padding: `${Math.round(height * .014)}px ${Math.round(height * .024)}px`, borderRadius: 999, background: accent, color: theme.bg, fontFamily: fonts.display, fontSize: Math.round(height * .021), fontWeight: 900, boxShadow: `0 0 ${Math.round(height * .026)}px ${accent}99`, whiteSpace: 'nowrap' }}>{spec.badgeText || spec.label || 'СМОТРЕТЬ ДАЛЬШЕ'}</div>
+    </div>
+  );
+};
+
 /* ---------------------------------------------------------------- router */
 
 const OVERLAY_TYPES: Record<string, React.FC<{ spec: OverlaySpec }>> = {
   timer: TimerOverlay,
   notification: NotificationOverlay,
   money: MoneyOverlay,
+  cursor: CursorOverlay,
+  focus: FocusOverlay,
+  badge: BadgeOverlay,
 };
 
 export const OVERLAY_NAMES = Object.keys(OVERLAY_TYPES);

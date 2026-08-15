@@ -1148,10 +1148,211 @@ def api_kill_run(run_id: str) -> Dict[str, Any]:
     return {"run_id": run_id, "status": r.status}
 
 
+# -------------------------------------------------------------- Studio v2 API
+# These endpoints use the same application-layer contracts as MCP. They are
+# deliberately local-only because a render approval can consume GPU/CPU and the
+# legacy panel has no authentication. The UI must not bypass these gates.
+class StudioResearchPayload(BaseModel):
+    research: Dict[str, Any]
+
+
+class StudioStoryboardPayload(BaseModel):
+    storyboard: Dict[str, Any]
+    research: Optional[Dict[str, Any]] = None
+    tier: str = "preset"
+
+
+class StudioRunPayload(BaseModel):
+    topic: str = Field(..., min_length=3, max_length=400)
+    preset: str = "HeroKinetic"
+    style: Optional[str] = None
+    style_config: Optional[Dict[str, Any]] = None
+    project_id: str = "default"
+    storyboard_id: Optional[str] = None
+    research: bool = False
+    voice: Optional[str] = None
+    agent_level: int = Field(3, ge=1, le=5)
+
+
+class StudioApprovalPayload(BaseModel):
+    approved: bool = False
+
+
+def _studio_tier(value: str):
+    from msf.studio.contracts import CapabilityTier
+    try:
+        return CapabilityTier(value)
+    except ValueError as exc:
+        raise HTTPException(422, f"unknown Studio capability tier: {value!r}") from exc
+
+
+@app.get("/api/studio/catalog")
+def api_studio_catalog(
+    query: str = "",
+    intents: str = "",
+    category: Optional[str] = None,
+    tier: str = "preset",
+    limit: int = 30,
+) -> Dict[str, Any]:
+    """Live capability-filtered scene discovery for the Studio dashboard."""
+    from msf.studio.catalog import search_scenes
+    selected = _studio_tier(tier)
+    tags = [item.strip() for item in intents.split(",") if item.strip()]
+    result = search_scenes(query, intent_tags=tags or None, category=category, tier=selected, limit=limit)
+    return result.model_dump(mode="json")
+
+
+@app.get("/api/studio/styles")
+def api_studio_styles() -> Dict[str, Any]:
+    """Named visual families plus safe operator customisation tokens."""
+    from msf.studio.style_catalog import style_catalog_payload
+    return style_catalog_payload()
+
+
+@app.get("/api/studio/sound-design")
+def api_studio_sound_design() -> Dict[str, Any]:
+    """Stable semantic audio recipes; the UI never invents SFX identifiers."""
+    from msf.studio.sound_design import all_recipes
+    return {"items": [item.__dict__ for item in all_recipes()]}
+
+
+@app.post("/api/studio/research/validate")
+def api_studio_validate_research(payload: StudioResearchPayload) -> Dict[str, Any]:
+    from pydantic import ValidationError
+    from msf.studio.contracts import ResearchPack
+    from msf.studio.research import ResearchQualityError, validate_research_pack
+    try:
+        research = ResearchPack.model_validate(payload.research)
+        warnings = validate_research_pack(research)
+    except (ValidationError, ResearchQualityError, ValueError) as exc:
+        raise HTTPException(422, f"research validation failed: {exc}") from exc
+    return {"valid": not warnings, "research_id": research.research_id, "warnings": warnings}
+
+
+@app.post("/api/studio/storyboards/validate")
+def api_studio_validate_storyboard(payload: StudioStoryboardPayload) -> Dict[str, Any]:
+    from pydantic import ValidationError
+    from msf.studio.contracts import ResearchPack, StoryboardDraft
+    from msf.studio.storyboard import StoryboardValidator
+    try:
+        draft = StoryboardDraft.model_validate(payload.storyboard)
+        research = ResearchPack.model_validate(payload.research) if payload.research else None
+    except ValidationError as exc:
+        raise HTTPException(422, f"invalid Studio contract: {exc}") from exc
+    result = StoryboardValidator(tier=_studio_tier(payload.tier)).validate(draft, research=research)
+    return result.model_dump(mode="json")
+
+
+@app.post("/api/studio/storyboards/save")
+def api_studio_save_storyboard(payload: StudioStoryboardPayload) -> Dict[str, Any]:
+    """Save only a validated local storyboard; no render is started here."""
+    from pydantic import ValidationError
+    from msf.studio.contracts import ResearchPack, StoryboardDraft
+    from msf.studio.storyboard import StoryboardNotFoundError, StoryboardStore, StoryboardValidator
+    try:
+        draft = StoryboardDraft.model_validate(payload.storyboard)
+        research = ResearchPack.model_validate(payload.research) if payload.research else None
+    except ValidationError as exc:
+        raise HTTPException(422, f"invalid Studio contract: {exc}") from exc
+    validation = StoryboardValidator(tier=_studio_tier(payload.tier)).validate(draft, research=research)
+    if not validation.valid:
+        raise HTTPException(422, detail={"message": "storyboard validation failed", "validation": validation.model_dump(mode="json")})
+    store = StoryboardStore()
+    try:
+        stored = store.get(draft.draft_id)
+    except StoryboardNotFoundError:
+        saved = store.create(draft)
+    else:
+        saved = store.save(draft.model_copy(update={"revision": stored.revision + 1}))
+    return {"saved": True, "storyboard": saved.model_dump(mode="json"), "validation": validation.model_dump(mode="json")}
+
+
+@app.post("/api/studio/runs/prepare")
+def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
+    """Create a non-approved run draft. A separate explicit action must start it."""
+    from pydantic import ValidationError
+    from msf.studio.catalog import get_scene
+    from msf.studio.contracts import CapabilityTier, RunRequest
+    from msf.studio.runs import StudioRunService
+    try:
+        get_scene(payload.preset, tier=CapabilityTier.PRESET)
+        request = RunRequest(
+            project_id=payload.project_id,
+            storyboard_id=payload.storyboard_id,
+            topic=payload.topic,
+            preset=payload.preset,
+            style=payload.style,
+            style_config=payload.style_config,
+            research=payload.research,
+            voice=payload.voice,
+            agent_level=payload.agent_level,
+            approved=False,
+        )
+    except (ValidationError, KeyError, ValueError) as exc:
+        raise HTTPException(422, f"cannot prepare Studio run: {exc}") from exc
+    snapshot = StudioRunService().create_run(request)
+    return {"request": request.model_dump(mode="json"), "run": snapshot.model_dump(mode="json"), "next_step": "Validate and explicitly approve through the local operator dashboard."}
+
+
+@app.get("/api/studio/runs/{run_id}")
+def api_studio_run_snapshot(run_id: str) -> Dict[str, Any]:
+    from msf.studio.runs import RunNotFoundError, StudioRunService
+    try:
+        snapshot = StudioRunService().get_snapshot(run_id)
+    except RunNotFoundError as exc:
+        raise HTTPException(404, "Studio run not found") from exc
+    return snapshot.model_dump(mode="json")
+
+
+@app.get("/api/studio/runs/{run_id}/timeline")
+def api_studio_run_timeline(run_id: str, after_sequence: int = 0, limit: int = 100) -> Dict[str, Any]:
+    """Return operational timeline only; TraceStore redacts prompts and hidden reasoning."""
+    from msf.studio.runs import RunNotFoundError, StudioRunService
+    from msf.studio.tracing import TraceStore
+    service = StudioRunService()
+    try:
+        snapshot = service.get_snapshot(run_id)
+        events = service.events(run_id, after_sequence=max(0, after_sequence), limit=max(1, min(limit, 500)))
+        traces = TraceStore(service._run_dir(run_id), run_id).read(limit=max(1, min(limit, 500)))
+    except RunNotFoundError as exc:
+        raise HTTPException(404, "Studio run not found") from exc
+    return {"snapshot": snapshot.model_dump(mode="json"), "events": [item.model_dump(mode="json") for item in events], "traces": [item.model_dump(mode="json") for item in traces]}
+
+
+@app.post("/api/studio/runs/{run_id}/approve-and-start")
+def api_studio_approve_and_start(run_id: str, payload: StudioApprovalPayload) -> Dict[str, Any]:
+    """Human-controlled launch endpoint. The UI must pass approved=true deliberately."""
+    if not payload.approved:
+        raise HTTPException(422, "set approved=true to start a Studio render worker")
+    from msf.studio.contracts import RunRequest
+    from msf.studio.runs import RunNotFoundError, RunStateError, StudioRunService
+    service = StudioRunService()
+    try:
+        current = service.get_snapshot(run_id)
+        request_path = service._request_path(run_id)
+        request = RunRequest.model_validate_json(request_path.read_text(encoding="utf-8"))
+        # Preserve the original request fields while making the operator approval
+        # explicit in the immutable request snapshot consumed by the worker.
+        service._write_json(request_path, request.model_copy(update={"approved": True}).model_dump(mode="json"))
+        validated = service.validate(run_id, valid=True)
+        queued = service.queue(validated.run_id)
+        started = service.start(queued.run_id)
+    except (RunNotFoundError, RunStateError, ValueError) as exc:
+        raise HTTPException(409, f"cannot start Studio run: {exc}") from exc
+    return {"previous": current.model_dump(mode="json"), "run": started.model_dump(mode="json")}
+
+
 # ---------------------------------------------------------------- static UI
+@app.get("/studio", response_class=HTMLResponse)
+def studio_dashboard() -> HTMLResponse:
+    html = STATIC_DIR / "studio.html"
+    if not html.is_file():
+        raise HTTPException(500, f"Studio UI missing: {html}")
+    return HTMLResponse(html.read_text(encoding="utf-8"))
 
 
 @app.get("/", response_class=HTMLResponse)
+
 def index() -> HTMLResponse:
     html = STATIC_DIR / "index.html"
     if not html.is_file():

@@ -18,11 +18,40 @@ import {
   VideoEmbed,
   VoiceMemo,
 } from '../presets/media';
+import { ImageSpotlight, ScreenGuide, TelegramVoiceRound, YouTubeCard } from '../presets/media_guides';
 import { MusicPlayer, PhoneMockup, VinylRecord } from '../presets/device';
 import { Bars3D, RingStats } from '../presets/charts';
 import { PresetRegistry } from './types';
 
 export const MEDIA_PRESETS: PresetRegistry = {
+  ScreenGuide: {
+    component: ScreenGuide,
+    category: 'ui-mock',
+    summary: 'Real screen recording or screenshot with safe crop/zoom/pan and deterministic cursor click path.',
+    fields: ['src', 'images', 'title', 'guideText', 'focusX', 'focusY', 'focusScale', 'panX', 'panY', 'cursorSteps', 'chrome', 'urlBar'],
+    dataDriven: true,
+  },
+  TelegramVoiceRound: {
+    component: TelegramVoiceRound,
+    category: 'media',
+    summary: 'Telegram-style voice message with a circular avatar/video asset, waveform and transcript.',
+    fields: ['title', 'contactName', 'avatar', 'src', 'duration', 'waveformSeed', 'transcript'],
+    dataDriven: true,
+  },
+  YouTubeCard: {
+    component: YouTubeCard,
+    category: 'media',
+    summary: 'Long-form video insert with real footage or poster image, progress controls and channel metadata.',
+    fields: ['src', 'images', 'title', 'subtitle', 'channelName', 'handle', 'startFrom', 'showControls', 'muted'],
+    dataDriven: true,
+  },
+  ImageSpotlight: {
+    component: ImageSpotlight,
+    category: 'media',
+    summary: 'Hero image insert with controlled crop, Ken Burns motion, glass frame and explanatory caption.',
+    fields: ['src', 'images', 'title', 'subtitle', 'fit', 'kenBurns'],
+    dataDriven: true,
+  },
   ImageShowcase: {
     component: ImageShowcase,
     category: 'media',

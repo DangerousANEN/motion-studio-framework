@@ -119,9 +119,56 @@ DEMO_PROPS: Dict[str, Dict[str, Any]] = {
         {"label": "Запустить llama.cpp"},
         {"label": "Подключить к редактору"},
     ]},
+    # Studio v2 universal data-driven scenes. The prop shapes are deliberately
+    # identical to VideoSpec.schema.ts and the studio registry fields.
+    "LlmHubsCTA": {"title": "Больше практики с LLM", "text": "Подписывайтесь на @llm_hubs: разборы инструментов, промптов и экономии."},
+    "DecisionGrid": {"title": "Выберите подходящий режим", "cards": [
+        {"tag": "ЛОКАЛЬНО", "title": "Ollama", "description": "Для приватных экспериментов на своём устройстве"},
+        {"tag": "БЫСТРО", "title": "Free tier", "description": "Для малого теста с проверкой лимитов"},
+        {"tag": "ФОНОМ", "title": "Batch", "description": "Для не срочных массовых задач"},
+    ]},
+    "StepList": {"title": "Три шага к готовому ролику", "steps": [
+        {"label": "Собрать факты", "description": "Зафиксировать источники и ключевые тезисы"},
+        {"label": "Собрать storyboard", "description": "Выбрать подходящие проверенные сцены"},
+        {"label": "Проверить превью", "description": "Исправить текст, звук и тайминг до рендера"},
+    ]},
+    "BeforeAfter": {
+        "title": "От ручного процесса к студии",
+        "before": {"label": "До", "title": "Ручная сборка", "text": "Сценарий, звук и рендер в разных инструментах"},
+        "after": {"label": "После", "title": "Единый pipeline", "text": "Проверяемый storyboard, пресеты и диагностический trace"},
+    },
+    "MetricTrend": {
+        "title": "Скорость подготовки ролика", "metricLabel": "Минуты на один черновик", "valueSuffix": " мин",
+        "points": [
+            {"label": "Базовый процесс", "value": 90},
+            {"label": "С пресетами", "value": 45},
+            {"label": "С Studio", "value": 18},
+        ],
+    },
     "FlowDiagram": {"title": "Пайплайн", "nodes": [
         {"label": "Сценарий"}, {"label": "Озвучка"}, {"label": "Рендер"},
     ]},
+    # -------------------------------------------------------------- v2.3 expansion
+    "HookStack": {"headline": "НЕ ВЫБИРАЙТЕ МОДЕЛЬ ПО ОДНОЙ ЦЕНЕ", "subhead": "Сначала проверьте задачу, кэш и effective output cost.", "proof": "ПЕРВОИСТОЧНИКИ СВЕРЕНЫ", "urgency": "НОВЫЙ РАЗБОР"},
+    "KineticPhrase": {"phrase": "ДЕШЕВЛЕ ≠ ЛУЧШЕ", "highlight": "СМОТРИТЕ НА WORKLOAD", "caption": "Две цифры не заменяют реальный тест на вашей задаче."},
+    "ProblemSolution": {"title": "КАК НЕ ОШИБИТЬСЯ", "problem": "Сравнивать list price", "solution": "Считать весь workload"},
+    "FeatureSpotlight": {"feature": "КОНТРОЛЬ REASONING", "benefit": "Выбирайте глубину размышления только там, где она окупается.", "index": "02"},
+    "CaseStudyBoard": {"label": "CASE STUDY", "context": "Нужно разобрать 200 писем", "action": "Проверили три режима на одном наборе", "result": "Выбрали быстрый режим для рутины"},
+    "MythFact": {"title": "ПРОВЕРЬТЕ ТЕЗИС", "myth": "Больше параметров всегда лучше", "fact": "Качество зависит от задачи, данных и режима"},
+    "QuoteEvidence": {"quote": "Сначала зафиксируйте источник, дату и точную формулировку claim.", "source": "Research policy · primary-source evidence pack", "role": "EVIDENCE FIRST"},
+    "StatsBand": {"title": "ЧТО ПРОВЕРЯЕМ", "stats": [{"value": "3", "label": "первоисточника"}, {"value": "1", "label": "workload"}, {"value": "0", "label": "выдуманных claim"}], "footnote": "Все цифры требуют даты и URL источника."},
+    "SourceStack": {"title": "ПЕРВОИСТОЧНИКИ", "status": "VERIFIED SOURCES", "sources": [{"title": "Официальный релиз", "url": "release note"}, {"title": "API документация", "url": "model limits"}, {"title": "Pricing page", "url": "effective date"}]},
+    "CountdownRing": {"label": "ДО ИЗМЕНЕНИЯ ТАРИФА", "value": "16 AUG", "caption": "Проверьте дату перехода до расчёта бюджета.", "progress": 0.72},
+    "PromptComposer": {"provider": "LLM WORKSPACE", "prompt": "Собери только доказуемые тезисы по официальным источникам.", "sendLabel": "Запустить"},
+    "ProviderChat": {"provider": "DeepSeek V4 Pro", "avatarText": "DS", "prompt": "Как выбрать reasoning effort?", "answer": "Начните с low для рутины. High и max включайте после реального теста задачи.", "chips": ["LOW", "HIGH", "MAX"]},
+    "NotificationStack": {"title": "НОВЫЕ СИГНАЛЫ", "notifications": [{"app": "RELEASE", "text": "Доступна новая версия модели"}, {"app": "EVIDENCE", "text": "Pricing page обновлена"}, {"app": "WORKFLOW", "text": "Storyboard готов к preview"}]},
+    "CommentThread": {"title": "ОБСУЖДЕНИЕ", "platformLabel": "COMMUNITY THREAD", "comments": [{"author": "Аня", "text": "Проверила на своём кейсе — вывод сходится."}, {"author": "Илья", "text": "А где смотреть актуальный тариф?"}, {"author": "LLM Hubs", "text": "В release note и pricing page."}]},
+    "PollResult": {"title": "КАК ВЫ ВЫБИРАЕТЕ МОДЕЛЬ?", "question": "Главный критерий", "options": [{"label": "Тест на workload", "value": 68}, {"label": "Только list price", "value": 32}]},
+    "BrowserTour": {"title": "ПРОВЕРЬТЕ УСЛОВИЯ", "url": "provider.example/pricing", "screenshotUrl": PREVIEW_STILL_1, "steps": [{"label": "Откройте pricing page"}, {"label": "Проверьте дату"}, {"label": "Сохраните evidence"}]},
+    "ScreenMagnifier": {"title": "СМОТРИТЕ НА ЭТОТ БЛОК", "mediaUrl": PREVIEW_STILL_1, "focus": "PRICING", "caption": "Увеличьте только relevant area, а не весь экран.", "zoom": 1.25},
+    "DeviceShowcase": {"title": "РЕАЛЬНЫЙ ИНТЕРФЕЙС", "device": "phone", "mediaUrl": PREVIEW_STILL_2, "caption": "Вставьте собственный screenshot или запись экрана."},
+    "VoiceWave": {"speaker": "LLM HUBS", "caption": "Короткое голосовое: сначала источник, потом вывод.", "waveformSeed": 27},
+    "VideoFrame": {"title": "КАК ПРОВЕРЯТЬ CLAIM", "channel": "LLM Hubs", "chapter": "ГЛАВНЫЙ МОМЕНТ", "mediaUrl": PREVIEW_CLIP},
     "QuizCard": {
         "question": "Сколько токенов контекста у открытых моделей в 2026?",
         "options": ["8 тысяч", "32 тысячи", "256 тысяч", "1 миллион"],
@@ -186,6 +233,18 @@ DEMO_PROPS: Dict[str, Dict[str, Any]] = {
         "chrome": "browser",
         "showRec": True,
     },
+    "ScreenGuide": {
+        "title": "Где включить экономный режим",
+        "guideText": "Наведите курсор на нужный пункт: camera делает controlled zoom вместо хаотичной тряски.",
+        "images": [PREVIEW_STILL_1],
+        "urlBar": "console.example.ai/settings",
+        "chrome": "browser",
+        "focusX": 0.68, "focusY": 0.56, "focusScale": 1.28,
+        "cursorSteps": [
+            {"x": 0.51, "y": 0.42, "at": 0.18, "label": "Откройте Settings"},
+            {"x": 0.68, "y": 0.56, "at": 0.55, "label": "Выберите Batch"},
+        ],
+    },
     "SwipePanels": {"title": "Три шага", "cards": [
         {"title": "Скачать", "description": "Один файл GGUF"},
         {"title": "Запустить", "description": "Одна команда"},
@@ -203,6 +262,9 @@ DEMO_PROPS: Dict[str, Dict[str, Any]] = {
         "kenBurns": True,
     },
     "VideoEmbed": {"title": "Разбор", "src": PREVIEW_CLIP, "muted": True},
+    "YouTubeCard": {"title": "Как экономить на API без магии", "subtitle": "Вставьте свой клип или poster-кадр", "src": PREVIEW_CLIP, "channelName": "LLM Hubs", "handle": "@llm_hubs", "muted": True},
+    "TelegramVoiceRound": {"title": "Короткое голосовое", "contactName": "LLM Hubs", "avatar": PREVIEW_STILL_2, "duration": 19, "waveformSeed": 27, "transcript": "Проверь цены и кэш на своём workload, а потом выбирай модель."},
+    "ImageSpotlight": {"title": "Реальный продукт — главный герой", "subtitle": "Вставьте screenshot, фото или обложку: frame, crop и caption адаптируются под выбранный style.", "images": [PREVIEW_STILL_2], "fit": "cover", "kenBurns": True},
     "MusicPlayer": {"title": "Подкаст", "track": "Открытые модели", "artist": "llm_hubs"},
     "VinylRecord": {"title": "Выпуск 12", "track": "Год открытых моделей"},
     # `duration` is z.number() (seconds) — the string "0:42" fails the schema.
@@ -218,6 +280,57 @@ DEMO_PROPS: Dict[str, Dict[str, Any]] = {
     ]},
     "ModelOrbit3D": {"title": "Архитектура"},
     "GridGridFloor": {"title": SAMPLE_TITLE, "subtitle": SAMPLE_SUB},
+    # -------------------------------------------------------------- v2.4 scene 50
+    "BenchmarkArena": {"title": "КТО ВЫИГРЫВАЕТ НА КОДЕ", "benchmark": "SWE-bench", "models": [{"name": "DeepSeek-V4-Terminus", "score": 91}, {"name": "Kimi-K3-Thinking", "score": 88}, {"name": "Qwen3.6-235B-A22B", "score": 85}], "source": "Один тест · одна дата"},
+    "BenchmarkHeatmap": {"title": "КАРТА ВОЗМОЖНОСТЕЙ", "columns": ["Код", "Reasoning", "Vision"], "rows": [{"label": "Kimi-K3", "values": [91, 87, 79]}, {"label": "DeepSeek-V4", "values": [88, 92, 82]}, {"label": "Qwen3.6", "values": [84, 80, 90]}]},
+    "LeaderboardRace": {"title": "РЕЙТИНГ ИЗМЕНИЛСЯ", "metric": "Качество на коде", "rankBefore": [{"name": "Kimi-K3", "score": 88}, {"name": "DeepSeek-V4", "score": 87}], "rankAfter": [{"name": "DeepSeek-V4", "score": 91}, {"name": "Kimi-K3", "score": 89}]},
+    "CostQualityScatter": {"title": "ЦЕНА ПРОТИВ КАЧЕСТВА", "xLabel": "Цена", "yLabel": "Качество", "scatterPoints": [{"label": "Эконом", "x": 2, "y": 74}, {"label": "Баланс", "x": 5, "y": 87}, {"label": "Топ", "x": 12, "y": 93}]},
+    "CapabilityRadar": {"title": "ПРОФИЛЬ МОДЕЛЕЙ", "axes": ["Reasoning", "Код", "Vision", "Скорость", "Контекст"], "series": [{"label": "DeepSeek", "values": [92, 91, 80, 78, 89]}, {"label": "Kimi", "values": [88, 87, 82, 89, 92]}]},
+    "ContextWindowLadder": {"title": "КОНТЕКСТ — ЭТО ПРАКТИКА", "items": [{"model": "Базовый", "value": 32, "caption": "короткий документ"}, {"model": "Рабочий", "value": 128, "caption": "папка файлов"}, {"model": "Длинный", "value": 256, "caption": "большой анализ"}]},
+    "TrueCostCalculator": {"title": "СКОЛЬКО СТОИТ WORKLOAD", "lineItems": [{"label": "Входные токены", "value": 2.1}, {"label": "Выходные токены", "value": 3.4}, {"label": "Кэш", "value": 0.8}, {"label": "Повторы", "value": 0.5}], "total": 6.8, "currency": "USD"},
+    "TokenFlowSankey": {"title": "КУДА УХОДЯТ ТОКЕНЫ", "flowNodes": [{"label": "Вход", "value": 100}, {"label": "Кэш", "value": 45}, {"label": "Выход", "value": 28}], "links": [{"from": "Вход", "to": "Кэш", "value": 45}]},
+    "ClaimEvidenceChain": {"claim": "Модель стала выгоднее для этого workload", "evidence": [{"label": "Релиз", "text": "Официальная дата"}, {"label": "Тариф", "text": "Цена входа и выхода"}, {"label": "Тест", "text": "Одинаковый набор задач"}], "caveat": "Проверьте регион и режим кэша."},
+    "EvidenceConflictBoard": {"claim": "Два источника дают разные цифры", "sourceA": {"title": "Релиз", "detail": "Новая цена с 1 августа"}, "sourceB": {"title": "Тариф", "detail": "Старая дата на странице"}, "difference": "Сверьте effective date."},
+    "ExperimentProtocol": {"title": "КАК ПОВТОРИТЬ ТЕСТ", "steps": [{"label": "Dataset", "detail": "Одинаковые задачи"}, {"label": "Prompt", "detail": "Одинаковые условия"}, {"label": "Метрика", "detail": "Качество, цена, latency"}], "threshold": "Порог: 90% качества"},
+    "ReleaseDelta": {"title": "ЧТО ИЗМЕНИЛОСЬ", "previous": "v4.0", "current": "v4.1", "deltas": [{"kind": "ДОБАВЛЕНО", "text": "Новый режим reasoning"}, {"kind": "ИЗМЕНЕНО", "text": "Обновлён тариф"}, {"kind": "ПРОВЕРИТЬ", "text": "Дата вступления"}]},
+    "TelegramChannelPost": {"channel": "LLM Hubs", "handle": "@llm_hubs", "avatar": PREVIEW_STILL_2, "postText": "Новый разбор: как честно сравнить модели по цене, кэшу и качеству на своей задаче.", "mediaUrl": PREVIEW_STILL_1, "reactions": [{"emoji": "🔥", "count": 124}, {"emoji": "🧠", "count": 68}], "views": 12400, "time": "сегодня", "cta": "Полный разбор в канале"},
+    "TelegramFeedScroll": {"channel": "LLM Hubs", "posts": [{"id": "1", "tag": "RELEASE", "text": "Новый релиз и что он меняет"}, {"id": "2", "tag": "GUIDE", "text": "Как проверить pricing page"}, {"id": "3", "tag": "TEST", "text": "Сравнение на одном workload"}], "focusPostId": "2"},
+    "TelegramForwardChain": {"title": "КАК ИДЁТ ИНФОРМАЦИЯ", "origin": {"channel": "LLM Hubs", "text": "Исходный разбор с источниками."}, "forwards": [{"channel": "AI Новости", "note": "переслал факт"}, {"channel": "Команда", "note": "обсуждает вывод"}]},
+    "ReactionPulse": {"title": "РЕАКЦИЯ АУДИТОРИИ", "reactions": [{"emoji": "🔥", "count": 124}, {"emoji": "👍", "count": 88}, {"emoji": "🧠", "count": 52}], "views": 12400, "comments": 37},
+    "QuoteRepost": {"title": "РЕПОСТ С РАЗБОРОМ", "original": {"author": "Источник", "text": "Модель стала дешевле."}, "commentary": "Проверьте дату, scope и условия тарифа до вывода.", "author": "LLM Hubs"},
+    "CommunityFAQ": {"title": "ВОПРОСЫ ПОДПИСЧИКОВ", "questions": ["Где смотреть цену?", "Нужен ли reasoning?", "Как проверить claim?"], "answers": ["На официальной pricing page.", "Только после теста на задаче.", "Сверить источник, дату и метод."]},
+    "ChangelogTerminal": {"product": "MSF Studio", "version": "v2.4", "date": "2026-08-14", "changes": [{"kind": "added", "text": "50 универсальных сцен"}, {"kind": "changed", "text": "Safe layout guards"}]},
+    "PromptABLab": {"title": "A/B ПРОМПТ", "promptA": "Объясни модель.", "promptB": "Объясни модель, укажи источник и ограничение.", "resultA": "Общий ответ", "resultB": "Проверяемый ответ"},
+    "AgentRunConsole": {"title": "PIPELINE АГЕНТА", "steps": [{"label": "Research", "status": "done"}, {"label": "Проверка", "status": "done"}, {"label": "Storyboard", "status": "running"}, {"label": "Render", "status": "queued"}]},
+    "BrowserDecisionTable": {"title": "ТАБЛИЦА ВЫБОРА", "url": "provider.example/compare", "columns": ["Модель", "Цена", "Качество"], "rows": [{"Модель": "A", "Цена": "низкая", "Качество": "88"}, {"Модель": "B", "Цена": "средняя", "Качество": "92"}], "selectedCell": {"row": 2, "column": 3}, "caption": "Выделяем решение, а не весь экран."},
+    "ThreePhoto360Drift": {"title": "ТРИ КАДРА — ОДНА ИСТОРИЯ", "images": [PREVIEW_STILL_1, PREVIEW_STILL_2, PREVIEW_STILL_1], "positions": [{"x": -0.28, "y": -0.12, "z": -120, "rotate": -12}, {"x": 0.22, "y": 0.03, "z": 0, "rotate": 8}, {"x": -0.06, "y": 0.18, "z": -80, "rotate": -6}], "captions": ["Факт", "Тест", "Вывод"]},
+    "PhotoConstellation": {"title": "СОЗВЕЗДИЕ КАДРОВ", "images": [PREVIEW_STILL_1, PREVIEW_STILL_2, PREVIEW_STILL_1, PREVIEW_STILL_2], "focusOrder": [0, 2, 1]},
+    "DeepZoomStory": {"title": "СМОТРИМ НА ДЕТАЛЬ", "image": PREVIEW_STILL_1, "stops": [{"x": 0.5, "y": 0.5, "scale": 1, "label": "ОБЩИЙ ВИД"}, {"x": 0.7, "y": 0.42, "scale": 1.6, "label": "ВАЖНАЯ ДЕТАЛЬ"}]},
+    "BeforeAfterLens": {"title": "ДО И ПОСЛЕ", "beforeUrl": PREVIEW_STILL_1, "afterUrl": PREVIEW_STILL_2, "labelBefore": "ДО", "labelAfter": "ПОСЛЕ", "claim": "Интерфейс стал понятнее"},
+    "VideoChapterRail": {"title": "КАК ПРОВЕРЯТЬ CLAIM", "videoUrl": PREVIEW_CLIP, "channel": "LLM Hubs", "chapters": [{"label": "Факт", "at": "0:00"}, {"label": "Тест", "at": "0:18"}, {"label": "Вывод", "at": "0:42"}]},
+    "VoiceNotePullQuote": {"speaker": "LLM HUBS", "quote": "Сначала источник, потом вывод.", "waveformSeed": 27},
+    "DocumentMarginNotes": {"title": "ЗАМЕТКИ НА ПОЛЯХ", "documentUrl": PREVIEW_STILL_1, "source": "Официальный документ", "notes": [{"x": 0.70, "y": 0.30, "text": "Дата"}, {"x": 0.62, "y": 0.58, "text": "Метод"}]},
+    "AppScreenGallery": {"title": "ГАЛЕРЕЯ ЭКРАНОВ", "screens": [PREVIEW_STILL_1, PREVIEW_STILL_2, PREVIEW_STILL_1], "device": "phone"},
+    "LayeredWindowStack": {"title": "СТЕК ОКОН", "windows": [{"label": "BROWSER", "url": PREVIEW_STILL_1}, {"label": "CHAT", "url": PREVIEW_STILL_2}, {"label": "TABLE", "url": PREVIEW_STILL_1}]},
+    "ImageEvidenceCompare": {"title": "СРАВНЕНИЕ СКРИНШОТОВ", "leftImage": PREVIEW_STILL_1, "rightImage": PREVIEW_STILL_2, "leftMeta": "Источник A · вчера", "rightMeta": "Источник B · сегодня", "difference": "Проверьте дату и scope."},
+    "AssetOrbit3D": {"title": "ОБЛЁТ 3D-МОДЕЛИ", "assetLicense": "procedural fallback", "cameraPreset": "orbit", "fallbackShape": "orb"},
+    "ExplodedProductView": {"title": "СЛОИ ОБЪЕКТА", "parts": [{"label": "Интерфейс"}, {"label": "Логика"}, {"label": "Данные"}], "fallbackShape": "chip"},
+    "WorkflowFlyThrough3D": {"title": "3D PIPELINE", "workflowNodes": [{"label": "Research"}, {"label": "Benchmark"}, {"label": "Review"}, {"label": "Render"}], "fallbackShape": "nodes"},
+    "DataCube": {"title": "КУБ ДАННЫХ", "x": 24, "y": 91, "z": 68, "labels": ["Цена", "Качество", "Скорость"], "highlight": 1},
+    "LogoSculpture3D": {"title": "ОБЪЁМНЫЙ ЗНАК", "tagline": "LLM HUBS", "fallbackShape": "ring"},
+    "DeviceConveyor3D": {"title": "УСТРОЙСТВА", "devices": ["PHONE", "DESKTOP", "TABLET"], "screens": [PREVIEW_STILL_1, PREVIEW_STILL_2]},
+    "ParticleDataField": {"title": "ПОЛЕ ЧАСТИЦ", "groups": [{"label": "Сигналы", "value": 72}, {"label": "Шум", "value": 18}, {"label": "Фокус", "value": 10}]},
+    "IsometricWorkflowCity": {"title": "ГОРОД WORKFLOW", "zones": [{"label": "Inbox"}, {"label": "Model"}, {"label": "Review"}, {"label": "Output"}]},
+    "GlobeSignalMap": {"title": "КАРТА СИГНАЛОВ", "locations": [{"label": "EU"}, {"label": "US"}, {"label": "APAC"}], "source": "Переданные точки"},
+    "MilestoneCorridor3D": {"title": "КОРИДОР ВЕХ", "milestones": [{"date": "Март", "label": "Контекст"}, {"date": "Июль", "label": "Тариф"}, {"date": "Сейчас", "label": "Тест"}]},
+    "ColdOpenContradiction": {"claimA": "МОДЕЛЬ ДЕШЕВЛЕ", "claimB": "МОДЕЛЬ ЛУЧШЕ", "realQuestion": "КАКАЯ МЕТРИКА НУЖНА ВАШЕЙ ЗАДАЧЕ?"},
+    "CounterfactualSplit": {"title": "ДВЕ РАЗВИЛКИ", "choiceA": "Только list price", "choiceB": "Тест на workload", "outcomesA": ["Риск промаха", "Скрытые траты"], "outcomesB": ["Реальная стоимость", "Проверяемое решение"]},
+    "MemoryTimeline": {"title": "КАК МЫ ДОШЛИ ДО ВЫВОДА", "past": "Сравнивали по одной цифре", "present": "Сверяем источники", "next": "Тестируем на workload"},
+    "DecisionTree": {"title": "ДЕРЕВО РЕШЕНИЯ", "decisionNodes": [{"id": "privacy", "label": "Нужна приватность?", "branch": "Да → локально"}, {"id": "speed", "label": "Нужна скорость?", "branch": "Да → API"}], "chosenPath": ["privacy"]},
+    "TradeoffSliders": {"title": "КОМПРОМИССЫ", "dimensions": [{"label": "Цена", "value": 28, "left": "дешевле", "right": "качественнее"}, {"label": "Latency", "value": 64, "left": "быстрее", "right": "точнее"}]},
+    "CalendarLaunchWindow": {"title": "ОКНО ЗАПУСКА", "date": "16 AUG", "window": "ОБНОВЛЕНИЕ", "whatChanges": "Проверьте условия до расчёта бюджета."},
+    "ProofBackedCTA": {"action": "ОТКРОЙТЕ ПОЛНЫЙ РАЗБОР", "proof": "Ссылки, дата и метод проверки.", "benefit": "Проверьте вывод на своей задаче.", "channel": "@llm_hubs"},
+    "BrandOutroMosaic": {"brandName": "LLM HUBS", "handle": "@llm_hubs", "cta": "Разборы, тесты и практические workflow.", "media": [{"label": "ПРОДУКТ"}, {"label": "ДОКАЗАТЕЛЬСТВА"}, {"label": "КОМЬЮНИТИ"}]},
 }
 
 
@@ -246,10 +359,23 @@ def suggested_duration(scene: Dict[str, Any], fps: int = 60) -> int:
 
     Counts the same visible fields validate_spec counts, so the two agree.
     """
-    text_fields = ("text", "definition", "code", "question", "response", "subtitle")
+    # Expansion scenes carry their copy in semantic fields rather than the older
+    # generic title/text pair. Count them here; otherwise a rich proof or tutorial
+    # card receives the three-second floor and previewing it manufactures a pacing
+    # defect the production pipeline would avoid.
+    text_fields = (
+        "text", "definition", "code", "question", "response", "subtitle",
+        "headline", "subhead", "proof", "urgency", "phrase", "highlight",
+        "caption", "problem", "solution", "feature", "benefit", "context",
+        "action", "result", "myth", "fact", "quote", "source", "role",
+        "footnote", "value", "label", "provider", "prompt", "answer",
+        "speaker", "channel", "chapter", "url", "status", "title", "focus",
+        "duration", "sendLabel", "platformLabel", "avatarText",
+    )
     chars = sum(len(str(scene[f])) for f in text_fields if isinstance(scene.get(f), str))
     for key in ("rows", "segments", "cards", "events", "comments", "steps",
-                "messages", "tokens", "lines", "options", "nodes"):
+                "messages", "tokens", "lines", "options", "nodes", "stats",
+                "sources", "notifications", "chips"):
         val = scene.get(key)
         if isinstance(val, list):
             for item in val:

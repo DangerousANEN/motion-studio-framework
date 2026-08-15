@@ -445,6 +445,55 @@ def tension_hold(sr: int = SR, bars: int = 8, seed: int = 15) -> np.ndarray:
     return _finish(mix(drone * trem * 0.4, sub), sr, top=2400)
 
 
+@bed("clarity_steps", 96, "D", "Muted mallets and warm pad", "Tutorial, checklist, process")
+def clarity_steps(sr: int = SR, bars: int = 8, seed: int = 17) -> np.ndarray:
+    """Light rhythmic bed that leaves room for dense instructional narration."""
+    bpm, prog = 96, [("D", "maj"), ("B", "min"), ("G", "maj"), ("A", "maj")]
+    bs = bar_seconds(bpm)
+    pad = _progression(prog, bars, bpm, sr, octave=3, gain=0.32, bright=0.18)
+    bass = _bassline(prog, bars, bpm, sr, octave=1, gain=0.34)
+    mallets = silence(bars * bs, sr)
+    for bar in range(bars):
+        root, quality = prog[bar % len(prog)]
+        notes = chord(root, quality, 4)
+        for beat in (0.0, 0.5, 1.5, 2.5):
+            place(mallets, _pluck(notes[int(beat * 2) % len(notes)], bs / 9, sr, 0.11), bar * bs + beat * bs / 4, sr)
+    return _finish(mix(pad, bass, mallets), sr, top=5200)
+
+
+@bed("data_spark", 108, "E", "Clean pulse, tiny digital accents", "Metrics, product, trend reveals")
+def data_spark(sr: int = SR, bars: int = 8, seed: int = 18) -> np.ndarray:
+    """Positive data-focused bed with controlled transient density under VO."""
+    bpm, prog = 108, [("E", "min"), ("C", "maj"), ("G", "maj"), ("D", "maj")]
+    bs = bar_seconds(bpm)
+    pad = _progression(prog, bars, bpm, sr, octave=3, gain=0.28, bright=0.42)
+    bass = _bassline(prog, bars, bpm, sr, octave=1, gain=0.38)
+    accents = silence(bars * bs, sr)
+    for bar in range(bars):
+        root, quality = prog[bar % len(prog)]
+        notes = chord(root, quality, 5)
+        for tick in range(4):
+            place(accents, _pluck(notes[tick % len(notes)], bs / 12, sr, 0.09), bar * bs + (tick + 0.5) * bs / 4, sr)
+    return _finish(mix(pad, bass, accents), sr, top=6200)
+
+
+@bed("focus_loop", 100, "F#m", "Soft pulse and glass plucks", "Decision, routing, focused explainers")
+def focus_loop(sr: int = SR, bars: int = 8, seed: int = 19) -> np.ndarray:
+    """Low-distraction pattern for decision scenes and dense analytical voice-over."""
+    bpm, prog = 100, [("F#", "min"), ("D", "maj"), ("A", "maj"), ("E", "maj")]
+    bs = bar_seconds(bpm)
+    pad = _progression(prog, bars, bpm, sr, octave=3, gain=0.24, bright=0.20)
+    bass = _bassline(prog, bars, bpm, sr, octave=1, gain=0.31, per_bar=2)
+    pulse = silence(bars * bs, sr)
+    for bar in range(bars):
+        root, quality = prog[bar % len(prog)]
+        notes = chord(root, quality, 5)
+        for beat in (0.0, 1.5, 2.5):
+            place(pulse, _pluck(notes[int(beat) % len(notes)], bs / 10, sr, 0.075), bar * bs + beat * bs / 4, sr)
+    air = noise(bars * bs, sr, seed=seed, kind="pink") * 0.008
+    return _finish(mix(pad, bass, pulse, air), sr, top=4800)
+
+
 @bed("silence_bed", 60, "-", "Room tone only", "When music would intrude", peak_db=-50.0)
 def silence_bed(sr: int = SR, bars: int = 8, seed: int = 16) -> np.ndarray:
     """Not silence — room tone. Absolute digital silence under a cut reads as a

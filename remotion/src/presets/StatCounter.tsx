@@ -1,7 +1,7 @@
 import React from 'react';
 import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BaseSceneProps } from '../VideoSpec.schema';
-import { BRAND } from './brand';
+import { useSceneStyle } from '../theme/StyleContext';
 import { resolveMotion } from '../lib/motion';
 import { getSafeArea } from '../lib/safeArea';
 import { fitOneLine, fitWrapped } from '../theme/layout';
@@ -34,7 +34,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
   title,
   text,
   badge,
-  accentColor = BRAND.neon,
+  accentColor,
   motion,
   safeArea = 'platform',
 }) => {
@@ -43,6 +43,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
 
   const label = statLabel || title || text || '';
   const safe = getSafeArea(width, height, safeArea);
+  const { theme, accent } = useSceneStyle(undefined, accentColor);
 
   // `value` drives the count-up, `reveal` the card entrance. Separate channels
   // mean the card can settle calmly while the number snaps.
@@ -66,8 +67,10 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
   const currentValue =
     decimals === 0 ? Math.round(rawValue) : Number(rawValue.toFixed(decimals));
 
-  const scale = interpolate(revealProgress, [0, 1], [0.8, 1]);
-  const opacity = Math.min(1, Math.max(0, revealProgress));
+  // Never allow a spring/anticipation preset to make readable UI oscillate.
+  const stableReveal = Math.min(1, Math.max(0, revealProgress));
+  const scale = interpolate(stableReveal, [0, 1], [0.9, 1]);
+  const opacity = stableReveal;
 
   // Card geometry derived from the safe box instead of a magic 900px.
   const cardWidth = Math.min(safe.width, 900);
@@ -80,14 +83,14 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
     decimals === 0 ? String(Math.round(statValue)) : statValue.toFixed(decimals);
   const numberFont = 'system-ui, -apple-system, sans-serif';
 
-  // Prefix/suffix render at ~60% of the number size; budget their width too.
+  // Long units must not squeeze the core value. Keep short symbols inline and
+  // place descriptive units on their own measured line beneath the number.
   const affixRatio = 0.6;
-  const affixChars = (statPrefix?.length ?? 0) + (statSuffix?.length ?? 0);
-  const widthBudget = innerWidth / (1 + affixChars * affixRatio * 0.55);
-
+  const suffixInline = statSuffix.length <= 8;
+  const numberLine = `${statPrefix}${finalDisplay}${suffixInline ? statSuffix : ''}`;
   const numberSize = fitOneLine({
-    text: finalDisplay,
-    maxWidth: widthBudget,
+    text: numberLine,
+    maxWidth: innerWidth,
     fontFamily: numberFont,
     fontWeight: 900,
     letterSpacing: '-4px',
@@ -128,7 +131,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
       style={{
         position: 'absolute',
         inset: 0,
-        backgroundColor: BRAND.bg,
+        backgroundColor: theme.bg,
         overflow: 'hidden',
         fontFamily: numberFont,
       }}
@@ -143,7 +146,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
           width: 500,
           height: 500,
           borderRadius: '50%',
-          background: `radial-gradient(circle, ${accentColor}20 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`,
           pointerEvents: 'none',
         }}
       />
@@ -166,14 +169,14 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
           style={{
             opacity,
             transform: `scale(${scale})`,
-            backgroundColor: BRAND.surface,
-            border: `2px solid ${accentColor}40`,
+            backgroundColor: theme.surface,
+            border: `2px solid ${accent}55`,
             borderRadius: '32px',
             padding: `${Math.round(cardPadX * 0.95)}px ${cardPadX}px`,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            boxShadow: `0 20px 50px rgba(0,0,0,0.5), 0 0 30px ${accentColor}20`,
+            boxShadow: `0 20px 50px ${theme.shadowColor}88, 0 0 30px ${accent}20`,
             position: 'relative',
             width: cardWidth,
             boxSizing: 'border-box',
@@ -188,7 +191,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
                 top: 20,
                 right: 25,
                 fontSize: '18px',
-                color: accentColor,
+                color: accent,
                 fontWeight: 800,
                 letterSpacing: '2px',
               }}
@@ -201,13 +204,13 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
             style={{
               fontSize: `${numberSize}px`,
               fontWeight: 900,
-              color: BRAND.text,
+              color: theme.text,
               letterSpacing: '-4px',
               lineHeight: 1,
               display: 'flex',
               alignItems: 'baseline',
               justifyContent: 'center',
-              textShadow: `0 0 40px ${accentColor}60`,
+              textShadow: `0 0 40px ${accent}60`,
               maxWidth: '100%',
             }}
           >
@@ -215,7 +218,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
               <span
                 style={{
                   fontSize: `${Math.round(numberSize * affixRatio)}px`,
-                  color: accentColor,
+                  color: accent,
                   marginRight: '8px',
                 }}
               >
@@ -223,11 +226,11 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
               </span>
             )}
             <span>{currentValue}</span>
-            {statSuffix && (
+            {statSuffix && suffixInline && (
               <span
                 style={{
                   fontSize: `${Math.round(numberSize * affixRatio)}px`,
-                  color: accentColor,
+                  color: accent,
                   marginLeft: '8px',
                 }}
               >
@@ -235,6 +238,23 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
               </span>
             )}
           </div>
+          {statSuffix && !suffixInline && (
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: Math.round(Math.min(numberSize * 0.36, height * 0.029)),
+                lineHeight: 1.14,
+                fontWeight: 800,
+                color: accent,
+                letterSpacing: '0.02em',
+                textAlign: 'center',
+                maxWidth: innerWidth,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {statSuffix.replace(/^\s*\/\s*/, '')}
+            </div>
+          )}
 
           <div
             style={{
@@ -250,9 +270,9 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
               style={{
                 width: `${fillFraction * 100}%`,
                 height: '100%',
-                backgroundColor: accentColor,
+                backgroundColor: accent,
                 borderRadius: '4px',
-                boxShadow: `0 0 12px ${accentColor}`,
+                boxShadow: `0 0 12px ${accent}`,
               }}
             />
           </div>
@@ -263,7 +283,7 @@ export const StatCounter: React.FC<BaseSceneProps> = ({
                 marginTop: '25px',
                 fontSize: `${labelBlock.fontSize}px`,
                 fontWeight: 700,
-                color: BRAND.muted,
+                color: theme.muted,
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 textAlign: 'center',

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MSF Studio — Operator Dashboard</title>
+  <link rel="stylesheet" href="/static/studio.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Навигация Studio">
+      <a class="brand" href="/studio" aria-label="MSF Studio">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span><strong>MSF</strong><em>STUDIO</em></span>
+      </a>
+      <nav>
+        <a class="nav-link active" href="#compose"><span>01</span> Compose</a>
+        <a class="nav-link" href="#evidence"><span>02</span> Evidence</a>
+        <a class="nav-link" href="#catalog"><span>03</span> Catalog</a>
+        <a class="nav-link" href="#runs"><span>04</span> Runs</a>
+      </nav>
+      <div class="sidebar-note">
+        <span class="pulse"></span>
+        <p><strong>Local-first</strong><br />Сервер работает только на localhost.</p>
+      </div>
+      <a class="legacy-link" href="/">Открыть legacy panel <span>↗</span></a>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OPERATOR CONSOLE / V2.0</p>
+          <h1>Соберите ролик<br /><span>без магии и догадок.</span></h1>
+        </div>
+        <div class="top-status">
+          <span class="status-dot"></span>
+          <span id="catalogStatus">Загружаем live catalog…</span>
+        </div>
+      </header>
+
+      <section class="notice">
+        <span class="notice-index">POLICY</span>
+        <p><strong>Preset-tier:</strong> выбирайте сцены только из живого каталога. Факты публикуются только после связи <code>claim → source</code>. Timeline содержит события и redacted traces, но не скрытые рассуждения агента.</p>
+      </section>
+
+      <section id="compose" class="workspace-grid">
+        <article class="panel compose-panel">
+          <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Brief</h2></div><span class="chip safe">PRESET-TIER</span></div>
+          <form id="runForm" class="run-form">
+            <label>Тема<input id="topic" name="topic" minlength="3" maxlength="400" required value="Разбор способа использовать LLM экономнее" /></label>
+            <div class="form-row">
+              <label>Основная сцена<select id="preset" name="preset"></select></label>
+              <label>Уровень агента<select id="agentLevel" name="agentLevel"><option value="1">1 · строгий</option><option value="2">2 · preset</option><option value="3" selected>3 · standard</option><option value="4">4 · curated</option><option value="5">5 · sandbox</option></select></label>
+            </div>
+            <div class="style-workbench" aria-label="Visual style controls">
+              <div class="style-workbench-heading"><span>VISUAL FAMILY</span><small id="styleSummary">Загружаем style catalog…</small></div>
+              <div class="form-row">
+                <label>Стиль<select id="styleFamily" name="styleFamily"></select></label>
+                <label>Неон<input id="styleNeon" type="color" value="#00F0A8" /></label>
+              </div>
+              <div class="form-row style-token-row">
+                <label>Фон<input id="styleBg" type="color" value="#030807" /></label>
+                <label>Поверхность<input id="styleSurface" type="color" value="#091512" /></label>
+                <label>Glow <input id="styleBloom" type="range" min="0" max="1" step="0.05" value="0.5" /><output id="styleBloomValue">0.50</output></label>
+              </div>
+              <p id="styleDescription" class="style-description">Style family задаёт палитру, шрифты, motion, backdrop и post-FX. Цвета выше — безопасные overrides выбранного family.</p>
+              <code id="styleConfigPreview" class="style-config-preview">styleConfig: —</code>
+            </div>
+            <div class="toggle-row">
+              <label class="toggle"><input id="researchToggle" type="checkbox" checked /><span></span> Evidence-first research</label>
+              <label class="toggle"><input id="musicToggle" type="checkbox" checked /><span></span> Music + SFX</label>
+            </div>
+            <button class="primary-btn" type="submit">Подготовить безопасный run <span>→</span></button>
+          </form>
+          <div id="runResult" class="run-result empty">Run ещё не подготовлен. Это действие не запускает renderer.</div>
+        </article>
+
+        <article id="evidence" class="panel evidence-panel">
+          <div class="panel-heading"><div><p class="eyebrow">EVIDENCE GATE</p><h2>Research pack</h2></div><button id="loadSampleEvidence" class="ghost-btn" type="button">Загрузить пример</button></div>
+          <textarea id="researchJson" spellcheck="false" placeholder='Вставьте ResearchPack JSON: sources, claims, source_ids…'></textarea>
+          <div class="gate-row"><button id="validateResearch" class="secondary-btn" type="button">Проверить evidence</button><span id="researchState" class="gate-state">Ожидает JSON</span></div>
+          <div id="researchResult" class="diagnostics"></div>
+        </article>
+      </section>
+
+      <section class="split-grid">
+        <article class="panel storyboard-panel">
+          <div class="panel-heading"><div><p class="eyebrow">STORYBOARD GATE</p><h2>Draft validator</h2></div><span id="storyboardCount" class="muted">0 сцен</span></div>
+          <textarea id="storyboardJson" spellcheck="false" placeholder='Вставьте StoryboardDraft JSON или соберите его через MCP/skill…'></textarea>
+          <div class="gate-row"><button id="validateStoryboard" class="secondary-btn" type="button">Проверить storyboard</button><button id="saveStoryboard" class="ghost-btn" type="button">Сохранить draft</button></div>
+          <div id="storyboardResult" class="diagnostics"></div>
+        </article>
+
+        <article id="catalog" class="panel catalog-panel">
+          <div class="panel-heading"><div><p class="eyebrow">LIVE CATALOG</p><h2>Сцены, не догадки</h2></div><span id="catalogTotal" class="muted">—</span></div>
+          <div class="catalog-controls"><input id="catalogQuery" type="search" placeholder="Поиск: decision, tutorial, evidence…" /><select id="catalogTier"><option value="preset">preset</option><option value="curated">curated</option><option value="sandbox">sandbox</option></select></div>
+          <div id="catalogCards" class="catalog-cards" aria-live="polite"></div>
+        </article>
+      </section>
+
+      <section id="runs" class="timeline-section">
+        <div class="section-heading"><div><p class="eyebrow">RUN OBSERVABILITY</p><h2>Где остановился pipeline?</h2></div><div class="timeline-controls"><input id="runIdInput" placeholder="run_…" /><button id="inspectRun" class="ghost-btn" type="button">Обновить timeline</button></div></div>
+        <div class="timeline-grid">
+          <article class="timeline-card"><p class="eyebrow">SNAPSHOT</p><div id="runSnapshot" class="empty-state">Выберите подготовленный run или вставьте его opaque ID.</div></article>
+          <article class="timeline-card"><p class="eyebrow">EVENTS & REDACTED TRACES</p><ol id="timeline" class="timeline"><li class="empty-state">Здесь появятся node events, tool calls, статусы и ошибки. Prompts и мысли агента сюда не попадают.</li></ol></article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <template id="catalogCardTemplate">
+    <button class="scene-card" type="button"><span class="scene-category"></span><strong></strong><p></p><div class="scene-tags"></div><small></small></button>
+  </template>
+  <script src="/static/studio.js" defer></script>
+</body>
+</html>

@@ -129,8 +129,10 @@ export const DATA_DRIVEN_PRESETS: PresetType[] = [
   'FlowDiagram',
   'CodeReveal',
   'LayerStack3D',
+  'StepList',
+  'BeforeAfter',
+  'MetricTrend',
 ];
-
 export const VideoFormatSchema = z.enum([
   'vertical',
   'horizontal',
@@ -156,6 +158,21 @@ export const NodeSchema = z.object({
   label: z.string(),
   sub: z.string().optional(),
   color: z.string().optional(),
+});
+
+/** BeforeAfter: one labelled state in a transformation comparison. */
+export const ComparisonSideSchema = z.object({
+  label: z.string().optional(),
+  title: z.string().optional(),
+  text: z.string().optional(),
+  color: z.string().optional(),
+});
+
+/** MetricTrend: one labelled value in a short time series. */
+export const TrendPointSchema = z.object({
+  label: z.string(),
+  value: z.number(),
+  note: z.string().optional(),
 });
 
 export const HotspotSchema = z.object({
@@ -209,7 +226,13 @@ export const SegmentSchema = z.object({
 export const ChatMessageSchema = z.object({
   /** Sender name. Shown on incoming messages only. */
   from: z.string().optional(),
-  text: z.string(),
+  /** Regular bubble copy. Empty for a sticker-only message. */
+  text: z.string().optional().default(''),
+  /**
+   * Original in-render Telegram-style reaction sticker. The bounded enum keeps
+   * preset-tier agents from inventing unreviewed external assets or URLs.
+   */
+  sticker: z.enum(['brain', 'rocket', 'spark', 'thumbsUp']).optional(),
   time: z.string().optional(),
   /** Outgoing (right-aligned, accent bubble) rather than incoming. */
   out: z.boolean().optional(),
@@ -283,10 +306,49 @@ export const SceneEffectSchema = z.object({
   seed: z.number().optional(),
 });
 
+/**
+ * Safe override tokens for a selected visual family. The renderer merges these
+ * over the style kit at video level and, optionally, at scene level.
+ */
+export const StyleConfigSchema = z.object({
+  palette: z.object({
+    bg: z.string().optional(),
+    surface: z.string().optional(),
+    gold: z.string().optional(),
+    neon: z.string().optional(),
+    cyan: z.string().optional(),
+    text: z.string().optional(),
+    muted: z.string().optional(),
+    darkBorder: z.string().optional(),
+    shadowColor: z.string().optional(),
+    accentCyan: z.string().optional(),
+    accentGreen: z.string().optional(),
+    accentWarm: z.string().optional(),
+  }).optional(),
+  fonts: z.string().optional(),
+  backdrop: z.enum(['grid', 'mesh', 'noise', 'dots', 'scanlines', 'plain']).optional(),
+  surface: z.enum(['brutal', 'soft', 'glass', 'flat']).optional(),
+  transition: z.string().optional(),
+  motion: z.object({
+    damping: z.number().positive().optional(),
+    stiffness: z.number().positive().optional(),
+    mass: z.number().positive().optional(),
+    tilt: z.number().min(-12).max(12).optional(),
+    staggerScale: z.number().min(0.25).max(3).optional(),
+  }).optional(),
+  effects: z.object({
+    grain: z.number().min(0).max(1).optional(),
+    vignette: z.number().min(0).max(1).optional(),
+    bloom: z.number().min(0).max(1).optional(),
+    chromatic: z.number().min(0).max(1).optional(),
+    scanlines: z.number().min(0).max(1).optional(),
+  }).optional(),
+});
+
 /** A HUD element rendered above a scene. See compositions/OverlayStack.tsx. */
 export const OverlaySchema = z
   .object({
-    type: z.enum(['timer', 'notification', 'money']),
+    type: z.enum(['timer', 'notification', 'money', 'cursor', 'focus', 'badge']),
     /** 0..1 scene progress at which it appears. */
     at: z.number().min(0).max(1).optional(),
     /** Seconds on screen. Omitted = until the scene ends. */
@@ -307,6 +369,14 @@ export const OverlaySchema = z
     amount: z.number().optional(),
     currency: z.string().optional(),
     sender: z.string().optional(),
+    // cursor / focus / badge: normalized target coordinates and label.
+    x: z.number().min(0).max(1).optional(),
+    y: z.number().min(0).max(1).optional(),
+    w: z.number().min(0).max(1).optional(),
+    h: z.number().min(0).max(1).optional(),
+    radius: z.number().min(0).optional(),
+    targetLabel: z.string().optional(),
+    badgeText: z.string().optional(),
   })
   .passthrough();
 
@@ -322,6 +392,7 @@ export const BaseSceneSchema = z
     accentColor: z.string().optional(),
     badge: z.string().optional(),
     style: z.string().optional(),
+    styleConfig: StyleConfigSchema.optional(),
     // StatCounter
     statValue: z.number().optional(),
     statPrefix: z.string().optional(),
@@ -329,6 +400,12 @@ export const BaseSceneSchema = z
     statLabel: z.string().optional(),
     // SwipePanels / CompareSplit / ListReveal
     cards: z.array(CardSchema).optional(),
+    // BeforeAfter
+    before: ComparisonSideSchema.optional(),
+    after: ComparisonSideSchema.optional(),
+    // MetricTrend
+    points: z.array(TrendPointSchema).min(2).max(6).optional(),
+    metricLabel: z.string().optional(),
     // FlowDiagram
     nodes: z.array(NodeSchema).optional(),
     steps: StepListSchema.optional(),
@@ -461,12 +538,26 @@ export const BaseSceneSchema = z
     startFrom: z.number().int().min(0).optional(),
     showControls: z.boolean().optional(),
     muted: z.boolean().optional(),
-    /** ScreenRecord: window chrome style and the text in its address bar. */
+    /** ScreenRecord / ScreenGuide: window chrome style and address text. */
     chrome: z.enum(['browser', 'window', 'none']).optional(),
+    /** ScreenGuide camera path: normalized focus anchor, target scale and pan. */
+    focusX: z.number().min(0).max(1).optional(),
+    focusY: z.number().min(0).max(1).optional(),
+    focusScale: z.number().min(1).max(4).optional(),
+    panX: z.number().min(-1).max(1).optional(),
+    panY: z.number().min(-1).max(1).optional(),
+    cursorSteps: z.array(z.object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      at: z.number().min(0).max(1).optional(),
+      label: z.string().optional(),
+    })).max(5).optional(),
+    guideText: z.string().optional(),
     urlBar: z.string().optional(),
     appName: z.string().optional(),
     showRec: z.boolean().optional(),
-    /** VoiceMemo: length in seconds, waveform shape seed, spoken text. */
+    /** VoiceMemo / TelegramVoiceRound: length in seconds, waveform shape seed, spoken text. */
+    avatar: z.string().optional(),
     duration: z.number().positive().optional(),
     waveformSeed: z.number().optional(),
     transcript: z.string().optional(),
@@ -547,7 +638,7 @@ export const BaseSceneSchema = z
     // ----------------------------------------------------------------- learn
     /** QuizCard: question, answers, which one is right, when to reveal it. */
     question: z.string().optional(),
-    options: z.array(z.string()).optional(),
+    options: z.union([z.array(z.string()), z.array(z.object({label: z.string().optional(), value: z.number().optional()}).passthrough())]).optional(),
     correctIndex: z.number().int().min(0).optional(),
     revealAtProgress: z.number().min(0).max(1).optional(),
     /**
@@ -613,6 +704,152 @@ export const BaseSceneSchema = z
       .passthrough()
       .optional(),
     vsLabel: z.string().optional(),
+    // ------------------------------------------------------- v2.3 expansion
+    headline: z.string().optional(),
+    subhead: z.string().optional(),
+    proof: z.string().optional(),
+    urgency: z.string().optional(),
+    phrase: z.string().optional(),
+    highlight: z.string().optional(),
+    caption: z.string().optional(),
+    problem: z.string().optional(),
+    solution: z.string().optional(),
+    feature: z.string().optional(),
+    benefit: z.string().optional(),
+    index: z.string().optional(),
+    context: z.string().optional(),
+    action: z.string().optional(),
+    result: z.string().optional(),
+    myth: z.string().optional(),
+    fact: z.string().optional(),
+    quote: z.string().optional(),
+    // `role` is already declared for QuoteCard and is intentionally shared.
+    footnote: z.string().optional(),
+    status: z.string().optional(),
+    value: z.union([z.string(), z.number()]).optional(),
+    progress: z.number().min(0).max(1).optional(),
+    stats: z.array(z.object({label: z.string().optional(), value: z.union([z.string(), z.number()]).optional(), stat: z.string().optional()}).passthrough()).optional(),
+    sources: z.array(z.object({title: z.string().optional(), label: z.string().optional(), url: z.string().optional(), detail: z.string().optional()}).passthrough()).optional(),
+    prompt: z.string().optional(),
+    provider: z.string().optional(),
+    sendLabel: z.string().optional(),
+    avatarText: z.string().optional(),
+    answer: z.string().optional(),
+    chips: z.array(z.string()).max(4).optional(),
+    notifications: z.array(z.object({app: z.string().optional(), text: z.string().optional()}).passthrough()).min(1).max(3).optional(),
+    platformLabel: z.string().optional(),
+    url: z.string().optional(),
+    screenshotUrl: z.string().optional(),
+    mediaUrl: z.string().optional(),
+    focus: z.string().optional(),
+    zoom: z.number().min(1).max(2.5).optional(),
+    speaker: z.string().optional(),
+    channel: z.string().optional(),
+    chapter: z.string().optional(),
+    // ---------------------------------------------------------- v2.4 scene 50
+    // Research, benchmark and evidence
+    benchmark: z.string().optional(),
+    models: z.array(z.object({name: z.string().optional(), score: z.number().optional(), value: z.number().optional()}).passthrough()).max(8).optional(),
+    rankBefore: z.array(z.object({name: z.string().optional(), score: z.number().optional(), value: z.number().optional()}).passthrough()).max(8).optional(),
+    rankAfter: z.array(z.object({name: z.string().optional(), score: z.number().optional(), value: z.number().optional()}).passthrough()).max(8).optional(),
+    scatterPoints: z.array(z.object({label: z.string().optional(), x: z.number().optional(), y: z.number().optional()}).passthrough()).max(12).optional(),
+    axes: z.array(z.string()).max(8).optional(),
+    series: z.array(z.object({label: z.string().optional(), values: z.array(z.number()).max(8).optional()}).passthrough()).max(4).optional(),
+    items: z.array(z.object({model: z.string().optional(), label: z.string().optional(), value: z.number().optional(), caption: z.string().optional()}).passthrough()).max(8).optional(),
+    lineItems: z.array(z.object({label: z.string().optional(), value: z.number().optional()}).passthrough()).max(10).optional(),
+    flowNodes: z.array(z.object({id: z.string().optional(), label: z.string().optional(), value: z.number().optional()}).passthrough()).max(12).optional(),
+    decisionNodes: z.array(z.object({id: z.string().optional(), label: z.string().optional(), branch: z.string().optional(), outcome: z.string().optional()}).passthrough()).max(12).optional(),
+    workflowNodes: z.array(z.object({id: z.string().optional(), label: z.string().optional(), value: z.number().optional()}).passthrough()).max(12).optional(),
+    links: z.array(z.object({from: z.string().optional(), to: z.string().optional(), value: z.number().optional()}).passthrough()).max(20).optional(),
+    evidence: z.array(z.object({label: z.string().optional(), text: z.string().optional(), detail: z.string().optional(), url: z.string().optional()}).passthrough()).max(5).optional(),
+    caveat: z.string().optional(),
+    sourceA: z.object({name: z.string().optional(), title: z.string().optional(), text: z.string().optional(), detail: z.string().optional(), date: z.string().optional()}).passthrough().optional(),
+    sourceB: z.object({name: z.string().optional(), title: z.string().optional(), text: z.string().optional(), detail: z.string().optional(), date: z.string().optional()}).passthrough().optional(),
+    difference: z.string().optional(),
+    threshold: z.string().optional(),
+    previous: z.string().optional(),
+    current: z.string().optional(),
+    deltas: z.array(z.object({kind: z.string().optional(), text: z.string().optional(), detail: z.string().optional()}).passthrough()).max(8).optional(),
+    // Telegram, community and agent workflow
+    postText: z.string().optional(),
+    reactions: z.array(z.object({emoji: z.string().optional(), count: z.number().optional()}).passthrough()).max(8).optional(),
+    views: z.number().nonnegative().optional(),
+    time: z.string().optional(),
+    cta: z.string().optional(),
+    posts: z.array(z.object({id: z.union([z.string(), z.number()]).optional(), tag: z.string().optional(), text: z.string().optional()}).passthrough()).max(8).optional(),
+    focusPostId: z.union([z.string(), z.number()]).optional(),
+    scrollDirection: z.enum(['up', 'down']).optional(),
+    origin: z.object({channel: z.string().optional(), text: z.string().optional()}).passthrough().optional(),
+    forwards: z.array(z.object({channel: z.string().optional(), note: z.string().optional()}).passthrough()).max(6).optional(),
+    original: z.object({author: z.string().optional(), text: z.string().optional()}).passthrough().optional(),
+    commentary: z.string().optional(),
+    questions: z.array(z.string()).max(5).optional(),
+    answers: z.array(z.string()).max(5).optional(),
+    changes: z.array(z.object({kind: z.string().optional(), text: z.string().optional()}).passthrough()).max(10).optional(),
+    promptA: z.string().optional(),
+    promptB: z.string().optional(),
+    resultA: z.string().optional(),
+    resultB: z.string().optional(),
+    rubric: z.array(z.string()).max(6).optional(),
+    artifacts: z.array(z.string()).max(8).optional(),
+    selectedCell: z.object({row: z.number().int().min(1).optional(), column: z.number().int().min(1).optional()}).passthrough().optional(),
+    // Media choreography and editorial
+    positions: z.array(z.object({x: z.number().min(-1).max(1).optional(), y: z.number().min(-1).max(1).optional(), z: z.number().min(-500).max(500).optional(), rotate: z.number().optional()}).passthrough()).max(9).optional(),
+    cameraPath: z.array(z.number()).max(8).optional(),
+    captions: z.array(z.string()).max(9).optional(),
+    layoutSeed: z.number().int().optional(),
+    focusOrder: z.array(z.number().int().min(0)).max(9).optional(),
+    image: z.string().optional(),
+    stops: z.array(z.object({x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), scale: z.number().min(1).max(4).optional(), label: z.string().optional()}).passthrough()).max(4).optional(),
+    beforeUrl: z.string().optional(),
+    afterUrl: z.string().optional(),
+    labelBefore: z.string().optional(),
+    labelAfter: z.string().optional(),
+    videoUrl: z.string().optional(),
+    chapters: z.array(z.object({label: z.string().optional(), at: z.union([z.string(), z.number()]).optional()}).passthrough()).max(8).optional(),
+    documentUrl: z.string().optional(),
+    notes: z.array(z.object({x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), text: z.string().optional()}).passthrough()).max(5).optional(),
+    screens: z.array(z.string()).max(8).optional(),
+    windows: z.array(z.object({label: z.string().optional(), url: z.string().optional(), mediaUrl: z.string().optional()}).passthrough()).max(6).optional(),
+    leftImage: z.string().optional(),
+    rightImage: z.string().optional(),
+    leftMeta: z.string().optional(),
+    rightMeta: z.string().optional(),
+    // Universal 3D scenes
+    assetUrl: z.string().optional(),
+    assetLicense: z.string().optional(),
+    assetAttribution: z.string().optional(),
+    cameraPreset: z.enum(['orbit', 'arc', 'dolly', 'figureEight']).optional(),
+    materialMode: z.enum(['original', 'clay', 'glass', 'wireframe']).optional(),
+    fallbackShape: z.enum(['orb', 'cube', 'ring', 'chip', 'nodes']).optional(),
+    parts: z.array(z.object({label: z.string().optional(), position: z.array(z.number()).max(3).optional()}).passthrough()).max(8).optional(),
+    explodeDistance: z.number().min(0).max(10).optional(),
+    svgUrl: z.string().optional(),
+    devices: z.array(z.string()).max(6).optional(),
+    groups: z.array(z.object({label: z.string().optional(), value: z.number().optional()}).passthrough()).max(8).optional(),
+    zones: z.array(z.object({label: z.string().optional()}).passthrough()).max(8).optional(),
+    activePath: z.array(z.string()).max(8).optional(),
+    locations: z.array(z.object({label: z.string().optional(), lat: z.number().optional(), lon: z.number().optional()}).passthrough()).max(10).optional(),
+    routes: z.array(z.object({from: z.string().optional(), to: z.string().optional(), value: z.number().optional()}).passthrough()).max(15).optional(),
+    milestones: z.array(z.object({date: z.string().optional(), label: z.string().optional(), source: z.string().optional()}).passthrough()).max(10).optional(),
+    // Narrative, conversion and utility
+    claimA: z.string().optional(),
+    claimB: z.string().optional(),
+    realQuestion: z.string().optional(),
+    proofLabel: z.string().optional(),
+    choiceA: z.string().optional(),
+    choiceB: z.string().optional(),
+    outcomesA: z.array(z.string()).max(6).optional(),
+    outcomesB: z.array(z.string()).max(6).optional(),
+    past: z.string().optional(),
+    present: z.string().optional(),
+    next: z.string().optional(),
+    chosenPath: z.array(z.string()).max(12).optional(),
+    dimensions: z.array(z.object({label: z.string().optional(), value: z.number().min(0).max(100).optional(), left: z.string().optional(), right: z.string().optional()}).passthrough()).max(5).optional(),
+    whatChanges: z.string().optional(),
+    brandName: z.string().optional(),
+    logoUrl: z.string().optional(),
+    media: z.array(z.object({label: z.string().optional(), url: z.string().optional()}).passthrough()).max(6).optional(),
   })
   .passthrough();
 
@@ -634,6 +871,8 @@ export const VideoSpecSchema = z.object({
    * a whole render. A scene may override it with its own `style`.
    */
   style: z.string().optional(),
+  /** Operator-selected safe tokens layered over the named style family. */
+  styleConfig: StyleConfigSchema.optional(),
   brandColors: z
     .object({
       bg: z.string().default('#0E0F11'),

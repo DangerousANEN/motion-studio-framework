@@ -1,0 +1,334 @@
+{
+  "packs": [
+    {
+      "research_id": "research_gemini37_vs_sonnet5",
+      "topic": "Gemini 3.7 Flash: где он опережает Claude Sonnet 5 и сколько стоит",
+      "release_topic": true,
+      "release_date": "2026-08-13T00:00:00Z",
+      "created_at": "2026-08-14T00:00:00Z",
+      "summary": "Узкое и воспроизводимое сравнение: только опубликованные разработчиками цены и конкретные метрики из model card, без заявления о безусловном превосходстве одной модели.",
+      "sources": [
+        {
+          "source_id": "src_google_gemini37_announcement",
+          "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-3-7-flash/",
+          "title": "Introducing Gemini 3.7 Flash",
+          "publisher": "Google",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "Google announced Gemini 3.7 Flash on August 13, 2026, describing it as a workhorse for coding and agents with introductory $0.75 input and $3.75 output pricing per million tokens through year-end."
+        },
+        {
+          "source_id": "src_google_gemini37_card",
+          "url": "https://deepmind.google/models/model-cards/gemini-3-7-flash/",
+          "title": "Gemini 3.7 Flash Model Card",
+          "publisher": "Google DeepMind",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "Google's August 2026 model card lists a benchmark table comparing Gemini 3.7 Flash, Gemini 3.6 Flash, Claude Sonnet 5 and other models, together with stated token prices."
+        },
+        {
+          "source_id": "src_anthropic_sonnet5",
+          "url": "https://www.anthropic.com/news/claude-sonnet-5",
+          "title": "Introducing Claude Sonnet 5",
+          "publisher": "Anthropic",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-06-30T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "Anthropic states that Claude Sonnet 5 is available at $2 per million input tokens and $10 per million output tokens; its August 10 update says that this pricing is permanent."
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "claim_g37_release_price",
+          "statement": "Google released Gemini 3.7 Flash on 13 August 2026 with introductory pricing of $0.75 per million input tokens and $3.75 per million output tokens through 31 December 2026.",
+          "source_ids": ["src_google_gemini37_announcement", "src_google_gemini37_card"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_g37_specific_benchmark_edge",
+          "statement": "In Google's published model-card table, Gemini 3.7 Flash scores above Claude Sonnet 5 on FrontierCode 1.1 Main (43.6% versus 42.7%) and Code Arena Web Development (1588 versus 1541); this is not a claim of universal superiority.",
+          "source_ids": ["src_google_gemini37_card"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_g37_price_gap_sonnet",
+          "statement": "At the published API list prices, Gemini 3.7 Flash costs 62.5% less per input token and 62.5% less per output token than Claude Sonnet 5 ($0.75/$3.75 versus $2/$10 per million).",
+          "source_ids": ["src_google_gemini37_card", "src_anthropic_sonnet5"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        }
+      ]
+    },
+    {
+      "research_id": "research_deepseek_v4pro_release",
+      "topic": "DeepSeek V4 Pro 0813: GA-релиз, agent upgrades и гибкое reasoning",
+      "release_topic": true,
+      "release_date": "2026-08-13T00:00:00Z",
+      "created_at": "2026-08-14T00:00:00Z",
+      "summary": "Свежий DeepSeek-релиз с фактами о доступе, reason-effort и API. Сценарий не обещает, что большая модель автоматически дешева или пригодна для локального запуска.",
+      "sources": [
+        {
+          "source_id": "src_deepseek_v4pro_ga",
+          "url": "https://api-docs.deepseek.com/news/news260813/",
+          "title": "DeepSeek-V4-Pro GA Release",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "DeepSeek announces V4 Pro GA, flexible reasoning effort for V4 Pro and V4 Flash, native OpenAI Responses API support, availability in Expert Mode and through the API."
+        },
+        {
+          "source_id": "src_deepseek_v4pro_pricing",
+          "url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "title": "DeepSeek Models and Pricing",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "official_docs",
+          "excerpt": "DeepSeek lists DeepSeek-V4-Pro-0813, thinking and non-thinking modes, 1M context, 384K maximum output, tool calls and current token prices, plus an announced peak and off-peak schedule."
+        },
+        {
+          "source_id": "src_deepseek_v4pro_modelcard",
+          "url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813",
+          "title": "DeepSeek-V4-Pro-0813 Model Card",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "The official DeepSeek model card identifies V4-Pro-0813 as the release superseding preview, documents agentic improvements, and describes low, high and max reasoning-effort controls."
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "claim_ds_v4pro_ga_access",
+          "statement": "DeepSeek announced V4 Pro GA on 13 August 2026; it is available on app/web through Expert Mode and via the API.",
+          "source_ids": ["src_deepseek_v4pro_ga"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_ds_v4pro_reasoning",
+          "statement": "DeepSeek documents low, high and max reasoning-effort levels for V4 Pro, allowing effort to be selected by task complexity rather than always using the maximum setting.",
+          "source_ids": ["src_deepseek_v4pro_ga", "src_deepseek_v4pro_modelcard"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_ds_v4pro_capabilities",
+          "statement": "The DeepSeek pricing documentation lists V4-Pro-0813 with 1M context, a 384K maximum output, JSON output, tool calls, Responses API and Anthropic API support.",
+          "source_ids": ["src_deepseek_v4pro_pricing"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        }
+      ]
+    },
+    {
+      "research_id": "research_deepseek_v4pro_cost",
+      "topic": "DeepSeek V4 Pro 0813: как читать текущие и новые peak/off-peak цены",
+      "release_topic": true,
+      "release_date": "2026-08-13T00:00:00Z",
+      "created_at": "2026-08-14T00:00:00Z",
+      "summary": "Цена привязана к конкретной версии и дате вступления тарифов. Ролик разделяет текущий прайс и запланированные peak/off-peak ставки, не выдавая будущие цены за действующие сегодня.",
+      "sources": [
+        {
+          "source_id": "src_deepseek_cost_news",
+          "url": "https://api-docs.deepseek.com/news/news260813/",
+          "title": "DeepSeek-V4-Pro GA Release and API Pricing Update",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "DeepSeek says V4 API pricing will change to peak and off-peak rates on 16 August 2026, with off-peak rates 50% lower than peak rates."
+        },
+        {
+          "source_id": "src_deepseek_cost_table",
+          "url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "title": "DeepSeek Models and Pricing",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "official_docs",
+          "excerpt": "The official pricing table gives current V4 Pro cache-hit, cache-miss and output prices, then separately lists the peak and off-peak prices that take effect on 16 August 2026."
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "claim_ds_current_prices",
+          "statement": "Before the announced 16 August change, DeepSeek lists V4 Pro at $0.003625 per million cache-hit input tokens, $0.435 per million cache-miss input tokens and $0.87 per million output tokens.",
+          "source_ids": ["src_deepseek_cost_table"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_ds_future_offpeak",
+          "statement": "DeepSeek says the new V4 peak/off-peak rates take effect at 16:00 UTC on 16 August 2026; for V4 Pro, the listed off-peak rates are $0.022 cache-hit input, $0.66 cache-miss input and $1.98 output per million tokens.",
+          "source_ids": ["src_deepseek_cost_news", "src_deepseek_cost_table"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_ds_future_not_current",
+          "statement": "The announced off-peak prices are future rates on 14 August 2026, so a cost estimate must label them as effective from 16 August rather than present them as today's invoice.",
+          "source_ids": ["src_deepseek_cost_news", "src_deepseek_cost_table"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        }
+      ]
+    },
+    {
+      "research_id": "research_grok46_release",
+      "topic": "Grok 4.6: новый long-running agent, API и cache-aware цена",
+      "release_topic": true,
+      "release_date": "2026-08-12T00:00:00Z",
+      "created_at": "2026-08-14T00:00:00Z",
+      "summary": "Актуальный xAI-релиз с чётким разделением между consumer plan, API и кэшированным input. Никаких обещаний безлимита в free access.",
+      "sources": [
+        {
+          "source_id": "src_xai_grok46_release",
+          "url": "https://x.ai/news/grok-4-6",
+          "title": "Introducing Grok 4.6",
+          "publisher": "xAI",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-12T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "xAI announced Grok 4.6 on August 12, 2026, focused on long-running agents and interactive/visual work, with availability in Cursor, Grok Build, API and partners."
+        },
+        {
+          "source_id": "src_xai_grok46_docs",
+          "url": "https://docs.x.ai/developers/models/grok-4.6",
+          "title": "Grok 4.6 Developer Model Documentation",
+          "publisher": "xAI",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-12T00:00:00Z",
+          "source_type": "official_docs",
+          "excerpt": "xAI documents Grok 4.6 with text and image input, 500K context, function calling, structured outputs, reasoning, and list prices for standard and cached input tokens."
+        },
+        {
+          "source_id": "src_xai_grok_pricing",
+          "url": "https://x.ai/pricing",
+          "title": "xAI Pricing",
+          "publisher": "xAI",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-14T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "xAI lists a Free consumer plan with limited access and lists Grok 4.6 under paid SuperGrok access; the public plan page does not present an unlimited-free-use claim."
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "claim_grok46_release_focus",
+          "statement": "xAI released Grok 4.6 on 12 August 2026 with a stated focus on long-running agents, interactive work and visual projects.",
+          "source_ids": ["src_xai_grok46_release"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 2
+        },
+        {
+          "claim_id": "claim_grok46_api_capabilities",
+          "statement": "The xAI model documentation lists Grok 4.6 with a 500K context window, function calling, structured outputs and reasoning capabilities.",
+          "source_ids": ["src_xai_grok46_docs"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 2
+        },
+        {
+          "claim_id": "claim_grok46_price_cache",
+          "statement": "xAI lists Grok 4.6 API pricing at $2 per million input tokens, $0.50 per million cached input tokens and $6 per million output tokens.",
+          "source_ids": ["src_xai_grok46_docs", "src_xai_grok46_release"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 2
+        }
+      ]
+    },
+    {
+      "research_id": "research_august_model_costmap",
+      "topic": "Свежая cost map: Gemini 3.7 Flash, DeepSeek V4 Pro 0813, Grok 4.6 и Claude Sonnet 5",
+      "release_topic": true,
+      "release_date": "2026-08-13T00:00:00Z",
+      "created_at": "2026-08-14T00:00:00Z",
+      "summary": "Сравнение API-list prices на одну дату и одну единицу измерения. Ролик подчёркивает, что benchmark, cache hit, output mix и условия доступа меняют финальную стоимость.",
+      "sources": [
+        {
+          "source_id": "src_cost_gemini",
+          "url": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing",
+          "title": "Gemini Enterprise Agent Platform Pricing",
+          "publisher": "Google Cloud",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "Google Cloud lists Gemini 3.7 Flash introductory pricing at $0.75 per million input tokens and $3.75 per million text output tokens through December 31, 2026."
+        },
+        {
+          "source_id": "src_cost_deepseek",
+          "url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "title": "DeepSeek Models and Pricing",
+          "publisher": "DeepSeek",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-13T00:00:00Z",
+          "source_type": "official_docs",
+          "excerpt": "DeepSeek's current V4 Pro table lists $0.435 cache-miss input and $0.87 output per million tokens before its announced August 16 pricing schedule takes effect."
+        },
+        {
+          "source_id": "src_cost_grok",
+          "url": "https://docs.x.ai/developers/models/grok-4.6",
+          "title": "Grok 4.6 Developer Model Documentation",
+          "publisher": "xAI",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-08-12T00:00:00Z",
+          "source_type": "official_docs",
+          "excerpt": "xAI lists Grok 4.6 standard API price as $2 per million input tokens and $6 per million output tokens, with cached input at $0.50 per million tokens."
+        },
+        {
+          "source_id": "src_cost_sonnet",
+          "url": "https://www.anthropic.com/news/claude-sonnet-5",
+          "title": "Introducing Claude Sonnet 5",
+          "publisher": "Anthropic",
+          "retrieved_at": "2026-08-14T00:00:00Z",
+          "published_at": "2026-06-30T00:00:00Z",
+          "source_type": "primary",
+          "excerpt": "Anthropic says Claude Sonnet 5 is priced at $2 per million input tokens and $10 per million output tokens, and its August 10 update says the introductory price is permanent."
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "claim_costmap_input",
+          "statement": "For the published standard/list input prices captured on 14 August 2026, Gemini 3.7 Flash is $0.75, DeepSeek V4 Pro is $0.435 cache-miss, Grok 4.6 is $2 and Claude Sonnet 5 is $2 per million input tokens.",
+          "source_ids": ["src_cost_gemini", "src_cost_deepseek", "src_cost_grok", "src_cost_sonnet"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_costmap_output",
+          "statement": "For the published standard/list output prices captured on 14 August 2026, Gemini 3.7 Flash is $3.75, DeepSeek V4 Pro is $0.87, Grok 4.6 is $6 and Claude Sonnet 5 is $10 per million output tokens.",
+          "source_ids": ["src_cost_gemini", "src_cost_deepseek", "src_cost_grok", "src_cost_sonnet"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        },
+        {
+          "claim_id": "claim_costmap_not_benchmark",
+          "statement": "Token list price alone is not a quality ranking: providers publish different cache prices, context conditions, effort controls and benchmark methodologies, so a production choice needs a task-specific test.",
+          "source_ids": ["src_cost_gemini", "src_cost_deepseek", "src_cost_grok", "src_cost_sonnet"],
+          "confidence": "high",
+          "claim_type": "fact",
+          "freshness_days": 1
+        }
+      ]
+    }
+  ]
+}

@@ -63,3 +63,12 @@ models/
 
 # Temporary voice prep output (alongside source files)
 *_prepped24k.wav
+
+# Reproducible LLM Hubs render and planning outputs; keep source scripts and validated evidence only.
+projects/llm_hubs/audio/
+projects/llm_hubs/rendered/
+projects/llm_hubs/qa_*/
+projects/llm_hubs/generated/
+projects/llm_hubs/pipeline_text_storyboards*.json
+projects/llm_hubs/__pycache__/
+remotion/expansion_visual_smoke.json

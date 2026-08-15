@@ -1,88 +1,92 @@
 /**
- * The style layer, wired.
+ * Theme-adaptive visual language for MSF Studio.
  *
- * WHY THIS FILE EXISTS
- * --------------------
- * `styleKits.ts` has shipped eight complete looks — palette + fonts + motion
- * character + backdrop + post-FX intent — since it was written, and NOTHING
- * imported `getStyleKit`. Verified with a repo-wide grep: the only reference to
- * the module was `PostFX.tsx` importing the `EffectProfile` *type*. So the
- * kits were dead configuration: setting `style: "retro"` on a spec changed
- * nothing, because no component ever asked which style was active.
- *
- * Meanwhile every preset hardcoded its own colours (`TG.bg = '#17212B'`,
- * `BRAND.neon`, literal `'#00FF88'`), which is why "styles should recolour the
- * scenes" was impossible: there was no channel to recolour *through*.
- *
- * This adds that channel. `<StyleProvider>` resolves a kit once at the top of
- * the composition and publishes it; presets call `useStyle()` and read
- * `theme`/`fonts`/`motion`/`surface` from there.
- *
- * WHY CONTEXT AND NOT PROPS
- * -------------------------
- * A prop would have to be threaded through TransitionSeries, EffectStack and
- * the dispatcher into 17+ presets, and every new preset would have to remember
- * to forward it. Context makes the style ambient: a preset that wants it asks,
- * one that does not is unaffected. It also survives the HtmlInCanvas
- * rasterisation the shader transitions use, because the provider sits above
- * the captured subtree.
- *
- * WHY THE DEFAULT IS THE POP KIT AND NOT `undefined`
- * --------------------------------------------------
- * `useStyle()` outside a provider returns the default kit rather than throwing.
- * Presets are rendered directly in tests and in `remotion still` probes without
- * the full Main composition; making the hook throw would turn every such probe
- * into a crash, and making it return undefined would push a null-check into
- * every call site. A sane default keeps both paths working.
- *
- * PER-SCENE OVERRIDE
- * ------------------
- * A scene may set its own `style`, which wins over the spec-level one. That is
- * how a single video mixes an `editorial` explainer section with one `neon`
- * announcement beat, which is exactly the "different styles" the brief asks
- * for. `accentColor` still overrides the kit's accent on top of that, because
- * the accent is the one colour authors reach for most often.
+ * A style kit is the editorial starting point. A StyleConfig is the safe,
+ * structured override layer that lets an operator choose a neon colour,
+ * background, card surface, glow and motion without forking a preset.
  */
 import React, { createContext, useContext, useMemo } from 'react';
 import type { Theme } from '../presets/brand';
 import type { FontKit } from './fonts';
 import { getFontKit } from './fonts';
-import type { StyleKit } from './styleKits';
+import type { BackdropKind, EffectProfile, MotionCharacter, StyleKit } from './styleKits';
 import { getStyleKit, getStyleTheme, DEFAULT_STYLE_KIT } from './styleKits';
+
+export type PaletteOverrides = Partial<Pick<Theme,
+  'bg' | 'surface' | 'gold' | 'neon' | 'cyan' | 'text' | 'muted' |
+  'darkBorder' | 'shadowColor' | 'accentCyan' | 'accentGreen' | 'accentWarm'
+>>;
+
+/**
+ * Public style controls. All values are optional and merge over the selected
+ * style family. This contract intentionally excludes arbitrary CSS so an agent
+ * cannot produce unreadable or non-deterministic renderer state.
+ */
+export interface StyleConfig {
+  palette?: PaletteOverrides;
+  fonts?: string;
+  backdrop?: BackdropKind;
+  surface?: StyleKit['surface'];
+  transition?: string;
+  motion?: Partial<MotionCharacter>;
+  effects?: Partial<EffectProfile>;
+}
+
+/** Merge a scene config over a video config, preserving nested token groups. */
+export const mergeStyleConfig = (
+  base?: StyleConfig,
+  override?: StyleConfig,
+): StyleConfig | undefined => {
+  if (!base && !override) return undefined;
+  return {
+    ...base,
+    ...override,
+    palette: { ...base?.palette, ...override?.palette },
+    motion: { ...base?.motion, ...override?.motion },
+    effects: { ...base?.effects, ...override?.effects },
+  };
+};
 
 /** Everything a preset needs to look like it belongs to the active style. */
 export interface ResolvedStyle {
-  /** The kit itself — read `backdrop`, `surface`, `transition` from here. */
+  /** The resolved kit — backdrop/surface/transition may include config overrides. */
   kit: StyleKit;
-  /** Colour palette the kit points at, with any accent override applied. */
+  /** Final colour palette after config and per-scene accent resolution. */
   theme: Theme;
-  /** Font families for display / body / mono text. */
   fonts: FontKit;
-  /**
-   * The single accent colour. Resolution order:
-   *   scene.accentColor  ->  kit's theme.neon
-   * A preset should use this for its one highlight colour rather than reaching
-   * for `theme.neon` directly, so a per-scene override actually takes effect.
-   */
+  /** Per-scene accent wins over palette.neon and kit defaults. */
   accent: string;
-  /** Convenience: the kit's motion character. */
   motion: StyleKit['motion'];
-  /** Convenience: card/border treatment. */
   surface: StyleKit['surface'];
+  /** Preserved to let a nested scene merge cleanly over an ambient configuration. */
+  config?: StyleConfig;
 }
 
-const resolve = (styleName?: string, accentColor?: string): ResolvedStyle => {
-  const kit = getStyleKit(styleName);
-  const base = getStyleTheme(kit);
-  const accent = accentColor || base.neon;
-
-  // The accent is folded into the palette so a preset reading `theme.neon`
-  // (as all the existing ones do) honours a per-scene override without every
-  // preset being rewritten first. This is what makes the wiring incremental.
-  const theme: Theme = accentColor
-    ? { ...base, neon: accentColor, accentGreen: accentColor }
-    : base;
-
+const resolve = (
+  styleName?: string,
+  accentColor?: string,
+  config?: StyleConfig,
+): ResolvedStyle => {
+  const baseKit = getStyleKit(styleName);
+  const baseTheme = getStyleTheme(baseKit);
+  const configuredTheme: Theme = { ...baseTheme, ...config?.palette };
+  const accent = accentColor || configuredTheme.neon;
+  const theme: Theme = {
+    ...configuredTheme,
+    // Legacy presets read `theme.neon` / `accentGreen`; retain a consistent
+    // visible accent even if their implementation predates StyleContext.
+    neon: accent,
+    accentGreen: accent,
+  };
+  const kit: StyleKit = {
+    ...baseKit,
+    fonts: config?.fonts ?? baseKit.fonts,
+    backdrop: config?.backdrop ?? baseKit.backdrop,
+    surface: config?.surface ?? baseKit.surface,
+    transition: config?.transition ?? baseKit.transition,
+    motion: { ...baseKit.motion, ...config?.motion },
+    effects: { ...baseKit.effects, ...config?.effects },
+  };
   return {
     kit,
     theme,
@@ -90,55 +94,51 @@ const resolve = (styleName?: string, accentColor?: string): ResolvedStyle => {
     accent,
     motion: kit.motion,
     surface: kit.surface,
+    config,
   };
 };
 
 const StyleContext = createContext<ResolvedStyle>(resolve(DEFAULT_STYLE_KIT));
 
 export interface StyleProviderProps {
-  /** Style kit name. Unknown names fall back to the default, never throw. */
+  /** Named visual family, for example `llm_hubs_neon`, `terminal` or `glass`. */
   style?: string;
-  /** Overrides the kit's accent colour for everything below this provider. */
+  /** Direct scene accent override for quick authoring. */
   accentColor?: string;
+  /** Safe, structured customisation of the selected style family. */
+  config?: StyleConfig;
   children: React.ReactNode;
 }
 
 export const StyleProvider: React.FC<StyleProviderProps> = ({
   style,
   accentColor,
+  config,
   children,
 }) => {
-  // Memoised on the two inputs: the resolved object is passed as context value,
-  // and a fresh object every frame would re-render every consumer on every
-  // frame for no reason. At 60fps x 17 presets that is not free.
-  const value = useMemo(() => resolve(style, accentColor), [style, accentColor]);
+  const value = useMemo(
+    () => resolve(style, accentColor, config),
+    [style, accentColor, config],
+  );
   return <StyleContext.Provider value={value}>{children}</StyleContext.Provider>;
 };
 
-/**
- * Read the active style. Safe outside a provider — returns the default kit.
- *
- * @example
- *   const { theme, fonts, accent } = useStyle();
- *   <div style={{ background: theme.surface, fontFamily: fonts.display }} />
- */
+/** Read the active style. Safe outside a provider for isolated still probes. */
 export const useStyle = (): ResolvedStyle => useContext(StyleContext);
 
-/**
- * Per-scene style resolution, for use inside a preset.
- *
- * A preset receives `style` and `accentColor` as props; this folds them over
- * the ambient style so the scene-level value wins. Presets should prefer this
- * over bare `useStyle()` when they accept those props.
- */
+/** Resolve a scene override over the ambient video style and its custom tokens. */
 export const useSceneStyle = (
   sceneStyle?: string,
-  sceneAccent?: string
+  sceneAccent?: string,
+  sceneConfig?: StyleConfig,
 ): ResolvedStyle => {
   const ambient = useStyle();
   return useMemo(() => {
-    if (!sceneStyle && !sceneAccent) return ambient;
-    // Scene style wins; when only an accent is given, keep the ambient kit.
-    return resolve(sceneStyle ?? ambient.kit.name, sceneAccent ?? ambient.accent);
-  }, [ambient, sceneStyle, sceneAccent]);
+    if (!sceneStyle && !sceneAccent && !sceneConfig) return ambient;
+    return resolve(
+      sceneStyle ?? ambient.kit.name,
+      sceneAccent ?? ambient.accent,
+      mergeStyleConfig(ambient.config, sceneConfig),
+    );
+  }, [ambient, sceneStyle, sceneAccent, sceneConfig]);
 };

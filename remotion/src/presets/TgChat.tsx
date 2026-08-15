@@ -131,6 +131,8 @@ const TG_FONT =
 interface ChatMessage {
   from?: string;
   text?: string;
+  /** Original in-render Telegram-style sticker, constrained by VideoSpec schema. */
+  sticker?: 'brain' | 'rocket' | 'spark' | 'thumbsUp';
   time?: string;
   read?: boolean;
   out?: boolean;
@@ -210,6 +212,52 @@ const Tail: React.FC<{ out: boolean; color: string; size: number }> = ({ out, co
  * Mouse pointer, drawn rather than imported so it needs no asset and scales
  * with the frame. The shadow is what sells it as sitting *above* the UI.
  */
+const STICKER_GLYPHS = {
+  brain: '🧠',
+  rocket: '🚀',
+  spark: '✨',
+  thumbsUp: '👍',
+} as const;
+
+/**
+ * A light, original Telegram-style sticker reaction. Motion is limited to the
+ * first 12 frames after arrival, then becomes perfectly static for readability.
+ */
+const ChatSticker: React.FC<{
+  kind: keyof typeof STICKER_GLYPHS;
+  progress: number;
+  height: number;
+  out: boolean;
+}> = ({ kind, progress, height, out }) => {
+  const enter = Math.max(0, Math.min(1, progress));
+  const scale = 0.76 + enter * 0.24;
+  const rotation = (1 - enter) * (out ? 8 : -8);
+  const size = Math.round(height * 0.072);
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.32),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: Math.round(size * 0.7),
+        lineHeight: 1,
+        transform: `scale(${scale}) rotate(${rotation}deg)`,
+        background: out
+          ? 'linear-gradient(135deg, rgba(57,150,236,0.22), rgba(57,150,236,0.04))'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,255,255,0.48))',
+        border: out ? '1px solid rgba(57,150,236,0.32)' : '1px solid rgba(31,69,99,0.10)',
+        boxShadow: '0 5px 14px rgba(24,56,84,0.17)',
+      }}
+      aria-label={`${kind} sticker`}
+    >
+      {STICKER_GLYPHS[kind]}
+    </div>
+  );
+};
+
 const Cursor: React.FC<{ x: number; y: number; size: number; pressed: boolean }> = ({
   x,
   y,
@@ -578,6 +626,7 @@ export const TgChat: React.FC<BaseSceneProps> = ({
               : animate(frame - i * stagger, 0, 1);
             const out = Boolean(m.out);
             const text = m.text ?? '';
+            const isSticker = Boolean(m.sticker);
             const wide = estimateWidth(text, bubbleFont) > maxBubble * 0.8;
 
             // GROUPING. A run of messages from the same sender is one visual
@@ -632,6 +681,14 @@ export const TgChat: React.FC<BaseSceneProps> = ({
                     : `translate(${(1 - appear) * (out ? 26 : -26)}px, ${(1 - appear) * 12}px)`,
                 }}
               >
+                {isSticker && m.sticker ? (
+                  <ChatSticker
+                    kind={m.sticker}
+                    progress={Math.min(1, Math.max(0, (frame - (isComposed ? sendFrame : i * stagger)) / 12))}
+                    height={height}
+                    out={out}
+                  />
+                ) : (
                 <div
                   style={{
                     position: 'relative',
@@ -691,6 +748,7 @@ export const TgChat: React.FC<BaseSceneProps> = ({
 
                   {lastOfRun && <Tail out={out} color={bubbleBg} size={tailSize} />}
                 </div>
+                )}
               </div>
             );
           })}
