@@ -192,18 +192,19 @@ export const DecisionGrid: React.FC<BaseSceneProps> = (props) => {
 
   return (
     <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.bg, overflow: 'hidden' }}>
-      <Backdrop />
+      {/* Reading surfaces stay on a static backdrop; no inherited mesh/noise motion. */}
+      <Backdrop kind="plain" opacity={0.34} />
       <div style={{ position: 'absolute', top: safe.top, left: safe.left, width: safe.width, height: safe.height, boxSizing: 'border-box' }}>
         <div style={{ color: theme.text, fontFamily: fonts.display, fontSize: Math.round(height * 0.040), fontWeight: 900, lineHeight: 1.06, maxWidth: safe.width }}>{title || 'Выберите подходящий режим'}</div>
         <div style={{ marginTop: Math.round(height * 0.05), display: 'flex', flexWrap: 'wrap', gap, alignContent: 'center' }}>
           {options.map((option, index) => {
             const delay = index * Math.round(fps * 0.16);
-            // An explicit monotonic entrance prevents scale-up/scale-down pulses
-            // even when a parent scene receives an aggressive motion setting.
+            // Keep geometry fixed: a fade-only entrance avoids both scale pulses
+            // and apparent scene jitter when an export drops playback frames.
             const progress = clamp01((frame - delay) / cardRevealFrames);
             const highlight = index === 0;
             return (
-              <div key={`${option.title}-${index}`} style={{ width: cardWidth, height: cardHeight, borderRadius: Math.round(width * 0.026), border: `2px solid ${highlight ? accent : `${theme.muted}66`}`, background: highlight ? `${accent}16` : `${theme.surface}DD`, padding: Math.round(width * 0.032), boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: progress, transform: `translate3d(0, ${Math.round((1 - progress) * height * 0.024)}px, 0)`, willChange: progress < 1 ? 'transform, opacity' : 'auto' }}>
+              <div key={`${option.title}-${index}`} style={{ width: cardWidth, height: cardHeight, borderRadius: Math.round(width * 0.026), border: `2px solid ${highlight ? accent : `${theme.muted}66`}`, background: highlight ? `${accent}16` : `${theme.surface}DD`, padding: Math.round(width * 0.032), boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: progress }}>
                 <div style={{ color: highlight ? accent : theme.muted, fontFamily: fonts.display, fontSize: Math.round(height * 0.017), fontWeight: 900, letterSpacing: Math.round(width * 0.002), textTransform: 'uppercase' }}>{option.tag || `Вариант ${index + 1}`}</div>
                 <div>
                   <div style={{ color: theme.text, fontFamily: fonts.display, fontSize: Math.round(height * 0.032), fontWeight: 900, lineHeight: 1.05, overflowWrap: 'break-word' }}>{option.title}</div>
