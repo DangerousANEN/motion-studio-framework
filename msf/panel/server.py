@@ -1537,12 +1537,16 @@ def api_studio_catalog(
     category: Optional[str] = None,
     tier: str = "preset",
     limit: int = 30,
+    offset: int = 0,
 ) -> Dict[str, Any]:
     """Live capability-filtered scene discovery for the Studio dashboard."""
     from msf.studio.catalog import search_scenes
     selected = _studio_tier(tier)
     tags = [item.strip() for item in intents.split(",") if item.strip()]
-    result = search_scenes(query, intent_tags=tags or None, category=category, tier=selected, limit=limit)
+    result = search_scenes(
+        query, intent_tags=tags or None, category=category, tier=selected,
+        limit=limit, offset=offset,
+    )
     return result.model_dump(mode="json")
 
 

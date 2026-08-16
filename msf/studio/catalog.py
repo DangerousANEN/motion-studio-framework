@@ -73,6 +73,7 @@ def search_scenes(
     category: Optional[str] = None,
     tier: CapabilityTier = CapabilityTier.PRESET,
     limit: int = 30,
+    offset: int = 0,
 ) -> CatalogSearchResult:
     """Rank stable scenes for an agent/UI without hardcoded scene lists."""
     tokens = {token.lower() for token in query.replace("_", " ").split() if token.strip()}
@@ -90,5 +91,7 @@ def search_scenes(
         if score:
             candidates.append((score, item))
     candidates.sort(key=lambda pair: (-pair[0], pair[1].name.lower()))
-    items = [item for _, item in candidates[: max(1, min(limit, 100))]]
+    safe_limit = max(1, min(limit, 100))
+    safe_offset = max(0, offset)
+    items = [item for _, item in candidates[safe_offset : safe_offset + safe_limit]]
     return CatalogSearchResult(query=query, total=len(candidates), items=items)
