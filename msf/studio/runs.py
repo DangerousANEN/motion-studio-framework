@@ -24,7 +24,10 @@ from .events import EventStore
 
 _REPO = Path(__file__).resolve().parents[2]
 _DEFAULT_ROOT = _REPO / "output" / "studio"
-_PATCHABLE_REQUEST_FIELDS = {"topic", "preset", "style", "style_config", "voice", "research", "music", "sfx", "agent_level"}
+_PATCHABLE_REQUEST_FIELDS = {
+    "topic", "preset", "style", "style_config", "voice", "research", "music", "sfx", "agent_level",
+    "media_assets", "pinned_sources",
+}
 _SUPPORTED_OPERATOR_NODES = {"deep_research", "script_split"}
 _MAX_OPERATOR_INSTRUCTION_CHARS = 480
 

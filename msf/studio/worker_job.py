@@ -55,16 +55,30 @@ def main(argv: list[str]) -> int:
     try:
         request = RunRequest.model_validate_json((run_dir / "request.json").read_text(encoding="utf-8"))
         from msf.graph.video_graph import build_msf_graph
+        from msf.studio.project_resources import materialize_media_for_render
 
+        # Registered assets are copied into a run-isolated Remotion public folder.
+        # The graph receives relative src values only, never project storage paths.
+        project_media = materialize_media_for_render(request.project_id, request.media_assets, run_id) if request.media_assets else []
+        if project_media or request.pinned_sources:
+            events.append(
+                "run.resources_bound",
+                message="Project resources bound to approved run",
+                payload={"media_count": len(project_media), "pinned_source_count": len(request.pinned_sources)},
+            )
         graph_state = {
             "text": request.text or request.topic,
             "preset": request.preset,
+            "style": request.style,
             "voice": request.voice,
             "agent_level": request.agent_level,
             "output_path": str(run_dir / "final.mp4"),
             "music": request.music,
             "sfx": request.sfx,
             "research": request.research,
+            "project_id": request.project_id,
+            "project_media": project_media,
+            "pinned_sources": [item.model_dump(mode="json") for item in request.pinned_sources],
             "operator_overrides": request.operator_overrides,
         }
         if request.research:

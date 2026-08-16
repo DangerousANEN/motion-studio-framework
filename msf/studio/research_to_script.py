@@ -860,17 +860,31 @@ class ResearchToScriptWorkflow:
     def _collect_sources(self, state: ResearchToScriptState) -> ResearchToScriptState:
         request = state["request"]
         provider = self._provider_for(request)
-        gathered: list[SearchHit] = _official_seed_hits_for_topic(request.topic)
+        # Pinned URLs are candidate pages, not pre-approved evidence. They travel
+        # through the same extractor and claim validator as search results.
+        pinned_hits = [
+            SearchHit(
+                title=f"Pinned source: {item.reason[:120]}",
+                url=_normalise_url(item.url),
+                snippet=f"operator-pinned {item.mode}: {item.reason}",
+                publisher=(urlsplit(item.url).hostname or "operator-pinned"),
+            )
+            for item in request.pinned_sources
+        ]
+        gathered: list[SearchHit] = [*pinned_hits, *_official_seed_hits_for_topic(request.topic)]
         per_query = max(2, min(4, request.max_sources))
         for query in state["queries"]:
             gathered.extend(provider.search(query, limit=per_query))
         hits = _deduplicate_hits(gathered)
-        hits.sort(key=lambda item: (-_rank_hit_for_topic(item, request.topic), item.url))
-        hits = hits[: request.max_sources * 2]
+        pinned_order = {_normalise_url(item.url): index for index, item in enumerate(request.pinned_sources)}
+        hits.sort(key=lambda item: (0 if _normalise_url(item.url) in pinned_order else 1, pinned_order.get(_normalise_url(item.url), 999), -_rank_hit_for_topic(item, request.topic), item.url))
+        # Never trim a user-required URL out of the candidate list merely because
+        # open-web search returned many popular pages.
+        hits = hits[: max(request.max_sources * 2, len(pinned_hits))]
         if len(hits) < 2:
             raise ResearchToScriptError("research found fewer than two safe public source candidates")
         events = list(state.get("milestones", []))
-        events.append(self._event("sources_collected", "Собраны и очищены кандидаты источников.", candidates=len(hits)))
+        events.append(self._event("sources_collected", "Собраны и очищены кандидаты источников.", candidates=len(hits), pinned=len(pinned_hits)))
         return {"hits": hits, "milestones": events}
 
     def _discover_community_leads(self, state: ResearchToScriptState) -> ResearchToScriptState:
@@ -904,25 +918,47 @@ class ResearchToScriptWorkflow:
         request = state["request"]
         sources: list[EvidenceSource] = []
         seen_urls: set[str] = set()
+        pinned_by_url = {_normalise_url(item.url): item for item in request.pinned_sources}
+        resolved_pinned: set[str] = set()
+        processed_context = 0
         for hit in state["hits"]:
-            if len(sources) >= request.max_sources:
-                break
-            source = self.extractor.extract(hit)
-            if source is None or source.url in seen_urls:
+            requested_url = _normalise_url(hit.url)
+            pinned = pinned_by_url.get(requested_url)
+            # Required source candidates stay eligible even after ordinary evidence
+            # reaches its budget; they must produce a success or a visible failure.
+            if len(sources) >= request.max_sources and not (pinned and pinned.mode == "required"):
                 continue
-            # Social pages are collected only as review-only community leads. They
-            # cannot become a factual source simply because a search engine returned
-            # a transcript, snippet or repost of a creator's demo.
+            source = self.extractor.extract(hit)
+            if source is None:
+                continue
             if source.source_type == "community":
+                # Community links are review leads, never factual evidence. A
+                # required community URL must therefore fail transparently.
+                continue
+            if pinned and pinned.mode == "context_only":
+                processed_context += 1
+                resolved_pinned.add(requested_url)
+                continue
+            if source.url in seen_urls:
+                if pinned:
+                    resolved_pinned.add(requested_url)
                 continue
             seen_urls.add(source.url)
             sources.append(source)
+            if pinned:
+                resolved_pinned.add(requested_url)
+        missing_required = [item.url for item in request.pinned_sources if item.mode == "required" and _normalise_url(item.url) not in resolved_pinned]
+        if missing_required:
+            names = ", ".join(urlsplit(url).hostname or url for url in missing_required[:3])
+            raise ResearchToScriptError(f"required pinned source could not be extracted as safe factual evidence: {names}")
         if len(sources) < 2:
             raise ResearchToScriptError("research could not extract at least two public source excerpts")
         official_domain = _official_domain_for_topic(request.topic)
         if official_domain and not any((urlsplit(source.url).hostname or "").lower().endswith(official_domain) for source in sources):
             raise ResearchToScriptError(f"research requires an extracted official source from {official_domain} for this provider topic")
         events = list(state.get("milestones", []))
+        if request.pinned_sources:
+            events.append(self._event("pinned_sources_processed", "Обработаны закреплённые оператором публичные источники.", pinned=len(request.pinned_sources), context_only=processed_context, required=len([item for item in request.pinned_sources if item.mode == "required"])))
         events.append(self._event("pages_extracted", "Извлечены краткие фрагменты публичных страниц.", sources=len(sources)))
         return {"sources": sources, "milestones": events}
 

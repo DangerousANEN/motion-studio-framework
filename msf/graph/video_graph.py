@@ -161,6 +161,12 @@ class VideoState(TypedDict, total=False):
     operator_overrides: Optional[Dict[str, str]]
     research_summary: Optional[str]
     research_sources: Optional[List[str]]
+    # Run-scoped typed resource views. They contain public URLs/relative Remotion
+    # paths only; internal project storage paths never enter LangGraph state.
+    project_id: Optional[str]
+    project_media: Optional[List[Dict[str, Any]]]
+    pinned_sources: Optional[List[Dict[str, Any]]]
+    media_assignments: Optional[List[Dict[str, Any]]]
 
 
 def node_gate_check(state: VideoState) -> VideoState:
@@ -235,8 +241,6 @@ def node_deep_research(state: VideoState) -> VideoState:
     if not (state.get("research") or state.get("research_query")):
         return state
 
-    from msf.skills_bridge.deep_research import research as run_research
-
     query = state.get("research_query") or state.get("text") or ""
     research_direction = (state.get("operator_overrides") or {}).get("deep_research", "").strip()
     if research_direction:
@@ -247,6 +251,35 @@ def node_deep_research(state: VideoState) -> VideoState:
             "to derive one from."
         )
 
+    # When the operator pins sources, switch to the native evidence-first Studio
+    # workflow. Required URLs are extracted before open-web candidates and fail
+    # closed when unavailable; the validated storyboard then becomes graph input.
+    pinned_payload = state.get("pinned_sources") or []
+    if pinned_payload:
+        from msf.studio.contracts import PinnedResearchSource, ResearchToScriptRequest
+        from msf.studio.research_to_script import ResearchToScriptWorkflow
+
+        request = ResearchToScriptRequest(
+            topic=query[:400],
+            project_id=state.get("project_id") or "default",
+            style_family=state.get("style") or "llm_hubs_neon",
+            pinned_sources=[PinnedResearchSource.model_validate(item) for item in pinned_payload],
+        )
+        result = ResearchToScriptWorkflow().run(request)
+        state["storyboard"] = [scene.model_dump(mode="json") for scene in result.storyboard.scenes]
+        state["text"] = " ".join(scene.text for scene in result.storyboard.scenes)
+        state["research_summary"] = result.research.summary
+        state["research_sources"] = [source.url for source in result.research.sources]
+        state["research_facts"] = {
+            "facts": [claim.statement for claim in result.research.claims],
+            "key_points": [result.script.hook, result.script.takeaway],
+            "statistics": [],
+        }
+        print(f"[research] native evidence-first workflow: {len(result.research.sources)} sources, "
+              f"{len(request.pinned_sources)} pinned, {len(result.storyboard.scenes)} scenes")
+        return state
+
+    from msf.skills_bridge.deep_research import research as run_research
     facts = run_research(
         query,
         detailed=bool(state.get("research_detailed")),
@@ -326,6 +359,75 @@ def _script_from_facts(facts: Any, state: VideoState) -> str:
     return " ".join(lines)
 
 
+def _apply_project_media(scenes: List[Dict[str, Any]], state: VideoState) -> List[Dict[str, Any]]:
+    """Assign registered media to compatible renderer presets by explicit role.
+
+    This is deterministic placement, not a free-form model file-system tool. Every
+    ``src`` was materialized by the worker into this run's Remotion public tree.
+    Unsupported kinds remain available as research/context resources but are not
+    silently faked as a visual scene.
+    """
+    assets = state.get("project_media") or []
+    visual_assets = [item for item in assets if item.get("kind") in {"image", "video"} and item.get("src")]
+    if not scenes or not visual_assets:
+        state["media_assignments"] = []
+        return scenes
+    mapping = {
+        "screen_recording": "ScreenGuide",
+        "video_insert": "VideoEmbed",
+        "telegram_round": "TelegramVoiceRound",
+        "hero_image": "ImageSpotlight",
+        "supporting_image": "ImageSpotlight",
+        "channel_avatar": "ImageSpotlight",
+    }
+    assignments: List[Dict[str, Any]] = []
+    # Keep the first hook readable. Assets enter body scenes first, then continue
+    # cyclically only if the project contains more media than body beats.
+    start = 1 if len(scenes) > 1 else 0
+    for offset, asset in enumerate(visual_assets):
+        index = (start + offset) % len(scenes)
+        scene = scenes[index]
+        if scene.get("src") or scene.get("images"):
+            continue
+        role = str(asset.get("role") or "supporting_image")
+        preset = mapping.get(role, "ImageSpotlight")
+        src = str(asset["src"])
+        scene.update({
+            "preset": preset,
+            "src": src,
+            "images": [src] if asset.get("kind") == "image" else None,
+            "title": scene.get("title") or str(asset.get("caption") or "Материал проекта")[:120],
+        })
+        if preset == "ScreenGuide":
+            scene.setdefault("guide_text", str(asset.get("caption") or "Смотрите на ключевой шаг"))
+            scene.setdefault("show_rec", asset.get("kind") == "video")
+        if preset == "VideoEmbed":
+            scene.setdefault("muted", True)
+            scene.setdefault("show_controls", True)
+        if preset == "TelegramVoiceRound":
+            scene.setdefault("contact_name", "Сообщение")
+        assignments.append({"asset_id": asset.get("asset_id"), "scene_index": index, "preset": preset, "role": role})
+    state["media_assignments"] = assignments
+    if assignments:
+        print(f"[media] assigned {len(assignments)} project asset(s) to compatible scenes")
+    return scenes
+
+
+def _storyboard_scene_to_graph(scene: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten validated StoryboardScene props for the renderer Scene contract."""
+    row = dict(scene)
+    props = row.pop("props", {})
+    if isinstance(props, dict):
+        for key, value in props.items():
+            row.setdefault(key, value)
+    row.pop("scene_id", None)
+    row.pop("effects", None)
+    row.pop("style_kit", None)
+    row.pop("audio", None)
+    row.pop("evidence_claim_ids", None)
+    return row
+
+
 def node_script_split(state: VideoState) -> VideoState:
     """Generate or split narration into scenes.
 
@@ -339,13 +441,13 @@ def node_script_split(state: VideoState) -> VideoState:
     # ── 1. Hand-authored storyboard wins ─────────────────────────────────
     storyboard = state.get("storyboard")
     if storyboard:
-        scenes = [dict(sc) for sc in storyboard]
+        scenes = [_storyboard_scene_to_graph(sc) for sc in storyboard]
         for i, sc in enumerate(scenes):
             if not sc.get("text"):
                 raise ValueError(
                     f"storyboard[{i}] has no 'text' — every scene needs narration to voice."
                 )
-        state["scenes"] = scenes
+        state["scenes"] = _apply_project_media(scenes, state)
         return state
 
     # ── 2. LLM-powered script generation (default) ───────────────────────
@@ -419,7 +521,7 @@ def node_script_split(state: VideoState) -> VideoState:
                 print("[script] LLM returned empty script — falling back to mechanical split")
                 state["scenes"] = _split_into_scenes(text)
             else:
-                state["scenes"] = scenes
+                state["scenes"] = _apply_project_media(scenes, state)
                 print(f"[script] LLM script: {len(scenes)} scenes "
                       f"(hook + {len(script.scenes_text or [])} body + CTA), "
                       f"~{script.total_duration:.0f}s")
@@ -431,7 +533,7 @@ def node_script_split(state: VideoState) -> VideoState:
             print("[script] falling back to mechanical split")
 
     # ── 3. Mechanical fallback ───────────────────────────────────────────
-    state["scenes"] = _split_into_scenes(text)
+    state["scenes"] = _apply_project_media(_split_into_scenes(text), state)
     return state
 
 

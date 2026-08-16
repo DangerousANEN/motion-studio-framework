@@ -83,6 +83,35 @@ class ArtifactRef(StudioModel):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+class ProjectMedia(StudioModel):
+    """Typed local media asset deliberately available to a Studio project."""
+
+    asset_id: str = Field(default_factory=lambda: new_id("media"))
+    project_id: str = Field(default="default", min_length=1, max_length=80)
+    kind: Literal["image", "video", "audio", "document"]
+    role: Literal[
+        "hero_image", "screen_recording", "video_insert", "telegram_round",
+        "channel_avatar", "supporting_image", "reference_audio",
+    ]
+    display_name: str = Field(min_length=1, max_length=180)
+    caption: str = Field(default="", max_length=320)
+    mime_type: str = "application/octet-stream"
+    relative_uri: str = ""
+    size_bytes: int = Field(default=0, ge=0)
+    sha256: Optional[str] = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class PinnedResearchSource(StudioModel):
+    """Operator-pinned public URL which research must process under an explicit mode."""
+
+    source_id: str = Field(default_factory=lambda: new_id("pinned"))
+    url: str = Field(min_length=12, max_length=2048)
+    mode: Literal["required", "preferred", "context_only"] = "required"
+    reason: str = Field(min_length=3, max_length=240)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class AudioPolicy(StudioModel):
     """Scene-level sound direction independent of any individual audio file."""
 
@@ -177,6 +206,10 @@ class RunRequest(StudioModel):
     style: Optional[str] = None
     style_config: Optional[Dict[str, Any]] = None
     voice: Optional[str] = None
+    # Snapshotted public resource metadata makes a draft reproducible without
+    # leaking arbitrary filesystem paths to a worker or dashboard.
+    media_assets: List[ProjectMedia] = Field(default_factory=list, max_length=24)
+    pinned_sources: List[PinnedResearchSource] = Field(default_factory=list, max_length=12)
     research: bool = False
     music: bool = True
     sfx: bool = True
@@ -331,6 +364,9 @@ class ResearchToScriptRequest(StudioModel):
     max_queries: int = Field(default=4, ge=1, le=4)
     max_sources: int = Field(default=8, ge=2, le=12)
     project_id: str = Field(default="default", min_length=1, max_length=120)
+    # Operator URLs are processed ahead of opportunistic search results. Required
+    # entries must be extracted or produce a clear failure, never silently vanish.
+    pinned_sources: List[PinnedResearchSource] = Field(default_factory=list, max_length=12)
     comparison_mode: Literal["none", "observed", "proposed"] = "none"
     comparison_models: List[str] = Field(default_factory=list, max_length=3)
     visual_evidence_mode: Optional[Literal["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]] = None
@@ -362,6 +398,7 @@ class ResearchMilestone(StudioModel):
     phase: Literal[
         "topic_routed",
         "query_plan_created",
+        "pinned_sources_processed",
         "sources_collected",
         "pages_extracted",
         "claims_validated",

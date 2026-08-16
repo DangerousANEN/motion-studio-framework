@@ -44,7 +44,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -1052,6 +1052,129 @@ async def api_upload_voice_reference(file: UploadFile = File(...)) -> Dict[str, 
     }
 
 
+@app.get("/api/studio/projects/{project_id}/media")
+def api_list_project_media(project_id: str) -> Dict[str, Any]:
+    """Typed project media available for deliberate storyboard binding."""
+    from msf.studio.project_resources import ProjectResourceError, list_media
+
+    try:
+        items = list_media(project_id)
+    except ProjectResourceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"project_id": project_id, "items": [item.model_dump(mode="json") for item in items]}
+
+
+@app.post("/api/studio/projects/{project_id}/media/upload")
+async def api_upload_project_media(
+    project_id: str,
+    file: UploadFile = File(...),
+    role: str = Form("supporting_image"),
+    caption: str = Form(""),
+) -> Dict[str, Any]:
+    """Stage one media file then register it as a typed local project asset.
+
+    Drag-and-drop uses this route too. A selected role is required at upload time so
+    the agent receives an editorial instruction rather than a mystery filename.
+    """
+    from msf.studio.project_resources import (
+        ProjectResourceError,
+        media_kind,
+        register_staged_media,
+    )
+
+    original_name = Path(file.filename or "media.bin").name
+    try:
+        media_kind(original_name)
+    except ProjectResourceError as exc:
+        await file.close()
+        raise HTTPException(422, str(exc)) from exc
+    staged_dir = CACHE / "project_media_uploads"
+    staged = staged_dir / f"{uuid.uuid4().hex}{Path(original_name).suffix.lower()}"
+    total = 0
+    try:
+        staged_dir.mkdir(parents=True, exist_ok=True)
+        with staged.open("wb") as handle:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > 250 * 1024 * 1024:
+                    raise HTTPException(413, "media file exceeds 250 MB limit")
+                handle.write(chunk)
+        if total == 0:
+            raise HTTPException(422, "media file is empty")
+        asset = register_staged_media(project_id, staged, original_name, role, caption)
+    except HTTPException:
+        staged.unlink(missing_ok=True)
+        raise
+    except ProjectResourceError as exc:
+        staged.unlink(missing_ok=True)
+        raise HTTPException(422, str(exc)) from exc
+    finally:
+        await file.close()
+    return {"asset": asset.model_dump(mode="json"), "next_step": "Assign this resource to a compatible scene before approving the run."}
+
+
+@app.get("/api/studio/projects/{project_id}/media/{asset_id}")
+def api_project_media_file(project_id: str, asset_id: str) -> FileResponse:
+    """Serve one asset only after project/id validation; never accepts a file path."""
+    from msf.studio.project_resources import ProjectResourceError, find_media
+
+    try:
+        asset, path = find_media(project_id, asset_id)
+    except ProjectResourceError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return FileResponse(path, media_type=asset.mime_type, filename=asset.display_name)
+
+
+@app.delete("/api/studio/projects/{project_id}/media/{asset_id}")
+def api_delete_project_media(project_id: str, asset_id: str) -> Dict[str, Any]:
+    from msf.studio.project_resources import ProjectResourceError, remove_media
+
+    try:
+        remove_media(project_id, asset_id)
+    except ProjectResourceError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"removed": asset_id}
+
+
+class PinnedSourcePayload(BaseModel):
+    url: str = Field(..., min_length=12, max_length=2048)
+    mode: str = Field("required", max_length=32)
+    reason: str = Field(..., min_length=3, max_length=240)
+
+
+@app.get("/api/studio/projects/{project_id}/sources")
+def api_list_pinned_sources(project_id: str) -> Dict[str, Any]:
+    from msf.studio.project_resources import ProjectResourceError, list_pinned_sources
+
+    try:
+        sources = list_pinned_sources(project_id)
+    except ProjectResourceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"project_id": project_id, "items": [item.model_dump(mode="json") for item in sources]}
+
+
+@app.post("/api/studio/projects/{project_id}/sources")
+def api_add_pinned_source(project_id: str, payload: PinnedSourcePayload) -> Dict[str, Any]:
+    from msf.studio.project_resources import ProjectResourceError, add_pinned_source
+
+    try:
+        source = add_pinned_source(project_id, payload.url, payload.mode, payload.reason)
+    except ProjectResourceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"source": source.model_dump(mode="json")}
+
+
+@app.delete("/api/studio/projects/{project_id}/sources/{source_id}")
+def api_delete_pinned_source(project_id: str, source_id: str) -> Dict[str, Any]:
+    from msf.studio.project_resources import ProjectResourceError, remove_pinned_source
+
+    try:
+        remove_pinned_source(project_id, source_id)
+    except ProjectResourceError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"removed": source_id}
+
+
 class VoiceSourceRequest(BaseModel):
     """An operator-provided local path or a path staged through Voice Lab upload."""
 
@@ -1298,6 +1421,7 @@ class StudioResearchToScriptPayload(BaseModel):
     max_queries: int = Field(4, ge=1, le=4)
     max_sources: int = Field(8, ge=2, le=12)
     project_id: str = Field("default", min_length=1, max_length=120)
+    pinned_source_ids: list[str] = Field(default_factory=list, max_length=12)
     comparison_mode: str = "none"
     comparison_models: list[str] = Field(default_factory=list, max_length=3)
     visual_evidence_mode: Optional[str] = None
@@ -1335,6 +1459,10 @@ class StudioRunPayload(BaseModel):
     style_config: Optional[Dict[str, Any]] = None
     project_id: str = "default"
     storyboard_id: Optional[str] = None
+    # Browser clients submit project IDs only. API resolves them to immutable
+    # ProjectMedia/PinnedResearchSource snapshots before the draft is persisted.
+    media_asset_ids: list[str] = Field(default_factory=list, max_length=24)
+    pinned_source_ids: list[str] = Field(default_factory=list, max_length=12)
     research: bool = False
     music: bool = True
     sfx: bool = True
@@ -1442,11 +1570,18 @@ def api_studio_research_to_script(payload: StudioResearchToScriptPayload) -> Dic
     """
     from pydantic import ValidationError
     from msf.studio.contracts import ResearchToScriptRequest
+    from msf.studio.project_resources import ProjectResourceError, list_pinned_sources
     from msf.studio.research_to_script import ResearchToScriptError, ResearchToScriptWorkflow
     try:
-        request = ResearchToScriptRequest.model_validate(payload.model_dump())
+        source_by_id = {item.source_id: item for item in list_pinned_sources(payload.project_id)}
+        missing = [source_id for source_id in payload.pinned_source_ids if source_id not in source_by_id]
+        if missing:
+            raise ValueError(f"unknown pinned source IDs: {', '.join(missing)}")
+        request_payload = payload.model_dump(exclude={"pinned_source_ids"})
+        request_payload["pinned_sources"] = [source_by_id[source_id].model_dump(mode="json") for source_id in payload.pinned_source_ids]
+        request = ResearchToScriptRequest.model_validate(request_payload)
         result = ResearchToScriptWorkflow().run(request)
-    except (ValidationError, ResearchToScriptError, ValueError) as exc:
+    except (ValidationError, ResearchToScriptError, ProjectResourceError, ValueError) as exc:
         raise HTTPException(422, f"research-to-script failed: {exc}") from exc
     return result.model_dump(mode="json")
 
@@ -1508,9 +1643,15 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
     from pydantic import ValidationError
     from msf.studio.catalog import get_scene
     from msf.studio.contracts import CapabilityTier, RunRequest
+    from msf.studio.project_resources import ProjectResourceError, find_media, list_pinned_sources
     from msf.studio.runs import StudioRunService
     try:
         get_scene(payload.preset, tier=CapabilityTier.PRESET)
+        media_assets = [find_media(payload.project_id, asset_id)[0] for asset_id in payload.media_asset_ids]
+        all_sources = {item.source_id: item for item in list_pinned_sources(payload.project_id)}
+        missing_sources = [source_id for source_id in payload.pinned_source_ids if source_id not in all_sources]
+        if missing_sources:
+            raise ValueError(f"unknown pinned source IDs: {', '.join(missing_sources)}")
         request = RunRequest(
             project_id=payload.project_id,
             storyboard_id=payload.storyboard_id,
@@ -1518,6 +1659,8 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
             preset=payload.preset,
             style=payload.style,
             style_config=payload.style_config,
+            media_assets=media_assets,
+            pinned_sources=[all_sources[source_id] for source_id in payload.pinned_source_ids],
             research=payload.research,
             music=payload.music,
             sfx=payload.sfx,
@@ -1525,7 +1668,7 @@ def api_studio_prepare_run(payload: StudioRunPayload) -> Dict[str, Any]:
             agent_level=payload.agent_level,
             approved=False,
         )
-    except (ValidationError, KeyError, ValueError) as exc:
+    except (ValidationError, KeyError, ValueError, ProjectResourceError) as exc:
         raise HTTPException(422, f"cannot prepare Studio run: {exc}") from exc
     snapshot = StudioRunService().create_run(request)
     return {"request": request.model_dump(mode="json"), "run": snapshot.model_dump(mode="json"), "next_step": "Validate and explicitly approve through the local operator dashboard."}

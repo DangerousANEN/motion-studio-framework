@@ -5,7 +5,7 @@ from typing import Any, Mapping
 
 import pytest
 
-from msf.studio.contracts import EvidenceSource, ResearchToScriptRequest
+from msf.studio.contracts import EvidenceSource, PinnedResearchSource, ResearchToScriptRequest
 from msf.studio.research_to_script import (
     ResearchToScriptError,
     ResearchToScriptWorkflow,
@@ -134,6 +134,35 @@ def test_research_to_script_builds_evidence_linked_unique_storyboard() -> None:
     ]
     assert result.topic_plan is not None
     assert result.topic_plan.archetype == "how_to"
+
+
+def test_required_pinned_source_is_extracted_before_open_web_candidates() -> None:
+    result = _workflow().run(ResearchToScriptRequest(
+        topic="как проверить новую возможность модели",
+        pinned_sources=[PinnedResearchSource(
+            url="https://example-ai.test/announce",
+            mode="required",
+            reason="Официальный анонс нужен как первичный источник",
+        )],
+        max_queries=2,
+        max_sources=2,
+    ))
+    assert any(source.url == "https://example-ai.test/announce" for source in result.research.sources)
+    assert "pinned_sources_processed" in [item.phase for item in result.milestones]
+
+
+def test_missing_required_pinned_source_fails_closed() -> None:
+    with pytest.raises(ResearchToScriptError, match="required pinned source could not be extracted"):
+        _workflow().run(ResearchToScriptRequest(
+            topic="как проверить новую возможность модели",
+            pinned_sources=[PinnedResearchSource(
+                url="https://missing.test/required",
+                mode="required",
+                reason="Нужно проверить обязательную ссылку",
+            )],
+            max_queries=2,
+            max_sources=2,
+        ))
 
 
 def test_observed_comparison_proof_creates_task_first_storyboard() -> None:

@@ -76,3 +76,6 @@ remotion/expansion_visual_smoke.json
 # Voice Lab auto-transcription sidecars: regenerated for review and never source of truth.
 assets/voices/refs/*_transcription_*.json
 assets/voices/refs/*_transcription_*.txt
+
+# Run-isolated copies of project media materialized for Remotion renders.
+remotion/public/studio-resources/
