@@ -29,8 +29,10 @@ RUN
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
+import re
 import logging
 import os
 import shutil
@@ -516,6 +518,10 @@ def api_preview_clip(req: SceneClipRequest) -> Dict[str, Any]:
     if req.to_frame is not None and req.to_frame <= req.from_frame:
         raise HTTPException(400, "to_frame must be greater than from_frame")
 
+    # The metadata resolver may return an odd effective composition width for a
+    # vertical preset. Half/full scales are the portable integer dimensions for
+    # every supported preset; arbitrary fractions are suitable for stills only.
+    effective_scale = 0.5 if req.scale <= 0.75 else 1.0
     token = uuid.uuid4().hex[:12]
     out_dir = CACHE / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -525,7 +531,7 @@ def api_preview_clip(req: SceneClipRequest) -> Dict[str, Any]:
     try:
         res = get_client().clip(
             spec, mp4, frm=req.from_frame, to=req.to_frame,
-            scale=req.scale, crf=req.crf,
+            scale=effective_scale, crf=req.crf,
         )
     except RenderServerError as exc:
         raise HTTPException(503, f"render server: {exc}") from exc
@@ -538,7 +544,7 @@ def api_preview_clip(req: SceneClipRequest) -> Dict[str, Any]:
         "from": res.get("from"),
         "to": res.get("to"),
         "duration_frames": res.get("durationInFrames"),
-        "scale": req.scale,
+        "scale": effective_scale,
         "bytes": res.get("bytes"),
         "render_ms": res.get("ms"),
         "wall_sec": round(time.time() - started, 2),
@@ -620,6 +626,170 @@ def api_preview_transition(req: TransitionPreviewRequest) -> Dict[str, Any]:
             "duration_frames": result.get("durationInFrames"), "scale": effective_scale,
             "from_frame": from_frame, "to_frame": to_frame,
             "render_ms": result.get("ms"), "wall_sec": round(time.time() - started, 2)}
+
+
+class BuilderTransitionRecipeRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=48, pattern=r"^[A-Za-z][A-Za-z0-9_-]+$")
+    base_transition: str = Field(min_length=2, max_length=80)
+    style_id: str = Field(default="llm_hubs_neon", min_length=2, max_length=80)
+    summary: str = Field(min_length=12, max_length=180)
+
+
+class BuilderOverlayRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=48, pattern=r"^[A-Za-z][A-Za-z0-9_-]+$")
+    overlay_type: str = Field(min_length=2, max_length=32)
+    label: str = Field(min_length=1, max_length=80)
+    style_id: str = Field(default="llm_hubs_neon", min_length=2, max_length=80)
+
+
+_ELEMENT_BUILDER_ROOT = REPO / "output" / "studio" / "element_builder"
+_TRANSITION_RECIPES = _ELEMENT_BUILDER_ROOT / "transition_recipes.json"
+_OVERLAY_RECIPES = _ELEMENT_BUILDER_ROOT / "overlay_recipes.json"
+_TRANSITION_SCAFFOLD_DIR = REPO / "remotion" / "src" / "transitions" / "generated"
+_OVERLAY_TYPES = {"timer", "notification", "money", "cursor", "focus", "badge"}
+
+
+def _recipe_store(path: Path) -> dict[str, Any]:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except json.JSONDecodeError:
+        loaded = {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _save_recipe(path: Path, name: str, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = _recipe_store(path)
+    data[name] = payload
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def _builder_overlay_spec(req: BuilderOverlayRequest) -> dict[str, Any]:
+    if req.overlay_type not in _OVERLAY_TYPES:
+        raise HTTPException(422, f"unknown overlay type {req.overlay_type!r}")
+    overlay: dict[str, Any] = {"type": req.overlay_type, "at": 0.12, "hold": 2.2, "position": "top"}
+    if req.overlay_type == "notification":
+        overlay.update({"appName": "Telegram", "title": req.label, "text": "Новый элемент поверх сцены", "position": "top"})
+    elif req.overlay_type == "cursor":
+        overlay.update({"x": 0.57, "y": 0.58, "targetLabel": req.label})
+    elif req.overlay_type == "focus":
+        overlay.update({"x": 0.5, "y": 0.56, "w": 0.46, "h": 0.16, "targetLabel": req.label})
+    elif req.overlay_type == "badge":
+        overlay.update({"badgeText": req.label, "position": "bottom"})
+    elif req.overlay_type == "timer":
+        overlay.update({"seconds": 10, "label": req.label, "position": "top-right"})
+    else:
+        overlay.update({"amount": 9.99, "currency": "USD", "sender": req.label, "position": "top"})
+    return overlay
+
+
+@app.post("/api/studio/element-builder/transition/preview")
+def api_builder_transition_preview(req: BuilderTransitionRecipeRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    # Delegates to the same centred two-scene preview used by the Elements catalog.
+    payload = api_preview_transition(TransitionPreviewRequest(transition=req.base_transition, style=req.style_id, scale=0.32))
+    payload.update({"name": req.name, "summary": req.summary, "mode": "production_transition_preview"})
+    return payload
+
+
+@app.post("/api/studio/element-builder/transition/scaffold")
+def api_builder_transition_scaffold(req: BuilderTransitionRecipeRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    from msf import registry
+    if req.base_transition not in registry.scene_transition_types():
+        raise HTTPException(422, f"unknown transition {req.base_transition!r}")
+    safe_name = req.name.replace("-", "_")
+    target = _TRANSITION_SCAFFOLD_DIR / f"{safe_name}.ts"
+    if target.exists():
+        raise HTTPException(409, f"transition scaffold already exists: {target.relative_to(REPO)}")
+    _TRANSITION_SCAFFOLD_DIR.mkdir(parents=True, exist_ok=True)
+    source = f"""/**\n * {req.name} — {req.summary.strip()}\n *\n * Element Builder scaffold. This is intentionally not part of the production\n * transition enum until its author wires it into remotion/src/lib/transitions.ts\n * and passes the normal TypeScript/render verification.\n */\nexport const {safe_name}Recipe = {{\n  name: {req.name!r},\n  baseTransition: {req.base_transition!r},\n  style: {req.style_id!r},\n}} as const;\n"""
+    target.write_text(source, encoding="utf-8")
+    component_path = str(target.relative_to(REPO)) if target.is_relative_to(REPO) else str(target)
+    recipe = {"kind": "transition_recipe", "name": req.name, "base_transition": req.base_transition, "style_id": req.style_id, "summary": req.summary.strip(), "component_path": component_path, "created_at": datetime.now(timezone.utc).isoformat()}
+    _save_recipe(_TRANSITION_RECIPES, req.name, recipe)
+    recipe_path = str(_TRANSITION_RECIPES.relative_to(REPO)) if _TRANSITION_RECIPES.is_relative_to(REPO) else str(_TRANSITION_RECIPES)
+    return {"recipe": recipe, "path": recipe_path, "component_path": recipe["component_path"], "verification": ["Preview the base transition in Element Builder", "Implement shader/TypeScript in remotion/src/lib/transitions.ts", "cd remotion && npx tsc --noEmit", "python tools/msf_add.py verify"]}
+
+
+@app.get("/api/studio/overlays")
+def api_studio_overlays() -> Dict[str, Any]:
+    recipes = _recipe_store(_OVERLAY_RECIPES)
+    builtin = [{"name": name, "kind": "builtin", "summary": {"notification": "Notification / Telegram banner over any scene.", "cursor": "Cursor and click target for screen guides.", "focus": "Focus box around a target area.", "badge": "CTA, like or subscribe badge.", "timer": "Countdown / urgency timer.", "money": "Price, saving or payment toast."}[name]} for name in sorted(_OVERLAY_TYPES)]
+    custom = [{"name": name, "kind": "recipe", "summary": str(recipe.get("overlay", {}).get("type", "overlay")), "style_id": recipe.get("style_id"), "overlay": recipe.get("overlay")} for name, recipe in recipes.items() if isinstance(recipe, dict)]
+    return {"items": [*builtin, *custom]}
+
+
+@app.get("/api/studio/element-builder/transition-recipes")
+def api_builder_transition_recipes() -> Dict[str, Any]:
+    recipes = _recipe_store(_TRANSITION_RECIPES)
+    return {"items": [recipe for recipe in recipes.values() if isinstance(recipe, dict)]}
+
+
+@app.post("/api/studio/element-builder/overlay/preview")
+def api_builder_overlay_preview(req: BuilderOverlayRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    overlay = _builder_overlay_spec(req)
+    preview = ScenePreviewRequest(preset="HeroKinetic", style=req.style_id, duration_frames=180, demo_props=True, scale=0.42, frame_pct=0.52, props={"title": "БАЗОВАЯ СЦЕНА", "subtitle": "Проверка overlay recipe", "overlays": [overlay]})
+    payload = api_preview_scene(preview)
+    payload.update({"overlay": overlay, "mode": "overlay_still_preview"})
+    return payload
+
+
+@app.post("/api/studio/element-builder/overlay/motion")
+def api_builder_overlay_motion(req: BuilderOverlayRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    overlay = _builder_overlay_spec(req)
+    preview = SceneClipRequest(preset="HeroKinetic", style=req.style_id, duration_frames=180, demo_props=True, scale=0.36, to_frame=150, props={"title": "БАЗОВАЯ СЦЕНА", "subtitle": "Проверка overlay recipe", "overlays": [overlay]})
+    payload = api_preview_clip(preview)
+    payload.update({"overlay": overlay, "mode": "overlay_motion_preview"})
+    return payload
+
+
+@app.post("/api/studio/element-builder/overlay/register")
+def api_builder_overlay_register(req: BuilderOverlayRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    overlay = _builder_overlay_spec(req)
+    recipe = {"kind": "overlay_recipe", "name": req.name, "style_id": req.style_id, "overlay": overlay, "created_at": datetime.now(timezone.utc).isoformat()}
+    _save_recipe(_OVERLAY_RECIPES, req.name, recipe)
+    return {"recipe": recipe, "path": str(_OVERLAY_RECIPES.relative_to(REPO)), "verification": ["Preview still and motion in Element Builder", "Attach the recipe to a scene overlays array", "Render the affected VideoSpec before publishing"]}
+
+
+class BuilderStyleDraftRequest(BaseModel):
+    style_id: str = Field(min_length=3, max_length=48, pattern=r"^[a-z][a-z0-9_]+$")
+    label: str = Field(min_length=3, max_length=64)
+    base_style: str = Field(min_length=2, max_length=80)
+    neon: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+    summary: str = Field(min_length=12, max_length=180)
+    scenes: list[str] = Field(default_factory=list, max_length=24)
+
+
+_STYLE_DRAFTS = _ELEMENT_BUILDER_ROOT / "style_drafts.json"
+
+
+def _style_draft_payload(req: BuilderStyleDraftRequest) -> dict[str, Any]:
+    _require_style_ids([req.base_style])
+    scene_names = [name for name in req.scenes if re.fullmatch(r"[A-Za-z][A-Za-z0-9]+", name)]
+    return {"kind": "style_draft", "id": req.style_id, "label": req.label.strip(), "base_style": req.base_style, "summary": req.summary.strip(), "recommended_scenes": scene_names, "safe_config": {"palette": {"neon": req.neon.upper()}}, "created_at": datetime.now(timezone.utc).isoformat()}
+
+
+@app.post("/api/studio/element-builder/style/preview")
+def api_builder_style_preview(req: BuilderStyleDraftRequest) -> Dict[str, Any]:
+    draft = _style_draft_payload(req)
+    preset = draft["recommended_scenes"][0] if draft["recommended_scenes"] else "HeroKinetic"
+    preview = SceneThumbnailRequest(preset=preset, style=draft["base_style"], demo_props=True, scale=0.32, frame_pct=0.78, props={"styleConfig": draft["safe_config"]})
+    payload = _thumbnail_payload(preview, render_on_miss=True)
+    payload.update({"draft": draft, "preset": preset, "mode": "style_draft_scene_preview"})
+    return payload
+
+
+@app.post("/api/studio/element-builder/style/register")
+def api_builder_style_register(req: BuilderStyleDraftRequest) -> Dict[str, Any]:
+    draft = _style_draft_payload(req)
+    _save_recipe(_STYLE_DRAFTS, req.style_id, draft)
+    return {"draft": draft, "path": str(_STYLE_DRAFTS.relative_to(REPO)), "verification": ["Review the canonical scene preview", "Use the base family plus safe_config in a VideoSpec styleConfig", "Run a representative render with dense text before promotion"]}
 
 
 class SceneBuilderPreviewRequest(BaseModel):

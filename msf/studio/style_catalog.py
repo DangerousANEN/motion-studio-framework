@@ -6,6 +6,8 @@ CSS or colour values without context.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 STYLE_FAMILIES: tuple[dict[str, Any], ...] = (
@@ -149,10 +151,52 @@ STYLE_CONFIG_FIELDS: tuple[dict[str, Any], ...] = (
 )
 
 
+_STYLE_DRAFTS_PATH = Path(__file__).resolve().parents[2] / "output" / "studio" / "element_builder" / "style_drafts.json"
+
+
+def _draft_style_families() -> list[dict[str, Any]]:
+    """Expose Builder drafts for discovery without treating them as runtime kits.
+
+    A draft deliberately retains its base family plus safe overrides. It must be
+    reviewed and promoted to a real renderer kit before it becomes selectable
+    for a production run.
+    """
+    try:
+        raw = json.loads(_STYLE_DRAFTS_PATH.read_text(encoding="utf-8")) if _STYLE_DRAFTS_PATH.is_file() else {}
+    except json.JSONDecodeError:
+        raw = {}
+    if not isinstance(raw, dict):
+        return []
+    builtins = {item["id"]: item for item in STYLE_FAMILIES}
+    drafts: list[dict[str, Any]] = []
+    for draft in raw.values():
+        if not isinstance(draft, dict):
+            continue
+        style_id, base_id = draft.get("id"), draft.get("base_style")
+        if not isinstance(style_id, str) or not isinstance(base_id, str) or base_id not in builtins:
+            continue
+        base = builtins[base_id]
+        config = draft.get("safe_config") if isinstance(draft.get("safe_config"), dict) else {}
+        defaults = {**base.get("defaults", {}), **config}
+        if isinstance(base.get("defaults", {}).get("palette"), dict) or isinstance(config.get("palette"), dict):
+            defaults["palette"] = {**base.get("defaults", {}).get("palette", {}), **config.get("palette", {})}
+        drafts.append({
+            "id": style_id,
+            "label": str(draft.get("label") or style_id),
+            "summary": str(draft.get("summary") or "Unreviewed Element Builder style draft."),
+            "recommended_intents": list(base.get("recommended_intents", [])),
+            "recommended_scenes": list(draft.get("recommended_scenes") or base.get("recommended_scenes", [])),
+            "defaults": defaults,
+            "base_style": base_id,
+            "draft": True,
+        })
+    return drafts
+
+
 def style_catalog_payload() -> dict[str, Any]:
     return {
-        "contract_version": "2.3",
-        "families": list(STYLE_FAMILIES),
+        "contract_version": "2.4",
+        "families": [*STYLE_FAMILIES, *_draft_style_families()],
         "config_fields": list(STYLE_CONFIG_FIELDS),
         "safety": {
             "text_motion": "Prefer damping >= 18 and chromatic = 0 for fact-heavy scenes.",
