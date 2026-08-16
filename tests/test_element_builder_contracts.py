@@ -86,3 +86,52 @@ def test_transition_scaffold_writes_code_and_recipe_in_isolated_root(
     assert result["recipe"]["component_path"].endswith("product_reveal.ts")
     stored = json.loads((tmp_path / "transition_recipes.json").read_text(encoding="utf-8"))
     assert stored["product-reveal"]["base_transition"] == "fade"
+
+
+def _universal_graph() -> dict:
+    return {
+        "version": 1,
+        "background": "#0b1020",
+        "nodes": [
+            {"id": "core", "type": "icosahedron", "position": [0, 0, 0]},
+            {"id": "group", "type": "group", "children": [
+                {"id": "ring", "type": "torus", "rotation": [1, 0, 0]},
+            ]},
+        ],
+    }
+
+
+def test_universal_3d_graph_accepts_nested_declarative_nodes() -> None:
+    clean = server._validate_universal_3d_graph(_universal_graph())
+    assert clean["version"] == 1
+    assert len(clean["nodes"]) == 2
+
+
+def test_universal_3d_graph_rejects_duplicate_ids() -> None:
+    graph = _universal_graph()
+    graph["nodes"].append({"id": "core", "type": "sphere"})
+    with pytest.raises(Exception, match="unique"):
+        server._validate_universal_3d_graph(graph)
+
+
+def test_universal_3d_graph_rejects_unknown_primitive() -> None:
+    graph = _universal_graph()
+    graph["nodes"][0]["type"] = "arbitrary_js"
+    with pytest.raises(Exception, match="unsupported"):
+        server._validate_universal_3d_graph(graph)
+
+
+def test_universal_3d_graph_registers_recipe_in_isolated_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    recipes = tmp_path / "universal_3d_recipes.json"
+    monkeypatch.setattr(server, "_UNIVERSAL_3D_RECIPES", recipes)
+    request = server.Universal3DGraphRequest(
+        name="OrbitSignalField",
+        summary="Declarative 3D signal field for a video scene.",
+        style_id="llm_hubs_neon",
+        graph=_universal_graph(),
+    )
+    result = server.api_builder_3d_register(request)
+    assert result["status"] == "registered_recipe"
+    stored = json.loads(recipes.read_text(encoding="utf-8"))
+    assert stored["OrbitSignalField"]["kind"] == "universal_3d_graph"
+    assert stored["OrbitSignalField"]["graph"]["nodes"][1]["children"][0]["type"] == "torus"

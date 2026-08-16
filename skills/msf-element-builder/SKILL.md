@@ -78,3 +78,15 @@ Overlay — самостоятельная категория элементов
 ## Отчёт агенту
 
 В конце возвращай таблицу с колонками `category`, `name`, `preview`, `artifact`, `status`, `verification`, `next step`. Для каждого production-неподключённого результата указывай конкретную причину: `draft`, `scaffold awaiting review`, `audio awaiting file`, `voice awaiting transcript` или другую блокировку.
+
+## Universal 3D Graph
+
+Используй `Universal3DGraph` для новой сцены, когда готовые 3D presets не покрывают spatial composition. Сильный агент может собирать произвольный graph из разрешённых node types: `box`, `sphere`, `torus`, `cylinder`, `cone`, `plane`, `octahedron`, `icosahedron`, `line`, `asset` и `group`. Каждый node обязан иметь уникальный identifier; `group` может содержать nested `children`, а `asset` обязан ссылаться на разрешённый GLB/glTF resource.
+
+Рабочий порядок: сформируй graph с `version: 1`, camera, lights, optional grid и nodes; отправь его на `/api/studio/element-builder/3d/preview`; затем проверь motion через `/api/studio/element-builder/3d/motion`; только после этого используй `/api/studio/element-builder/3d/register`. Renderer исполняет только declarative graph; пользовательский TypeScript/JavaScript через Builder не запускается.
+
+Соблюдай limits: максимум 128 nodes и глубина групп до 8. Используй Vec3 для position/rotation/scale. Для анимации применяй `from`, `to`, `start`, `end`, `ease` и bounded `loop`. Не создавай live network fetch внутри scene. Для GLB/glTF проверь размер, лицензию, attribution, отсутствующие текстуры, bounding box и fallback preview.
+
+Capability policy: слабый агент выбирает существующий template и изменяет safe values; curated agent может менять node topology только внутри разрешённых primitives; сильный агент проектирует полный graph, но обязан пройти still preview, motion preview, safe-area/readability check и representative render. Registered recipe не считается production-approved до TypeScript check, catalog/registry verification и code review.
+
+Для 3D QA проверяй кадры в начале, середине и конце motion, visibility каждой spatial layer, clipping, camera framing, lighting, contrast, render duration и MP4 playback. Если graph не требует уникальной композиции, предпочитай готовый production preset.

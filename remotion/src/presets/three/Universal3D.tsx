@@ -11,7 +11,7 @@ export type FallbackShape = 'orb' | 'cube' | 'ring' | 'chip' | 'nodes';
 const resolveAsset = (value?: string) => !value ? '' : /^(https?:|data:)/i.test(value) ? value : staticFile(value);
 
 /** Holds a Remotion render until GLB geometry is genuinely available. */
-const useAssetScene = (assetUrl?: string): THREE.Group | null => {
+export const useAssetScene = (assetUrl?: string): THREE.Group | null => {
   const url = resolveAsset(assetUrl);
   const [handle] = React.useState(() => delayRender(`Universal3D asset: ${url || 'fallback'}`));
   const [scene, setScene] = React.useState<THREE.Group | null>(null);
@@ -37,7 +37,7 @@ const CameraRig: React.FC<{preset: CameraPreset; progress: number}> = ({preset, 
   return null;
 };
 
-const AssetMesh: React.FC<{scene: THREE.Group; material: MaterialMode; accent: string}> = ({scene, material, accent}) => {
+export const AssetMesh: React.FC<{scene: THREE.Group; material: MaterialMode; accent: string}> = ({scene, material, accent}) => {
   const object = React.useMemo(() => {
     const clone = scene.clone(true); const box = new THREE.Box3().setFromObject(clone); const size = new THREE.Vector3(); const center = new THREE.Vector3(); box.getSize(size); box.getCenter(center); const max = Math.max(size.x, size.y, size.z, .001); const scale = 3.4 / max; clone.scale.setScalar(scale); clone.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
     if (material !== 'original') clone.traverse((node) => { if ((node as THREE.Mesh).isMesh) { const mesh = node as THREE.Mesh; if (material === 'clay') mesh.material = new THREE.MeshStandardMaterial({color: 0xdddddd, roughness: .82, metalness: .08}); if (material === 'wireframe') mesh.material = new THREE.MeshBasicMaterial({color: accent, wireframe: true}); if (material === 'glass') mesh.material = new THREE.MeshPhysicalMaterial({color: accent, metalness: .7, roughness: .12, transmission: .5, transparent: true, opacity: .68}); } });

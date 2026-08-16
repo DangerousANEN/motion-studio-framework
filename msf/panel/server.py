@@ -831,6 +831,90 @@ def _require_style_ids(style_ids: List[str]) -> list[str]:
     return list(dict.fromkeys(style_ids))
 
 
+class Universal3DGraphRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=64, pattern=r"^[A-Z][A-Za-z0-9]+$")
+    summary: str = Field(min_length=12, max_length=240)
+    style_id: str = Field(default="llm_hubs_neon", min_length=2, max_length=80)
+    graph: Dict[str, Any]
+
+
+_UNIVERSAL_3D_RECIPES = _ELEMENT_BUILDER_ROOT / "universal_3d_recipes.json"
+_UNIVERSAL_3D_TYPES = {"box", "sphere", "torus", "cylinder", "cone", "plane", "octahedron", "icosahedron", "line", "asset", "group"}
+_UNIVERSAL_3D_MAX_NODES = 128
+_UNIVERSAL_3D_MAX_DEPTH = 8
+
+
+def _validate_universal_3d_graph(graph: Dict[str, Any]) -> Dict[str, Any]:
+    if graph.get("version") != 1:
+        raise HTTPException(422, "3D graph version must be 1")
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        raise HTTPException(422, "3D graph requires at least one node")
+    count = 0
+    ids: set[str] = set()
+    def visit(items: Any, depth: int) -> None:
+        nonlocal count
+        if depth > _UNIVERSAL_3D_MAX_DEPTH:
+            raise HTTPException(422, "3D graph nesting is too deep")
+        if not isinstance(items, list):
+            raise HTTPException(422, "3D children must be arrays")
+        for node in items:
+            if not isinstance(node, dict):
+                raise HTTPException(422, "3D nodes must be objects")
+            count += 1
+            if count > _UNIVERSAL_3D_MAX_NODES:
+                raise HTTPException(422, "3D graph exceeds 128 nodes")
+            node_id = str(node.get("id", ""))
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", node_id) or node_id in ids:
+                raise HTTPException(422, "3D node ids must be unique simple identifiers")
+            ids.add(node_id)
+            if node.get("type") not in _UNIVERSAL_3D_TYPES:
+                raise HTTPException(422, f"unsupported 3D node type: {node.get('type')}")
+            for key in ("position", "rotation", "scale"):
+                if key in node and (not isinstance(node[key], list) or len(node[key]) != 3 or not all(isinstance(x, (int, float)) for x in node[key])):
+                    raise HTTPException(422, f"3D {key} must be a numeric Vec3")
+            if node.get("type") == "asset" and not isinstance(node.get("assetUrl"), str):
+                raise HTTPException(422, "asset node requires assetUrl")
+            visit(node.get("children", []), depth + 1)
+    visit(nodes, 0)
+    clean = dict(graph)
+    clean["nodes"] = nodes
+    return clean
+
+
+@app.post("/api/studio/element-builder/3d/preview")
+def api_builder_3d_preview(req: Universal3DGraphRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    graph = _validate_universal_3d_graph(req.graph)
+    preview = ScenePreviewRequest(preset="Universal3DGraph", style=req.style_id, demo_props=False, scale=0.36, duration_frames=180, props={"title": req.name, "graph": graph})
+    payload = api_preview_scene(preview)
+    payload.update({"mode": "universal_3d_graph_preview", "name": req.name, "summary": req.summary, "node_count": len(graph["nodes"])})
+    return payload
+
+
+@app.post("/api/studio/element-builder/3d/motion")
+def api_builder_3d_motion(req: Universal3DGraphRequest) -> Dict[str, Any]:
+    _require_style_ids([req.style_id])
+    graph = _validate_universal_3d_graph(req.graph)
+    preview = SceneClipRequest(preset="Universal3DGraph", style=req.style_id, demo_props=False, scale=0.36, duration_frames=180, to_frame=150, props={"title": req.name, "graph": graph})
+    payload = api_preview_clip(preview)
+    payload.update({"mode": "universal_3d_graph_motion", "name": req.name, "node_count": len(graph["nodes"])})
+    return payload
+
+
+@app.post("/api/studio/element-builder/3d/register")
+def api_builder_3d_register(req: Universal3DGraphRequest) -> Dict[str, Any]:
+    graph = _validate_universal_3d_graph(req.graph)
+    _require_style_ids([req.style_id])
+    recipe = {"kind": "universal_3d_graph", "name": req.name, "summary": req.summary.strip(), "style_id": req.style_id, "graph": graph, "verification": ["Review still and MP4 previews", "Run Remotion TypeScript and representative render QA", "Promote only after asset licenses and safe-area checks"]}
+    _save_recipe(_UNIVERSAL_3D_RECIPES, req.name, recipe)
+    try:
+        recipe_path = str(_UNIVERSAL_3D_RECIPES.relative_to(REPO))
+    except ValueError:
+        recipe_path = str(_UNIVERSAL_3D_RECIPES)
+    return {"recipe": recipe, "path": recipe_path, "status": "registered_recipe"}
+
+
 @app.post("/api/studio/scene-builder/preview")
 def api_scene_builder_preview(req: SceneBuilderPreviewRequest) -> Dict[str, Any]:
     """Render the stable scaffold shell before authoring a new preset.

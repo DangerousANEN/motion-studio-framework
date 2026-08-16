@@ -1,7 +1,9 @@
 import {AssetOrbit3D, DataCube, DeviceConveyor3D, ExplodedProductView, GlobeSignalMap, IsometricWorkflowCity, LogoSculpture3D, MilestoneCorridor3D, ParticleDataField, WorkflowFlyThrough3D} from '../presets/expansion_three';
 import {PresetRegistry} from './types';
+import {Universal3DGraph} from '../presets/three/Universal3DGraph';
 
 export const EXPANSION_THREE_V24_PRESETS: PresetRegistry = {
+  Universal3DGraph: {component: Universal3DGraph, category: 'three', summary: 'Declarative 3D scene graph with primitives, groups, assets, camera, lights and timeline motion.', fields: ['graph', 'title'], dataDriven: true, three: true},
   AssetOrbit3D: {component: AssetOrbit3D, category: 'three', summary: 'Slow licensed-asset orbit with deterministic procedural fallback.', fields: ['assetUrl', 'assetLicense', 'assetAttribution', 'cameraPreset', 'materialMode', 'fallbackShape', 'title'], dataDriven: true, three: true},
   ExplodedProductView: {component: ExplodedProductView, category: 'three', summary: 'Asset breakdown into supplied semantic layers.', fields: ['assetUrl', 'assetLicense', 'parts', 'explodeDistance', 'cameraPreset', 'title'], dataDriven: true, three: true},
   WorkflowFlyThrough3D: {component: WorkflowFlyThrough3D, category: 'three', summary: '3D camera flight through labeled workflow stations.', fields: ['workflowNodes', 'assetUrl', 'cameraPreset', 'title'], dataDriven: true, three: true},
