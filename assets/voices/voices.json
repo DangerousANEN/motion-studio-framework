@@ -22,5 +22,11 @@
       "lang": "ru",
       "notes": "Archived: reference WAV is absent from this checkout. Re-register it through Voice Lab after supplying the original file."
     }
+  },
+  "msf_narrator_builder_demo": {
+    "ref_audio": "assets/voices/refs/msf_narrator_builder_demo_24k.wav",
+    "ref_text": "Gemini 3.7 Flash вышел 13 августа. 75 центов за input и 3 доллара 75 центов за output. В таблице Google он выше Sonnet 5 на Frontier Code: 43.6 против 42.7 и на Code Arena 15.88 против 15.41. Это не общий рейтинг, но по прайсу Flash на 62,5% дешевле. Проверьте на своем коде. Больше свежих разборов в LLM Hubs.",
+    "lang": "ru",
+    "notes": "Element Builder demo: real verified local reference, registered through Voice Lab contract."
   }
 }

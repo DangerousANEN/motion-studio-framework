@@ -27,6 +27,7 @@
  */
 import { PresetRegistry, mergeRegistries } from './types';
 import { CORE_PRESETS, COMMON_FIELDS } from './core';
+import { GENERATED_PRESETS } from './generated';
 import { UI_MOCK_PRESETS } from './ui_mock';
 import { MEDIA_PRESETS } from './media';
 import { SOCIAL_PRESETS } from './social';
