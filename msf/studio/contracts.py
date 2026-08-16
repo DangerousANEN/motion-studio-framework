@@ -91,7 +91,8 @@ class ProjectMedia(StudioModel):
     kind: Literal["image", "video", "audio", "document"]
     role: Literal[
         "hero_image", "screen_recording", "video_insert", "telegram_round",
-        "channel_avatar", "supporting_image", "reference_audio",
+        "channel_avatar", "provider_avatar", "speaker_avatar", "supporting_image",
+        "music_bed", "sound_effect", "reference_audio",
     ]
     display_name: str = Field(min_length=1, max_length=180)
     caption: str = Field(default="", max_length=320)
@@ -188,6 +189,7 @@ class SceneManifest(StudioModel):
     rotation_safe: bool = False
     required_data_hints: List[str] = Field(default_factory=list)
     compatible_effect_families: List[str] = Field(default_factory=list)
+    compatible_style_ids: List[str] = Field(default_factory=list)
     recommended_audio_roles: List[str] = Field(default_factory=list)
     demo_available: bool = False
 

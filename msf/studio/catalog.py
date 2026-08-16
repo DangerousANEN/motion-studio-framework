@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import json
+from pathlib import Path
 from typing import Iterable, Optional
 
 from msf import registry
@@ -15,6 +17,25 @@ class CatalogUnavailableError(RuntimeError):
     """Raised when the renderer source-of-truth registry cannot be parsed."""
 
 
+_SCENE_PROFILE_PATH = Path(__file__).resolve().parents[2] / "output" / "studio" / "scene_builder" / "scene_profiles.json"
+
+
+def _scene_style_profiles() -> dict[str, list[str]]:
+    """Optional local Builder metadata; registry remains the render authority."""
+    if not _SCENE_PROFILE_PATH.is_file():
+        return {}
+    try:
+        raw = json.loads(_SCENE_PROFILE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(name): [str(style) for style in styles if isinstance(style, str)]
+        for name, styles in raw.items() if isinstance(styles, list)
+    }
+
+
 @lru_cache(maxsize=1)
 def _all_scene_manifests() -> tuple[SceneManifest, ...]:
     entries = registry.load_registry()
@@ -23,6 +44,7 @@ def _all_scene_manifests() -> tuple[SceneManifest, ...]:
     effects = registry.load_effects()
     families = sorted({effect.family for effect in effects.values()})
     manifests: list[SceneManifest] = []
+    style_profiles = _scene_style_profiles()
     for info in entries.values():
         metadata = SCENE_METADATA.get(info.name, {})
         manifests.append(
@@ -38,6 +60,7 @@ def _all_scene_manifests() -> tuple[SceneManifest, ...]:
                 rotation_safe=info.rotation_safe,
                 required_data_hints=list(metadata.get("required_data_hints", ())),
                 compatible_effect_families=families,
+                compatible_style_ids=style_profiles.get(info.name, []),
                 recommended_audio_roles=list(metadata.get("audio_roles", DEFAULT_AUDIO_ROLES)),
                 demo_available=True,
             )

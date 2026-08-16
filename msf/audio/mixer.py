@@ -196,7 +196,7 @@ class Timeline:
     sr: int = SR
     sfx_cues: list[Cue] = field(default_factory=list)
     voice_cues: list[Cue] = field(default_factory=list)
-    music: list[tuple[str, float, float | None]] = field(default_factory=list)
+    music: list[tuple[str | np.ndarray, float, float | None]] = field(default_factory=list)
 
     def add_sfx(self, name: str | np.ndarray, at: float, gain_db: float = 0.0) -> "Timeline":
         if isinstance(name, str) and name not in SFX_REGISTRY:
@@ -204,7 +204,7 @@ class Timeline:
         self.sfx_cues.append(Cue(name, at, gain_db))
         return self
 
-    def add_music(self, bed: str, start: float = 0.0, duration: float | None = None) -> "Timeline":
+    def add_music(self, bed: str | np.ndarray, start: float = 0.0, duration: float | None = None) -> "Timeline":
         self.music.append((bed, start, duration))
         return self
 
@@ -242,7 +242,13 @@ class Timeline:
         for bed, start, dur in self.music:
             length = dur if dur is not None else duration - start
             if length > 0:
-                place(music, loop_bed(bed, length, sr=self.sr), start, self.sr)
+                if isinstance(bed, str):
+                    samples = loop_bed(bed, length, sr=self.sr)
+                else:
+                    source = np.asarray(bed, dtype=np.float32).reshape(-1)
+                    wanted = max(1, int(round(length * self.sr)))
+                    samples = np.tile(source, int(np.ceil(wanted / max(len(source), 1))))[:wanted] if source.size else np.zeros(wanted, dtype=np.float32)
+                place(music, samples, start, self.sr)
         music = normalize_lufs(music, MUSIC_LUFS, self.sr) if music.any() else music
 
         env = duck_envelope(voice, self.sr) if voice.any() else np.ones(n, dtype=np.float32)

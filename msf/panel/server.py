@@ -545,6 +545,179 @@ def api_preview_clip(req: SceneClipRequest) -> Dict[str, Any]:
     }
 
 
+class TransitionPreviewRequest(BaseModel):
+    """Render one production transition over the same known readable scene pair."""
+
+    transition: str
+    style: str = "llm_hubs_neon"
+    scale: float = Field(0.25, gt=0.0, le=1.0)
+    duration_frames: int = Field(28, ge=8, le=120)
+
+
+@app.post("/api/preview/transition")
+def api_preview_transition(req: TransitionPreviewRequest) -> Dict[str, Any]:
+    """Create a deterministic two-scene MP4 which isolates transition motion."""
+    from msf import registry
+    from msf.panel import demo_props as dp
+    from msf.panel.render_client import RenderServerError, get_client
+    from msf.spec import validate_spec
+
+    if req.transition not in registry.scene_transition_types():
+        raise HTTPException(404, f"unknown transition {req.transition!r}")
+    # Remotion derives both dimensions from `scale`; 1080x1920 has gcd 120,
+    # so snap arbitrary UI values to n/120 and avoid fractional ffmpeg frames.
+    effective_scale = max(1 / 120, min(1.0, round(req.scale * 120) / 120))
+    left = dp.scene_for("HeroKinetic", duration_in_frames=150, overrides={
+        "title": "ПЕРВЫЙ КАДР", "subtitle": "Одинаковая базовая сцена",
+    })
+    right = dp.scene_for("ProviderChat", duration_in_frames=170, overrides={
+        "provider": "SECOND SCENE", "avatarText": "02",
+    })
+    right["transition"] = {
+        "type": req.transition,
+        "durationInFrames": req.duration_frames,
+        "timing": "spring",
+    }
+    spec = {
+        "width": 1080, "height": 1920, "fps": 60,
+        "style": req.style, "scenes": [left, right],
+    }
+    try:
+        validate_spec(spec)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    # Keep the exact preview window stable in both rendered and cache-hit API
+    # responses so the client can reason about timeline semantics either way.
+    transition_start = left["durationInFrames"] - req.duration_frames
+    from_frame = max(0, transition_start - 48)
+    to_frame = min(left["durationInFrames"] + right["durationInFrames"] - req.duration_frames, transition_start + 72)
+    canonical = json.dumps(
+        {"transition": req.transition, "style": req.style, "scale": effective_scale,
+         "duration": req.duration_frames, "window": "transition-centered-v2"}, ensure_ascii=False, sort_keys=True,
+         separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()[:16]
+    safe_name = "".join(ch for ch in req.transition if ch.isalnum() or ch in "-_")
+    out_dir = CACHE / "clips"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    mp4 = out_dir / f"transition-{safe_name}-{digest}.mp4"
+    if mp4.is_file():
+        return {"url": f"/preview/clips/{mp4.name}", "transition": req.transition,
+                "style": req.style, "cached": True, "bytes": mp4.stat().st_size,
+                "scale": effective_scale, "from_frame": from_frame, "to_frame": to_frame}
+    started = time.time()
+    # Render only a 2.0s window centred around the overlap. It begins with a
+    # visible established first scene and reaches the transition quickly, which is
+    # materially more useful in a catalog card than a full five-second sequence.
+    try:
+        result = get_client().clip(spec, mp4, frm=from_frame, to=to_frame, scale=effective_scale, crf=27)
+    except RenderServerError as exc:
+        raise HTTPException(503, f"render server: {exc}") from exc
+    if not mp4.is_file():
+        raise HTTPException(500, "render server reported success but wrote no transition preview")
+    return {"url": f"/preview/clips/{mp4.name}", "transition": req.transition,
+            "style": req.style, "cached": False, "bytes": mp4.stat().st_size,
+            "duration_frames": result.get("durationInFrames"), "scale": effective_scale,
+            "from_frame": from_frame, "to_frame": to_frame,
+            "render_ms": result.get("ms"), "wall_sec": round(time.time() - started, 2)}
+
+
+class SceneBuilderPreviewRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=64, pattern=r"^[A-Z][A-Za-z0-9]+$")
+    summary: str = Field(min_length=12, max_length=180)
+    style_id: str = Field(default="llm_hubs_neon", min_length=2, max_length=80)
+
+
+class SceneBuilderScaffoldRequest(SceneBuilderPreviewRequest):
+    category: str = Field(default="typography")
+    fields: List[str] = Field(default_factory=lambda: ["title", "subtitle"], max_length=12)
+    style_ids: List[str] = Field(default_factory=list, max_length=16)
+
+
+_SCENE_BUILDER_CATEGORIES = {
+    "typography", "data", "diagram", "code", "ui-mock", "device", "three", "narrative", "transition-aid",
+}
+_SCENE_BUILDER_PROFILES = REPO / "output" / "studio" / "scene_builder" / "scene_profiles.json"
+
+
+def _valid_builder_fields(fields: List[str]) -> list[str]:
+    clean: list[str] = []
+    for field_name in fields:
+        value = str(field_name).strip()
+        if not value or not value.replace("_", "").isalnum() or not value[0].isalpha():
+            raise HTTPException(422, "scene fields must be simple identifier names")
+        if value not in clean:
+            clean.append(value)
+    return clean or ["title", "subtitle"]
+
+
+def _require_style_ids(style_ids: List[str]) -> list[str]:
+    from msf.studio.style_catalog import STYLE_FAMILIES
+
+    available = {str(item["id"]) for item in STYLE_FAMILIES}
+    unknown = sorted(set(style_ids) - available)
+    if unknown:
+        raise HTTPException(422, f"unknown style family: {', '.join(unknown)}")
+    return list(dict.fromkeys(style_ids))
+
+
+@app.post("/api/studio/scene-builder/preview")
+def api_scene_builder_preview(req: SceneBuilderPreviewRequest) -> Dict[str, Any]:
+    """Render the stable scaffold shell before authoring a new preset.
+
+    It deliberately previews a standard safe layout rather than evaluating user
+    TypeScript from the browser. The actual scaffold remains an explicit second
+    action and must pass the normal TypeScript/registry verification afterwards.
+    """
+    _require_style_ids([req.style_id])
+    preview = ScenePreviewRequest(
+        preset="HeroKinetic", style=req.style_id, demo_props=True, scale=0.42,
+        props={"title": req.name.upper(), "subtitle": req.summary},
+    )
+    payload = api_preview_scene(preview)
+    payload.update({"mode": "safe_design_shell", "requested_name": req.name, "style_id": req.style_id})
+    return payload
+
+
+@app.post("/api/studio/scene-builder/scaffold")
+def api_scene_builder_scaffold(req: SceneBuilderScaffoldRequest) -> Dict[str, Any]:
+    """Create a registered TypeScript scene scaffold only after explicit operator intent."""
+    if req.category not in _SCENE_BUILDER_CATEGORIES:
+        raise HTTPException(422, "unknown scene category")
+    fields = _valid_builder_fields(req.fields)
+    style_ids = _require_style_ids(req.style_ids or [req.style_id])
+    command = [
+        sys.executable, str(REPO / "tools" / "msf_add.py"), "scene", req.name,
+        "--category", req.category, "--summary", req.summary.strip(),
+        "--fields", ",".join(fields),
+    ]
+    result = subprocess.run(command, cwd=REPO, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        detail = " | ".join((result.stderr or result.stdout or "scene scaffold failed").strip().splitlines()[-5:])
+        raise HTTPException(422, detail)
+    _SCENE_BUILDER_PROFILES.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        profiles = json.loads(_SCENE_BUILDER_PROFILES.read_text(encoding="utf-8")) if _SCENE_BUILDER_PROFILES.is_file() else {}
+    except json.JSONDecodeError:
+        profiles = {}
+    if not isinstance(profiles, dict):
+        profiles = {}
+    profiles[req.name] = style_ids
+    temporary = _SCENE_BUILDER_PROFILES.with_suffix(".tmp")
+    temporary.write_text(json.dumps(profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(_SCENE_BUILDER_PROFILES)
+    from msf.studio.catalog import clear_catalog_cache
+    clear_catalog_cache()
+    relative = "remotion/src/presets/three" if req.category == "three" else "remotion/src/presets"
+    return {
+        "name": req.name, "styles": style_ids, "fields": fields,
+        "component_path": f"{relative}/{req.name}.tsx",
+        "registry_path": "remotion/src/registry/generated.ts",
+        "verification": ["cd remotion && npx tsc --noEmit", "cd remotion && npx tsx audit/registry_probe.ts", f"python tools/msf_add.py verify --only {req.name}"],
+        "generator_output": result.stdout.strip(),
+    }
+
+
 @app.get("/api/demo/props/{preset}")
 def api_demo_props(preset: str) -> Dict[str, Any]:
     """The demo props the preview would use, so the UI can prefill its editor.
@@ -1079,6 +1252,7 @@ async def api_upload_project_media(
     from msf.studio.project_resources import (
         ProjectResourceError,
         media_kind,
+        prepare_staged_audio,
         register_staged_media,
     )
 
@@ -1101,7 +1275,8 @@ async def api_upload_project_media(
                 handle.write(chunk)
         if total == 0:
             raise HTTPException(422, "media file is empty")
-        asset = register_staged_media(project_id, staged, original_name, role, caption)
+        staged, stored_name, audio_report = prepare_staged_audio(staged, original_name, role)
+        asset = register_staged_media(project_id, staged, stored_name, role, caption)
     except HTTPException:
         staged.unlink(missing_ok=True)
         raise
@@ -1110,7 +1285,7 @@ async def api_upload_project_media(
         raise HTTPException(422, str(exc)) from exc
     finally:
         await file.close()
-    return {"asset": asset.model_dump(mode="json"), "next_step": "Assign this resource to a compatible scene before approving the run."}
+    return {"asset": asset.model_dump(mode="json"), "audio_standardisation": audio_report, "next_step": "Assign this resource to a compatible scene before approving the run."}
 
 
 @app.get("/api/studio/projects/{project_id}/media/{asset_id}")

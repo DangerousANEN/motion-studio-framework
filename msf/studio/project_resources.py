@@ -12,6 +12,7 @@ import json
 import mimetypes
 import re
 import shutil
+import subprocess
 import threading
 from pathlib import Path
 from typing import Any, Iterable
@@ -35,9 +36,12 @@ _MEDIA_KINDS = {
 }
 MEDIA_ROLES = frozenset({
     "hero_image", "screen_recording", "video_insert", "telegram_round",
-    "channel_avatar", "supporting_image", "reference_audio",
+    "channel_avatar", "provider_avatar", "speaker_avatar", "supporting_image",
+    "music_bed", "sound_effect", "reference_audio",
 })
 _MAX_UPLOAD_BYTES = 250 * 1024 * 1024
+_AUDIO_ONLY_ROLES = frozenset({"music_bed", "sound_effect", "reference_audio"})
+_AUDIO_TARGET_LUFS = {"music_bed": -18.0, "sound_effect": -16.0}
 _LOCK = threading.RLock()
 
 
@@ -88,6 +92,50 @@ def media_kind(filename: str) -> str:
     if not kind:
         raise ProjectResourceError(f"unsupported media format: {Path(filename).suffix.lower() or '(none)'}")
     return kind
+
+
+def prepare_staged_audio(path: Path, original_name: str, role: str) -> tuple[Path, str, dict[str, Any] | None]:
+    """Normalise operator-provided music/SFX before they enter project inventory.
+
+    A custom bed/effect should not bypass the same loudness discipline as built-in
+    assets.  The result is a portable mono 48 kHz WAV with gentle compression,
+    loudness normalisation and a conservative true-peak ceiling.  Reference audio
+    is deliberately not altered because Voice Lab owns its separate preparation
+    workflow.
+    """
+    kind = media_kind(original_name)
+    if role in _AUDIO_ONLY_ROLES and kind != "audio":
+        raise ProjectResourceError(f"media role {role} requires an audio file")
+    if role not in _AUDIO_TARGET_LUFS:
+        return path, original_name, None
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise ProjectResourceError("ffmpeg is required to standardise user audio")
+    target_lufs = _AUDIO_TARGET_LUFS[role]
+    prepared = path.with_name(f"{path.stem}-standard.wav")
+    filter_chain = (
+        "aformat=sample_rates=48000:channel_layouts=mono,"
+        "acompressor=threshold=0.125:ratio=3:attack=18:release=250:makeup=1,"
+        f"loudnorm=I={target_lufs}:TP=-2:LRA=7"
+    )
+    proc = subprocess.run(
+        [ffmpeg, "-nostdin", "-y", "-i", str(path), "-vn", "-af", filter_chain,
+         "-c:a", "pcm_s16le", str(prepared)],
+        capture_output=True, text=True, timeout=300,
+    )
+    if proc.returncode != 0 or not prepared.is_file() or prepared.stat().st_size <= 0:
+        prepared.unlink(missing_ok=True)
+        tail = " | ".join((proc.stderr or "").strip().splitlines()[-3:])
+        raise ProjectResourceError(f"audio standardisation failed: {tail or 'ffmpeg returned an error'}")
+    path.unlink(missing_ok=True)
+    display_name = f"{Path(original_name).stem}_standard.wav"
+    return prepared, display_name, {
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "target_lufs": target_lufs,
+        "true_peak_dbfs": -2,
+        "compression": "3:1",
+    }
 
 
 def _sha256(path: Path) -> str:

@@ -116,6 +116,8 @@ def main() -> int:
     parser.add_argument("--skip-scenes", action="store_true")
     parser.add_argument("--skip-audio", action="store_true")
     parser.add_argument("--skip-voices", action="store_true")
+    parser.add_argument("--skip-styles", action="store_true")
+    parser.add_argument("--skip-transitions", action="store_true")
     args = parser.parse_args()
     base_url = args.base_url.rstrip("/")
     started_at = datetime.now(UTC)
@@ -188,14 +190,40 @@ def main() -> int:
                     lambda name=name: _get(session, base_url, f"/api/preview/sfx/{name}"),
                 )
 
-        # Styles and transitions are currently declarative renderer contracts rather
-        # than standalone media sources. Their cards are live-rendered from the
-        # catalog; record their coverage so the batch report makes this distinction
-        # explicit instead of claiming nonexistent binary previews.
+        # A style is shown on its own recommended real scene; a transition is
+        # rendered over one shared base pair. Both outputs go through the same
+        # cacheable public endpoints that Elements uses in-browser.
         styles = _get(session, base_url, "/api/studio/styles").get("families", [])
         effects = _get(session, base_url, "/api/effects")
-        report["catalog"]["style_families_live_cards"] = len(styles)
-        report["catalog"]["transitions_live_cards"] = len(effects.get("transitions") or [])
+        report["catalog"]["style_families"] = len(styles)
+        report["catalog"]["transitions"] = len(effects.get("transitions") or [])
+        known_scenes = {item.get("name") for item in (_all_scenes(session, base_url) if args.skip_scenes else scenes)}
+        if not args.skip_styles:
+            for style in styles:
+                style_id = str(style.get("id") or "")
+                candidates = [str(name) for name in style.get("recommended_scenes", []) if name in known_scenes]
+                preset = candidates[0] if candidates else "HeroKinetic"
+                _record(
+                    report,
+                    "style_scene_thumbnail",
+                    style_id,
+                    lambda style_id=style_id, preset=preset: _post(
+                        session, base_url, "/api/preview/thumbnail",
+                        {"preset": preset, "style": style_id, "demo_props": True, "scale": 0.22, "frame_pct": 0.78},
+                    ),
+                )
+        if not args.skip_transitions:
+            for transition in effects.get("transitions") or []:
+                name = str(transition)
+                _record(
+                    report,
+                    "transition_motion_preview",
+                    name,
+                    lambda name=name: _post(
+                        session, base_url, "/api/preview/transition",
+                        {"transition": name, "style": "llm_hubs_neon"},
+                    ),
+                )
         report["finished_at"] = datetime.now(UTC).isoformat()
 
     batch_dir = CACHE / "batches"

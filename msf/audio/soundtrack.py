@@ -131,6 +131,8 @@ def build_soundtrack(
     out_path: str | Path,
     music_bed: Optional[str] = None,
     sfx_names: Optional[Sequence[str]] = None,
+    custom_music_wav: Optional[str | Path] = None,
+    custom_sfx_wavs: Optional[Sequence[str | Path]] = None,
     sfx_gain_db: float = -3.0,
     music: bool = True,
     sfx: bool = True,
@@ -161,28 +163,41 @@ def build_soundtrack(
              "seconds": round(len(samples) / SR, 3)}
         )
 
-    # ---- music: one continuous bed, looped to length
-    bed = pick_bed(music_bed) if music else None
-    if bed:
+    # ---- music: one continuous bed, looped to length. A standardised user WAV
+    # is treated as a first-class bed and therefore receives identical loudness
+    # normalisation and voice ducking inside Timeline.render().
+    custom_music = Path(custom_music_wav) if custom_music_wav else None
+    bed = pick_bed(music_bed) if music and not (custom_music and custom_music.is_file()) else None
+    music_label: Optional[str] = bed
+    if music and custom_music and custom_music.is_file():
+        tl.add_music(read_wav_mono(custom_music), 0.0, total)
+        music_label = f"user:{custom_music.name}"
+    elif bed:
         tl.add_music(bed, 0.0, total)
 
     # ---- sfx: one accent per scene start, a hair EARLY so it reads as causing
     # the cut rather than reacting to it
     placed: list[dict[str, Any]] = []
     if sfx:
-        wanted = list(sfx_names) if sfx_names else list(DEFAULT_ACCENTS)
-        pool = [n for n in wanted if n in SFX_REGISTRY]
-        missing = [n for n in wanted if n not in SFX_REGISTRY]
-        if missing:
-            print(f"[audio] unknown sfx dropped: {missing}")
-        if not pool:
-            pool = sorted(SFX_REGISTRY)[:8]
+        custom_paths = [Path(path) for path in (custom_sfx_wavs or []) if Path(path).is_file()]
+        if custom_paths:
+            pool: list[str | np.ndarray] = [read_wav_mono(path) for path in custom_paths]
+            labels = [f"user:{path.name}" for path in custom_paths]
+        else:
+            wanted = list(sfx_names) if sfx_names else list(DEFAULT_ACCENTS)
+            pool = [n for n in wanted if n in SFX_REGISTRY]
+            missing = [n for n in wanted if n not in SFX_REGISTRY]
+            if missing:
+                print(f"[audio] unknown sfx dropped: {missing}")
+            if not pool:
+                pool = sorted(SFX_REGISTRY)[:8]
+            labels = [str(item) for item in pool]
         if pool:
             for i, start in enumerate(starts):
-                name = pool[i % len(pool)]
+                cue = pool[i % len(pool)]
                 at = max(0.0, start - 0.04)
-                tl.add_sfx(name, at, gain_db=sfx_gain_db)
-                placed.append({"scene": i, "sfx": name, "at": round(at, 3)})
+                tl.add_sfx(cue, at, gain_db=sfx_gain_db)
+                placed.append({"scene": i, "sfx": labels[i % len(labels)], "at": round(at, 3)})
 
     result = tl.render(total)
     mix = result["mix"]
@@ -213,7 +228,7 @@ def build_soundtrack(
         "lufs": round(measure_lufs(mix), 2),
         "true_peak_dbfs": round(20 * float(np.log10(peak)), 2) if peak > 0 else None,
         "clipping": bool(peak >= 1.0),
-        "music_bed": bed,
+        "music_bed": music_label,
         "sfx": placed,
         "voice": voice_report,
         "voice_lufs": round(measure_lufs(voice_stem), 2) if voice_stem.any() else None,

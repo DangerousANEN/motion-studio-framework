@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import wave
 
+import pytest
 from fastapi.testclient import TestClient
 
 from msf.panel.server import app
@@ -98,6 +101,29 @@ def test_registered_media_materializes_into_run_isolated_remotion_public(tmp_pat
     assert (tmp_path / "repo" / "remotion" / "public" / "studio-resources" / run_id / f"{asset.asset_id}.webm").is_file()
     assert "projects" not in materialized[0]["src"]
     assert "output" not in materialized[0]["src"]
+
+
+def test_custom_audio_roles_require_audio_input(tmp_path) -> None:
+    staged = tmp_path / "not_audio.png"
+    staged.write_bytes(b"not-an-audio-file")
+    with pytest.raises(project_resources.ProjectResourceError, match="requires an audio file"):
+        project_resources.prepare_staged_audio(staged, "not_audio.png", "music_bed")
+
+
+def test_custom_music_is_standardised_to_portable_wav(tmp_path) -> None:
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg is required for project audio standardisation")
+    staged = tmp_path / "operator-bed.wav"
+    with wave.open(str(staged), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(24_000)
+        handle.writeframes(b"\x00\x00" * 24_000)
+    prepared, name, report = project_resources.prepare_staged_audio(staged, "operator-bed.wav", "music_bed")
+    assert prepared.is_file()
+    assert prepared.suffix == ".wav"
+    assert name == "operator-bed_standard.wav"
+    assert report == {"sample_rate_hz": 48000, "channels": 1, "target_lufs": -18.0, "true_peak_dbfs": -2, "compression": "3:1"}
 
 
 def test_prepare_run_resolves_project_resource_ids_into_immutable_snapshot(tmp_path, monkeypatch) -> None:

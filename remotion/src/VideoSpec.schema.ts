@@ -734,6 +734,9 @@ export const BaseSceneSchema = z
     provider: z.string().optional(),
     sendLabel: z.string().optional(),
     avatarText: z.string().optional(),
+    // Optional local/public provider avatar. Presets must retain avatarText as a
+    // deterministic fallback when the user intentionally provides no image.
+    avatarUrl: z.string().optional(),
     answer: z.string().optional(),
     chips: z.array(z.string()).max(4).optional(),
     notifications: z.array(z.object({app: z.string().optional(), text: z.string().optional()}).passthrough()).min(1).max(3).optional(),

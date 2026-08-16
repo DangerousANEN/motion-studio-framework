@@ -785,6 +785,12 @@ def node_soundtrack(state: VideoState) -> VideoState:
 
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     out_wav = PUBLIC_DIR / SOUNDTRACK_NAME
+    # Project assets were materialized into this run's Remotion public tree by
+    # StudioWorker. Only explicit custom-audio roles may enter the mix; every
+    # path remains run-local rather than exposing project storage to the graph.
+    project_audio = [item for item in (state.get("project_media") or []) if item.get("kind") == "audio" and item.get("src")]
+    custom_music = next((PUBLIC_DIR / str(item["src"]) for item in project_audio if item.get("role") == "music_bed"), None)
+    custom_sfx = [PUBLIC_DIR / str(item["src"]) for item in project_audio if item.get("role") == "sound_effect"]
 
     report = build_soundtrack(
         scenes=scenes,
@@ -793,6 +799,8 @@ def node_soundtrack(state: VideoState) -> VideoState:
         out_path=out_wav,
         music_bed=state.get("music_bed"),
         sfx_names=state.get("sfx_names"),
+        custom_music_wav=custom_music,
+        custom_sfx_wavs=custom_sfx,
         music=bool(want_music),
         sfx=bool(want_sfx),
     )

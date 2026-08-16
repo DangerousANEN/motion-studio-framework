@@ -35,6 +35,7 @@ MODELS = ["Kimi-K3-Thinking", "DeepSeek-V4-Terminus", "Qwen3.6-235B-A22B", "GLM-
 # Generated demo media, relative to remotion/public/ because presets pass any
 # non-http path through staticFile(). Built by msf/panel/make_preview_assets.py.
 from msf.panel.make_preview_assets import CLIP as PREVIEW_CLIP  # noqa: E402
+from msf.panel.make_preview_assets import PROVIDER_AVATAR as PREVIEW_PROVIDER_AVATAR  # noqa: E402
 from msf.panel.make_preview_assets import STILL_1 as PREVIEW_STILL_1  # noqa: E402
 from msf.panel.make_preview_assets import STILL_2 as PREVIEW_STILL_2  # noqa: E402
 
@@ -160,7 +161,7 @@ DEMO_PROPS: Dict[str, Dict[str, Any]] = {
     "SourceStack": {"title": "ПЕРВОИСТОЧНИКИ", "status": "VERIFIED SOURCES", "sources": [{"title": "Официальный релиз", "url": "release note"}, {"title": "API документация", "url": "model limits"}, {"title": "Pricing page", "url": "effective date"}]},
     "CountdownRing": {"label": "ДО ИЗМЕНЕНИЯ ТАРИФА", "value": "16 AUG", "caption": "Проверьте дату перехода до расчёта бюджета.", "progress": 0.72},
     "PromptComposer": {"provider": "LLM WORKSPACE", "prompt": "Собери только доказуемые тезисы по официальным источникам.", "sendLabel": "Запустить"},
-    "ProviderChat": {"provider": "DeepSeek V4 Pro", "avatarText": "DS", "prompt": "Как выбрать reasoning effort?", "answer": "Начните с low для рутины. High и max включайте после реального теста задачи.", "chips": ["LOW", "HIGH", "MAX"]},
+    "ProviderChat": {"provider": "DeepSeek V4 Pro", "avatarText": "DS", "avatarUrl": PREVIEW_PROVIDER_AVATAR, "prompt": "Как выбрать reasoning effort?", "answer": "Начните с low для рутины. High и max включайте после реального теста задачи.", "chips": ["LOW", "HIGH", "MAX"]},
     "NotificationStack": {"title": "НОВЫЕ СИГНАЛЫ", "notifications": [{"app": "RELEASE", "text": "Доступна новая версия модели"}, {"app": "EVIDENCE", "text": "Pricing page обновлена"}, {"app": "WORKFLOW", "text": "Storyboard готов к preview"}]},
     "CommentThread": {"title": "ОБСУЖДЕНИЕ", "platformLabel": "COMMUNITY THREAD", "comments": [{"author": "Аня", "text": "Проверила на своём кейсе — вывод сходится."}, {"author": "Илья", "text": "А где смотреть актуальный тариф?"}, {"author": "LLM Hubs", "text": "В release note и pricing page."}]},
     "PollResult": {"title": "КАК ВЫ ВЫБИРАЕТЕ МОДЕЛЬ?", "question": "Главный критерий", "options": [{"label": "Тест на workload", "value": 68}, {"label": "Только list price", "value": 32}]},
@@ -418,4 +419,4 @@ def scene_for(
 
 __all__ = ["DEMO_PROPS", "TEXT_ONLY", "MODELS", "props_for", "scene_for",
            "suggested_duration", "SAMPLE_TITLE", "SAMPLE_TEXT", "SAMPLE_SUB",
-           "PREVIEW_STILL_1", "PREVIEW_STILL_2", "PREVIEW_CLIP"]
+           "PREVIEW_STILL_1", "PREVIEW_STILL_2", "PREVIEW_PROVIDER_AVATAR", "PREVIEW_CLIP"]

@@ -37,11 +37,16 @@ PREVIEW_DIR = REPO / "remotion" / "public" / "preview"
 # starting with http:// through Remotion's staticFile().
 STILL_1 = "preview/demo_1.png"
 STILL_2 = "preview/demo_2.png"
+PROVIDER_AVATAR = "preview/provider_avatar_placeholder.png"
 CLIP = "preview/demo_clip.mp4"
 
-_STILLS: List[Tuple[str, Tuple[int, int, int], Tuple[int, int, int], str]] = [
-    (STILL_1, (18, 32, 58), (31, 122, 90), "КАДР 1"),
-    (STILL_2, (58, 18, 48), (122, 31, 74), "КАДР 2"),
+# Every media-bearing demo must make its replaceable slot explicit. These are
+# deterministic local fixtures rather than stock imagery so an operator never
+# mistakes a preview asset for material that will appear in a real video.
+_STILLS: List[Tuple[str, Tuple[int, int, int], Tuple[int, int, int], str, int, int]] = [
+    (STILL_1, (18, 32, 58), (31, 122, 90), "ВСТАВЬТЕ\nСКРИНШОТ", 1080, 1350),
+    (STILL_2, (58, 18, 48), (122, 31, 74), "ВСТАВЬТЕ\nФОТО ИЛИ ВИДЕО", 1080, 1350),
+    (PROVIDER_AVATAR, (20, 34, 54), (45, 182, 174), "AVATAR\nПРОВАЙДЕРА", 480, 480),
 ]
 
 
@@ -64,9 +69,7 @@ def make_stills() -> List[Path]:
 
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     written: List[Path] = []
-    w, h = 1080, 1350  # 4:5, the shape a phone photo actually arrives in
-
-    for rel, top, band, label in _STILLS:
+    for rel, top, band, label, w, h in _STILLS:
         img = Image.new("RGB", (w, h), top)
         d = ImageDraw.Draw(img)
         # A vertical gradient plus a contrasting band: enough structure that
@@ -82,11 +85,11 @@ def make_stills() -> List[Path]:
                 ),
             )
         d.rectangle([0, h // 2 - 110, w, h // 2 + 110], fill=band)
-        f = _font(120)
-        box = d.textbbox((0, 0), label, font=f)
-        d.text(
+        f = _font(max(36, min(w, h) // 10))
+        box = d.multiline_textbbox((0, 0), label, font=f, align="center", spacing=18)
+        d.multiline_text(
             ((w - (box[2] - box[0])) / 2, (h - (box[3] - box[1])) / 2 - box[1]),
-            label, font=f, fill=(255, 255, 255),
+            label, font=f, fill=(255, 255, 255), align="center", spacing=18,
         )
         out = REPO / "remotion" / "public" / rel
         img.save(out)
@@ -121,6 +124,7 @@ def ensure() -> dict:
     return {
         "still_1": STILL_1,
         "still_2": STILL_2,
+        "provider_avatar": PROVIDER_AVATAR,
         "clip": CLIP,
         "created": made,
         "dir": str(PREVIEW_DIR),
@@ -130,7 +134,7 @@ def ensure() -> dict:
 if __name__ == "__main__":
     info = ensure()
     print(f"preview assets in {info['dir']}")
-    for k in ("still_1", "still_2", "clip"):
+    for k in ("still_1", "still_2", "provider_avatar", "clip"):
         p = REPO / "remotion" / "public" / info[k]
         print(f"  {info[k]:28} {'OK' if p.is_file() else 'MISSING':8} "
               f"{p.stat().st_size if p.is_file() else 0} bytes")

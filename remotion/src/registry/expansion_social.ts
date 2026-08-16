@@ -14,7 +14,7 @@ import {PresetRegistry} from './types';
 
 export const EXPANSION_SOCIAL_PRESETS: PresetRegistry = {
   PromptComposer: {component: PromptComposer, category: 'ui-mock', summary: 'Prompt input composer with typed presentation and send action.', fields: ['prompt', 'provider', 'sendLabel', 'text'], dataDriven: true},
-  ProviderChat: {component: ProviderChat, category: 'ui-mock', summary: 'Provider-branded chat with avatar, prompt, answer and reasoning chips.', fields: ['provider', 'avatarText', 'prompt', 'answer', 'chips', 'title', 'text'], dataDriven: true},
+  ProviderChat: {component: ProviderChat, category: 'ui-mock', summary: 'Provider-branded chat with replaceable avatar, prompt, answer and reasoning chips.', fields: ['provider', 'avatarText', 'avatarUrl', 'prompt', 'answer', 'chips', 'title', 'text'], dataDriven: true},
   NotificationStack: {component: NotificationStack, category: 'ui-mock', summary: 'One-to-three platform-neutral notification overlays.', fields: ['notifications', 'title', 'position'], dataDriven: true},
   CommentThread: {component: CommentThread, category: 'ui-mock', summary: 'Discussion thread for comments, reactions and social proof.', fields: ['comments', 'title', 'platformLabel'], dataDriven: true},
   PollResult: {component: PollResult, category: 'data', summary: 'Poll result bars with labels and percentage values.', fields: ['question', 'options', 'title'], dataDriven: true},
