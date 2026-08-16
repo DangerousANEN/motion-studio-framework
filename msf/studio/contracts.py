@@ -152,6 +152,8 @@ class StoryboardDraft(StudioModel):
     research_id: Optional[str] = None
     script_id: Optional[str] = None
     capability_tier: CapabilityTier = CapabilityTier.PRESET
+    # Compact, operator-visible explanation of semantic/diversity scene selection.
+    selection_summary: Optional[str] = Field(default=None, max_length=1200)
     status: AssetStatus = AssetStatus.DRAFT
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -373,6 +375,14 @@ class ResearchToScriptRequest(StudioModel):
     comparison_models: List[str] = Field(default_factory=list, max_length=3)
     visual_evidence_mode: Optional[Literal["code_test", "ui_build", "game_build", "data_viz", "research_answer", "incident", "safety_failure"]] = None
     require_observed_comparison: bool = False
+    # Scene selection is semantic-first but must not collapse an entire channel
+    # into the same comfortable five presets. These settings are exposed in Studio
+    # and persist only as operator defaults for future drafts.
+    scene_diversity: Literal["balanced", "high", "strict"] = "high"
+    avoid_recent_scenes: bool = True
+    recent_scene_window: int = Field(default=4, ge=0, le=20)
+    # Text/UI surfaces are never allowed to opt into continuous scale pulses.
+    motion_safety: Literal["calm", "standard"] = "calm"
 
 
 class ComparisonProof(StudioModel):

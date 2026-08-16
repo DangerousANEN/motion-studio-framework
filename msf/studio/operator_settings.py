@@ -21,6 +21,7 @@ _ALLOWED = {
     "default_comparison_mode", "default_comparison_models", "default_visual_evidence_mode",
     "default_require_observed_comparison", "default_duration_seconds", "default_fps",
     "default_music_volume", "default_sfx_volume", "default_auto_subtitles",
+    "default_scene_diversity", "default_avoid_recent_scenes", "default_recent_scene_window",
 }
 _DEFAULTS: dict[str, Any] = {
     "default_voice": None,
@@ -46,6 +47,9 @@ _DEFAULTS: dict[str, Any] = {
     "default_music_volume": 0.22,
     "default_sfx_volume": 0.55,
     "default_auto_subtitles": True,
+    "default_scene_diversity": "high",
+    "default_avoid_recent_scenes": True,
+    "default_recent_scene_window": 4,
 }
 
 

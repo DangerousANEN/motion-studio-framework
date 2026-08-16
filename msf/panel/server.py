@@ -1891,6 +1891,10 @@ class StudioResearchToScriptPayload(BaseModel):
     comparison_models: list[str] = Field(default_factory=list, max_length=3)
     visual_evidence_mode: Optional[str] = None
     require_observed_comparison: bool = False
+    scene_diversity: Literal["balanced", "high", "strict"] = "high"
+    avoid_recent_scenes: bool = True
+    recent_scene_window: int = Field(4, ge=0, le=20)
+    motion_safety: Literal["calm", "standard"] = "calm"
 
 
 _CONTROL_ROOM_NODES = [
@@ -1965,6 +1969,9 @@ class StudioSettingsPatchPayload(BaseModel):
     default_music_volume: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     default_sfx_volume: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     default_auto_subtitles: Optional[bool] = None
+    default_scene_diversity: Optional[Literal["balanced", "high", "strict"]] = None
+    default_avoid_recent_scenes: Optional[bool] = None
+    default_recent_scene_window: Optional[int] = Field(default=None, ge=0, le=20)
 
 
 def _studio_tier(value: str):

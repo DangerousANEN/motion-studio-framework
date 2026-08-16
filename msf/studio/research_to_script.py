@@ -47,6 +47,7 @@ from .contracts import (
 )
 from .research import ResearchQualityError, is_primaryish, validate_research_pack
 from .script_planner import ScriptQualityError, StoryAngle, plan_from_angle
+from .scene_selection import SceneSelectionLedger, policy_from_request, recent_project_presets
 from .storyboard import StoryboardValidator
 
 
@@ -681,11 +682,22 @@ def _style_kit_for(request: ResearchToScriptRequest) -> str:
     return "llm_hubs_neon" if "llm_hubs_neon" in names else sorted(names)[0]
 
 
-def _scene_for_role(role: str, used: set[str]) -> str:
+def _scene_for_role(role: str, used: set[str], selector: SceneSelectionLedger | None = None) -> str:
+    # Presets with required structured fields may be used only by the specialised
+    # comparison path below. Everything else needs to be renderable from a script
+    # line alone, including safe data-driven scenes with renderer fallbacks.
+    candidates = [
+        manifest for manifest in all_scenes(tier=CapabilityTier.PRESET)
+        if manifest.name not in used and not manifest.required_data_hints
+    ]
+    if selector is not None:
+        try:
+            return selector.choose(role, candidates)
+        except ValueError as exc:
+            raise ResearchToScriptError(f"live scene catalog has no unused safe preset for role {role!r}") from exc
+    # Compatibility fallback for older direct callers.
     matches = []
-    for manifest in all_scenes(tier=CapabilityTier.PRESET):
-        if manifest.name in used or manifest.data_driven:
-            continue
+    for manifest in candidates:
         tags = {item.lower() for item in manifest.intent_tags}
         score = 5 if role in tags else 0
         score += 2 if (role == "hook" and ("launch" in tags or "announcement" in tags)) else 0
@@ -726,13 +738,27 @@ def _comparison_scene_props(preset: str, proof: ComparisonProof) -> dict[str, An
     return {}
 
 
-def _scene_for_comparison_intent(intent: str, used: set[str], manifests: Mapping[str, Any]) -> str:
-    for name in _COMPARISON_SCENE_PREFERENCES.get(intent, ()):
-        manifest = manifests.get(name)
-        if manifest is not None and name not in used and (not manifest.data_driven or name in _COMPARISON_DATA_SCENES):
-            return name
+def _scene_for_comparison_intent(intent: str, used: set[str], manifests: Mapping[str, Any], selector: SceneSelectionLedger | None = None) -> str:
+    # Curated comparison screens are valid only when their specialised props are
+    # available. If a recent project used one, let the semantic selector prefer a
+    # different safe grammar before falling back to the familiar screen.
     role = {"comparison_hook": "hook", "comparison_setup": "evidence", "comparison_result": "proof", "comparison_caveat": "takeaway"}.get(intent, "explanation")
-    return _scene_for_role(role, used)
+    preferred = [
+        manifests[name] for name in _COMPARISON_SCENE_PREFERENCES.get(intent, ())
+        if name in manifests and name not in used
+        and (not manifests[name].required_data_hints or name in _COMPARISON_DATA_SCENES)
+    ]
+    if selector is not None:
+        safe = [manifest for manifest in manifests.values() if manifest.name not in used and not manifest.required_data_hints]
+        candidates = preferred + [manifest for manifest in safe if manifest.name not in {item.name for item in preferred}]
+        try:
+            return selector.choose(role, candidates)
+        except ValueError:
+            pass
+    for manifest in preferred:
+        if not manifest.data_driven or manifest.name in _COMPARISON_DATA_SCENES:
+            return manifest.name
+    return _scene_for_role(role, used, selector)
 
 
 def _storyboard_from_script(
@@ -745,10 +771,12 @@ def _storyboard_from_script(
     style = _style_kit_for(request)
     used: set[str] = set()
     roles = {"hook": "hook", "fact": "evidence", "interpretation": "proof", "instruction": "takeaway", "cta": "cta"}
+    recent = recent_project_presets(request.project_id, window=request.recent_scene_window) if request.avoid_recent_scenes else set()
+    selector = SceneSelectionLedger(policy=policy_from_request(request), recent_presets=recent)
     scenes: list[StoryboardScene] = []
     manifests = {item.name: item for item in all_scenes(tier=CapabilityTier.PRESET)}
     for line in script.lines:
-        preset = _scene_for_comparison_intent(line.scene_intent, used, manifests) if comparison_proof else _scene_for_role(roles.get(line.kind, "explanation"), used)
+        preset = _scene_for_comparison_intent(line.scene_intent, used, manifests, selector) if comparison_proof else _scene_for_role(roles.get(line.kind, "explanation"), used, selector)
         used.add(preset)
         manifest = manifests[preset]
         text = (line.on_screen_text or line.narration).strip()
@@ -783,6 +811,9 @@ def _storyboard_from_script(
         raise ResearchToScriptError("generated storyboard repeats a scene preset")
     if {scene.style_kit for scene in scenes} != {style}:
         raise ResearchToScriptError("generated storyboard must use exactly one style family")
+    # This trace is intentionally compact and human-readable; Scenario Lab exposes
+    # it as a warning/status rather than hiding selection policy behind an LLM.
+    draft = draft.model_copy(update={"selection_summary": selector.summary()})
     return draft
 
 

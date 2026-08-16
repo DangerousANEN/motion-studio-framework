@@ -177,7 +177,9 @@ export const DecisionGrid: React.FC<BaseSceneProps> = (props) => {
   const { width, height, fps } = useVideoConfig();
   const safe = getSafeArea(width, height, props.safeArea ?? 'platform');
   const { theme, fonts, accent } = useStyle();
-  const animate = resolveMotion(props.motion ?? props.intensity, fps, 'reveal');
+  // Decision cards are reading surfaces. Do not inherit the scene's scale-capable
+  // motion preset: a card may enter once, then its typography must be pixel-stable.
+  const cardRevealFrames = Math.max(18, Math.round(fps * 0.58));
   const options = (Array.isArray(cards) && cards.length > 0 ? cards : [
     { tag: 'ЛОКАЛЬНО', title: 'Ollama', description: 'Когда важны приватность и контроль' },
     { tag: 'API', title: 'Free tier', description: 'Когда нужен быстрый эксперимент' },
@@ -195,13 +197,13 @@ export const DecisionGrid: React.FC<BaseSceneProps> = (props) => {
         <div style={{ color: theme.text, fontFamily: fonts.display, fontSize: Math.round(height * 0.040), fontWeight: 900, lineHeight: 1.06, maxWidth: safe.width }}>{title || 'Выберите подходящий режим'}</div>
         <div style={{ marginTop: Math.round(height * 0.05), display: 'flex', flexWrap: 'wrap', gap, alignContent: 'center' }}>
           {options.map((option, index) => {
-            const delay = index * Math.round(fps * 0.12);
-            // Explicitly stabilize every transform channel. Cards may enter once,
-            // but must never keep scaling while viewers read their copy.
-            const progress = clamp01(animate(frame - delay, 0, 1));
+            const delay = index * Math.round(fps * 0.16);
+            // An explicit monotonic entrance prevents scale-up/scale-down pulses
+            // even when a parent scene receives an aggressive motion setting.
+            const progress = clamp01((frame - delay) / cardRevealFrames);
             const highlight = index === 0;
             return (
-              <div key={`${option.title}-${index}`} style={{ width: cardWidth, height: cardHeight, borderRadius: Math.round(width * 0.026), border: `2px solid ${highlight ? accent : `${theme.muted}66`}`, background: highlight ? `${accent}16` : `${theme.surface}DD`, padding: Math.round(width * 0.032), boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: progress, transform: `translateY(${Math.round((1 - progress) * height * 0.028)}px)`, willChange: 'transform, opacity' }}>
+              <div key={`${option.title}-${index}`} style={{ width: cardWidth, height: cardHeight, borderRadius: Math.round(width * 0.026), border: `2px solid ${highlight ? accent : `${theme.muted}66`}`, background: highlight ? `${accent}16` : `${theme.surface}DD`, padding: Math.round(width * 0.032), boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: progress, transform: `translate3d(0, ${Math.round((1 - progress) * height * 0.024)}px, 0)`, willChange: progress < 1 ? 'transform, opacity' : 'auto' }}>
                 <div style={{ color: highlight ? accent : theme.muted, fontFamily: fonts.display, fontSize: Math.round(height * 0.017), fontWeight: 900, letterSpacing: Math.round(width * 0.002), textTransform: 'uppercase' }}>{option.tag || `Вариант ${index + 1}`}</div>
                 <div>
                   <div style={{ color: theme.text, fontFamily: fonts.display, fontSize: Math.round(height * 0.032), fontWeight: 900, lineHeight: 1.05, overflowWrap: 'break-word' }}>{option.title}</div>
