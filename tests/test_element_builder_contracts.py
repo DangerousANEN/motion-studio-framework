@@ -135,3 +135,48 @@ def test_universal_3d_graph_registers_recipe_in_isolated_path(tmp_path: Path, mo
     stored = json.loads(recipes.read_text(encoding="utf-8"))
     assert stored["OrbitSignalField"]["kind"] == "universal_3d_graph"
     assert stored["OrbitSignalField"]["graph"]["nodes"][1]["children"][0]["type"] == "torus"
+
+
+def test_universal_3d_graph_resolves_image_resource(monkeypatch: pytest.MonkeyPatch) -> None:
+    from msf.studio.contracts import ProjectMedia
+
+    asset = ProjectMedia(
+        asset_id="media_0123456789abcdef0123456789abcdef",
+        project_id="default",
+        kind="image",
+        role="supporting_image",
+        display_name="texture.png",
+        mime_type="image/png",
+        relative_uri="/api/studio/projects/default/media/media_0123456789abcdef0123456789abcdef",
+    )
+    monkeypatch.setattr(
+        "msf.studio.project_resources.find_media",
+        lambda project_id, asset_id: (asset, Path("/tmp/texture.png")),
+    )
+    graph = _universal_graph()
+    graph["nodes"][0]["resourceId"] = asset.asset_id
+    resolved = server._resolve_universal_3d_resources(server._validate_universal_3d_graph(graph), "default")
+    assert resolved["nodes"][0]["textureUrl"].startswith("http://127.0.0.1:8765/api/studio/projects/")
+    assert resolved["nodes"][0]["textureResource"]["role"] == "supporting_image"
+
+
+def test_universal_3d_graph_rejects_audio_texture_resource(monkeypatch: pytest.MonkeyPatch) -> None:
+    from msf.studio.contracts import ProjectMedia
+
+    asset = ProjectMedia(
+        asset_id="media_abcdefabcdefabcdefabcdefabcdefab",
+        project_id="default",
+        kind="audio",
+        role="sound_effect",
+        display_name="ding.wav",
+        mime_type="audio/wav",
+        relative_uri="/api/studio/projects/default/media/media_abcdefabcdefabcdefabcdefabcdefab",
+    )
+    monkeypatch.setattr(
+        "msf.studio.project_resources.find_media",
+        lambda project_id, asset_id: (asset, Path("/tmp/ding.wav")),
+    )
+    graph = _universal_graph()
+    graph["nodes"][0]["resourceId"] = asset.asset_id
+    with pytest.raises(Exception, match="image or video"):
+        server._resolve_universal_3d_resources(server._validate_universal_3d_graph(graph), "default")

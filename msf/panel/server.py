@@ -69,7 +69,7 @@ app = FastAPI(title="MSF Control Panel", version="1.0")
 # Same-origin in normal use; permissive only for localhost dev tooling.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
+    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765", "http://127.0.0.1:3000", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -835,6 +835,7 @@ class Universal3DGraphRequest(BaseModel):
     name: str = Field(min_length=2, max_length=64, pattern=r"^[A-Z][A-Za-z0-9]+$")
     summary: str = Field(min_length=12, max_length=240)
     style_id: str = Field(default="llm_hubs_neon", min_length=2, max_length=80)
+    project_id: str = Field(default="default", min_length=1, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
     graph: Dict[str, Any]
 
 
@@ -842,6 +843,7 @@ _UNIVERSAL_3D_RECIPES = _ELEMENT_BUILDER_ROOT / "universal_3d_recipes.json"
 _UNIVERSAL_3D_TYPES = {"box", "sphere", "torus", "cylinder", "cone", "plane", "octahedron", "icosahedron", "line", "asset", "group"}
 _UNIVERSAL_3D_MAX_NODES = 128
 _UNIVERSAL_3D_MAX_DEPTH = 8
+_UNIVERSAL_3D_RESOURCE_ID = re.compile(r"media_[0-9a-f]{32}$")
 
 
 def _validate_universal_3d_graph(graph: Dict[str, Any]) -> Dict[str, Any]:
@@ -875,6 +877,15 @@ def _validate_universal_3d_graph(graph: Dict[str, Any]) -> Dict[str, Any]:
                     raise HTTPException(422, f"3D {key} must be a numeric Vec3")
             if node.get("type") == "asset" and not isinstance(node.get("assetUrl"), str):
                 raise HTTPException(422, "asset node requires assetUrl")
+            if "resourceId" in node and (not isinstance(node.get("resourceId"), str) or not _UNIVERSAL_3D_RESOURCE_ID.fullmatch(str(node.get("resourceId")))):
+                raise HTTPException(422, "texture resourceId must be a ProjectMedia asset id")
+            if "textureUrl" in node:
+                texture_url = str(node.get("textureUrl"))
+                allowed_texture_prefixes = ("/api/studio/projects/", "http://127.0.0.1:8765/api/studio/projects/", "http://localhost:8765/api/studio/projects/")
+                if not isinstance(node.get("textureUrl"), str) or not texture_url.startswith(allowed_texture_prefixes):
+                    raise HTTPException(422, "textureUrl must be a validated Studio media URI")
+            if node.get("textureFit") is not None and node.get("textureFit") not in {"cover", "contain", "stretch"}:
+                raise HTTPException(422, "textureFit must be cover, contain or stretch")
             visit(node.get("children", []), depth + 1)
     visit(nodes, 0)
     clean = dict(graph)
@@ -882,10 +893,35 @@ def _validate_universal_3d_graph(graph: Dict[str, Any]) -> Dict[str, Any]:
     return clean
 
 
+def _resolve_universal_3d_resources(graph: Dict[str, Any], project_id: str) -> Dict[str, Any]:
+    """Resolve typed ProjectMedia image/video ids to safe same-origin URIs."""
+    from msf.studio.project_resources import ProjectResourceError, find_media
+
+    resolved = json.loads(json.dumps(graph))
+    def visit(items: list[dict[str, Any]]) -> None:
+        for node in items:
+            resource_id = node.get("resourceId")
+            if resource_id:
+                try:
+                    media, _ = find_media(project_id, str(resource_id))
+                except ProjectResourceError as exc:
+                    raise HTTPException(422, str(exc)) from exc
+                if media.kind not in {"image", "video"}:
+                    raise HTTPException(422, "3D textures require an image or video ProjectMedia resource")
+                if media.kind == "video":
+                    raise HTTPException(422, "video textures are not enabled yet; use an image resource")
+                panel_origin = os.getenv("MSF_PANEL_ORIGIN", "http://127.0.0.1:8765").rstrip("/")
+                node["textureUrl"] = f"{panel_origin}{media.relative_uri}"
+                node["textureResource"] = {"asset_id": media.asset_id, "role": media.role, "display_name": media.display_name}
+            visit(node.get("children", []))
+    visit(resolved["nodes"])
+    return resolved
+
+
 @app.post("/api/studio/element-builder/3d/preview")
 def api_builder_3d_preview(req: Universal3DGraphRequest) -> Dict[str, Any]:
     _require_style_ids([req.style_id])
-    graph = _validate_universal_3d_graph(req.graph)
+    graph = _resolve_universal_3d_resources(_validate_universal_3d_graph(req.graph), req.project_id)
     preview = ScenePreviewRequest(preset="Universal3DGraph", style=req.style_id, demo_props=False, scale=0.36, duration_frames=180, props={"title": req.name, "graph": graph})
     payload = api_preview_scene(preview)
     payload.update({"mode": "universal_3d_graph_preview", "name": req.name, "summary": req.summary, "node_count": len(graph["nodes"])})
@@ -895,7 +931,7 @@ def api_builder_3d_preview(req: Universal3DGraphRequest) -> Dict[str, Any]:
 @app.post("/api/studio/element-builder/3d/motion")
 def api_builder_3d_motion(req: Universal3DGraphRequest) -> Dict[str, Any]:
     _require_style_ids([req.style_id])
-    graph = _validate_universal_3d_graph(req.graph)
+    graph = _resolve_universal_3d_resources(_validate_universal_3d_graph(req.graph), req.project_id)
     preview = SceneClipRequest(preset="Universal3DGraph", style=req.style_id, demo_props=False, scale=0.36, duration_frames=180, to_frame=150, props={"title": req.name, "graph": graph})
     payload = api_preview_clip(preview)
     payload.update({"mode": "universal_3d_graph_motion", "name": req.name, "node_count": len(graph["nodes"])})
@@ -904,7 +940,7 @@ def api_builder_3d_motion(req: Universal3DGraphRequest) -> Dict[str, Any]:
 
 @app.post("/api/studio/element-builder/3d/register")
 def api_builder_3d_register(req: Universal3DGraphRequest) -> Dict[str, Any]:
-    graph = _validate_universal_3d_graph(req.graph)
+    graph = _resolve_universal_3d_resources(_validate_universal_3d_graph(req.graph), req.project_id)
     _require_style_ids([req.style_id])
     recipe = {"kind": "universal_3d_graph", "name": req.name, "summary": req.summary.strip(), "style_id": req.style_id, "graph": graph, "verification": ["Review still and MP4 previews", "Run Remotion TypeScript and representative render QA", "Promote only after asset licenses and safe-area checks"]}
     _save_recipe(_UNIVERSAL_3D_RECIPES, req.name, recipe)
@@ -1551,7 +1587,7 @@ def api_project_media_file(project_id: str, asset_id: str) -> FileResponse:
         asset, path = find_media(project_id, asset_id)
     except ProjectResourceError as exc:
         raise HTTPException(404, str(exc)) from exc
-    return FileResponse(path, media_type=asset.mime_type, filename=asset.display_name)
+    return FileResponse(path, media_type=asset.mime_type, filename=asset.display_name, content_disposition_type="inline")
 
 
 @app.delete("/api/studio/projects/{project_id}/media/{asset_id}")

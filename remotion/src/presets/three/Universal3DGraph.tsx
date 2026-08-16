@@ -3,6 +3,7 @@ import {ThreeCanvas} from '@remotion/three';
 import {useCurrentFrame, useVideoConfig, interpolate} from 'remotion';
 import * as THREE from 'three';
 import {AssetMesh, useAssetScene} from './Universal3D';
+import {useTexture} from '@react-three/drei';
 import {BaseSceneProps} from '../../VideoSpec.schema';
 
 type Vec3 = [number, number, number];
@@ -22,6 +23,12 @@ export type Universal3DNode = {
   wireframe?: boolean;
   args?: number[];
   assetUrl?: string;
+  /** Resolved by the Studio API from a typed ProjectMedia asset_id. */
+  resourceId?: string;
+  /** Same-origin URL emitted by the Studio API after resource validation. */
+  textureUrl?: string;
+  textureFit?: 'cover' | 'contain' | 'stretch';
+  doubleSided?: boolean;
   children?: Universal3DNode[];
   motion?: {
     from?: Partial<Pick<Universal3DNode, 'position' | 'rotation' | 'scale'>>;
@@ -56,7 +63,29 @@ function motionValue(node: Universal3DNode, frame: number, duration: number, key
   return lerpVec(v(m.from[key], fallback), v(m.to[key], fallback), ease(t, m.ease));
 }
 
-const Material: React.FC<{node: Universal3DNode}> = ({node}) => <meshStandardMaterial color={node.color || '#7c8cff'} emissive={node.emissive || '#000000'} emissiveIntensity={node.emissive ? .35 : 0} metalness={clamp(Number(node.metalness ?? .2), 0, 1)} roughness={clamp(Number(node.roughness ?? .45), .04, 1)} transparent={Number(node.opacity ?? 1) < 1} opacity={clamp(Number(node.opacity ?? 1), 0, 1)} wireframe={Boolean(node.wireframe)} />;
+const materialProps = (node: Universal3DNode) => ({
+  color: node.color || '#7c8cff',
+  emissive: node.emissive || '#000000',
+  emissiveIntensity: node.emissive ? .35 : 0,
+  metalness: clamp(Number(node.metalness ?? .2), 0, 1),
+  roughness: clamp(Number(node.roughness ?? .45), .04, 1),
+  transparent: Number(node.opacity ?? 1) < 1,
+  opacity: clamp(Number(node.opacity ?? 1), 0, 1),
+  wireframe: Boolean(node.wireframe),
+  side: node.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+});
+
+const TexturedMaterial: React.FC<{node: Universal3DNode; url: string}> = ({node, url}) => {
+  const texture = useTexture(url);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return <meshStandardMaterial {...materialProps(node)} map={texture} />;
+};
+
+const Material: React.FC<{node: Universal3DNode}> = ({node}) => node.textureUrl
+  ? <TexturedMaterial node={node} url={node.textureUrl} />
+  : <meshStandardMaterial {...materialProps(node)} />;
 
 const PrimitiveMesh: React.FC<{node: Universal3DNode; frame: number; duration: number}> = ({node, frame, duration}) => {
   const position = motionValue(node, frame, duration, 'position', [0, 0, 0]);
@@ -76,7 +105,7 @@ const PrimitiveMesh: React.FC<{node: Universal3DNode; frame: number; duration: n
   else if (node.type === 'icosahedron') geometry = <icosahedronGeometry args={[args[0] || 1, args[1] || 1]} />;
   else if (node.type === 'line') geometry = <boxGeometry args={[args[0] || 3, args[1] || .025, args[2] || .025]} />;
   else geometry = <boxGeometry args={[args[0] || 1, args[1] || 1, args[2] || 1]} />;
-  return <mesh {...common}><>{geometry}</><Material node={node} /></mesh>;
+  return <mesh {...common}><>{geometry}</>{node.textureUrl ? <TexturedMaterial node={node} url={node.textureUrl} /> : <Material node={node} />}</mesh>;
 };
 
 const AssetNode: React.FC<{node: Universal3DNode; common: {position: Vec3; rotation: Vec3; scale: Vec3}}> = ({node, common}) => { const scene = useAssetScene(node.assetUrl); return <group {...common}>{scene ? <AssetMesh scene={scene} material={node.wireframe ? 'wireframe' : 'original'} accent={node.color || '#7c8cff'} /> : <mesh><icosahedronGeometry args={[1.2, 2]} /><Material node={{...node, color: node.color || '#7c8cff'}} /></mesh>}</group>; };

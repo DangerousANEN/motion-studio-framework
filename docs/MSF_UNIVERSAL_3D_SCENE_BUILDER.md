@@ -46,3 +46,11 @@ Motion задаётся декларативно через `from`, `to`, `start
 ## Production checklist
 
 Проверьте уникальность node IDs, отсутствие объектов за safe area, достаточное освещение, читаемость 3D текста/подписей в overlay, размер GLB/glTF, наличие лицензии и attribution, отсутствие внешнего live fetch, стабильность motion на начале/середине/конце ролика и отсутствие чрезмерного WebGL render cost. Для пользовательского агента следует предпочитать существующий preset, если новая сцена не требует уникальной spatial composition.
+
+## Отдельные изображения и текстуры
+
+Изображение добавляется сначала в **Resources** с одной из image-compatible ролей, например `supporting_image`, `hero_image`, `channel_avatar`, `provider_avatar` или `screen_recording`. В Element Builder выберите этот файл в поле **Изображение/текстура из Resources** и нажмите **Применить к 3D node**. Builder добавит в graph typed `resourceId`; прямые filesystem paths запрещены.
+
+Resource можно назначить primitive node типа `plane`, `box`, `sphere`, `cylinder`, `cone`, `torus`, `octahedron` или `icosahedron`. Для still и motion preview Studio разрешает только зарегистрированный ProjectMedia image resource и сам резолвит его в локальный same-origin URL, доступный Remotion renderer. Неразрешённые paths, audio resources и отсутствующие assets блокируются до рендера.
+
+Встроенные материалы GLB/glTF продолжают работать через `asset` node. Для видеофайлов как animated texture пока используется обычный `video_insert`/screen scene; video texture в Universal3DGraph намеренно не включён до отдельной deterministic frame-sampling реализации.

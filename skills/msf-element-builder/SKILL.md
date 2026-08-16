@@ -90,3 +90,11 @@ Overlay — самостоятельная категория элементов
 Capability policy: слабый агент выбирает существующий template и изменяет safe values; curated agent может менять node topology только внутри разрешённых primitives; сильный агент проектирует полный graph, но обязан пройти still preview, motion preview, safe-area/readability check и representative render. Registered recipe не считается production-approved до TypeScript check, catalog/registry verification и code review.
 
 Для 3D QA проверяй кадры в начале, середине и конце motion, visibility каждой spatial layer, clipping, camera framing, lighting, contrast, render duration и MP4 playback. Если graph не требует уникальной композиции, предпочитай готовый production preset.
+
+## Image textures in 3D graphs
+
+Добавляй отдельное изображение сначала через Project Resources с image-compatible role. В graph используй `resourceId`, а не filesystem path и не произвольный URL. Допустимые target nodes: `plane`, `box`, `sphere`, `cylinder`, `cone`, `torus`, `octahedron` и `icosahedron`; назначай `doubleSided: true` для карточек/экранов, которым нужна видимость с обеих сторон.
+
+Перед preview проверь, что resource существует в том же `project_id`, его kind равен `image`, а роли и caption понятны оператору. Studio API резолвит resourceId в локальный validated media URI и только затем передаёт textureUrl в Remotion. Не отправляй `textureUrl` наружу напрямую, не используй audio/document assets и не передавай filesystem paths.
+
+Сделай still preview и motion preview. В QA проверь цветовое пространство изображения, framing/crop, aspect ratio plane, visibility в начале/середине/конце движения, safe area, readable overlays поверх texture и отсутствие renderer network/CORS errors. Video textures не считай поддержанными: для видео используй screen/video scene до появления отдельного deterministic frame-sampling contract.
