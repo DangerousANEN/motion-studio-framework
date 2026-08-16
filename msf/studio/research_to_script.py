@@ -211,21 +211,45 @@ class OpenAIResearchLLM:
                 "которых нет во входных утверждениях. Hook должен быть коротким и цепляющим."
             )
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            request_kwargs: dict[str, Any] = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
                 ],
-                max_completion_tokens=2200,
-                response_format={
+                "response_format": {
                     "type": "json_schema",
                     "json_schema": {"name": task, "strict": True, "schema": self._schema_for(task)},
                 },
-            )
-            content = response.choices[0].message.content
+            }
+            # GPT-5 consumes hidden reasoning tokens before visible JSON. Keep
+            # reasoning deliberately small for bounded extraction/copy steps and
+            # leave enough visible budget for the strict schema response.
+            if self.model.startswith(("gpt-5", "o-series")):
+                request_kwargs["max_completion_tokens"] = int(os.environ.get("MSF_RESEARCH_MAX_COMPLETION_TOKENS", "5000"))
+                request_kwargs["extra_body"] = {"reasoning": {"effort": os.environ.get("MSF_RESEARCH_REASONING", "minimal")}}
+            elif self.model.startswith("gemini-"):
+                # Gemini uses max_tokens; max_completion_tokens can yield null
+                # content with finish_reason=length on the proxy.
+                request_kwargs["max_tokens"] = int(os.environ.get("MSF_RESEARCH_MAX_TOKENS", "5000"))
+            else:
+                request_kwargs["max_tokens"] = int(os.environ.get("MSF_RESEARCH_MAX_TOKENS", "5000"))
+            response = self.client.chat.completions.create(**request_kwargs)
+            proxy_details = getattr(response, "details", None)
+            proxy_error = getattr(response, "error", None) or getattr(proxy_details, "error", None) or getattr(proxy_details, "message", None)
+            if proxy_error:
+                raise ResearchToScriptError(f"LLM proxy unavailable: {proxy_error}")
+            choice = response.choices[0] if getattr(response, "choices", None) else None
+            message = getattr(choice, "message", None)
+            content = getattr(message, "content", None)
             if not content:
-                raise ResearchToScriptError("LLM returned an empty structured response")
+                finish_reason = getattr(choice, "finish_reason", None)
+                usage = getattr(response, "usage", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                raise ResearchToScriptError(
+                    f"LLM returned an empty structured response (finish_reason={finish_reason}, "
+                    f"completion_tokens={completion_tokens}, model={self.model})"
+                )
             decoded = json.loads(content)
             if not isinstance(decoded, dict):
                 raise ResearchToScriptError("LLM structured response is not an object")

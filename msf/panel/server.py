@@ -44,7 +44,7 @@ import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -1828,6 +1828,23 @@ class StudioSettingsPatchPayload(BaseModel):
     default_research: Optional[bool] = None
     default_music: Optional[bool] = None
     default_sfx: Optional[bool] = None
+    default_content_archetype: Optional[str] = Field(default=None, pattern=r"^(auto|release|comparison|how_to|case_study|cost_saving|incident|myth_fact|explainer|trend)$")
+    default_audience: Optional[str] = Field(default=None, min_length=3, max_length=180)
+    default_cta_handle: Optional[str] = Field(default=None, min_length=2, max_length=80)
+    default_cta_asset: Optional[str] = Field(default=None, min_length=3, max_length=240)
+    default_research_provider: Optional[str] = Field(default=None, pattern=r"^(duckduckgo|searxng)$")
+    default_max_queries: Optional[int] = Field(default=None, ge=1, le=4)
+    default_max_sources: Optional[int] = Field(default=None, ge=2, le=12)
+    default_community_proof_mode: Optional[str] = Field(default=None, pattern=r"^(off|discover)$")
+    default_comparison_mode: Optional[str] = Field(default=None, pattern=r"^(none|observed|proposed)$")
+    default_comparison_models: Optional[list[str]] = Field(default=None, max_length=3)
+    default_visual_evidence_mode: Optional[str] = Field(default=None, pattern=r"^(code_test|ui_build|game_build|data_viz|research_answer|incident|safety_failure)$")
+    default_require_observed_comparison: Optional[bool] = None
+    default_duration_seconds: Optional[int] = Field(default=None, ge=10, le=180)
+    default_fps: Optional[Literal[24, 25, 30, 60]] = None
+    default_music_volume: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    default_sfx_volume: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    default_auto_subtitles: Optional[bool] = None
 
 
 def _studio_tier(value: str):
